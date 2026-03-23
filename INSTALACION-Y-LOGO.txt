@@ -1,0 +1,12 @@
+CAMBIOS REALIZADOS
+
+1) Se agregó el logo faltante en img/logo.png
+2) Se generaron iconos PWA en icons/icon-192.png y icons/icon-512.png
+3) Se corrigió el manifest para instalación
+4) Se agregó el registro del service worker en index.html
+5) Se actualizó el cache del service worker
+
+IMPORTANTE
+- En GitHub Pages, la opción de instalar puede tardar una recarga en aparecer.
+- Si no aparece al primer intento, hacé Ctrl+F5 o cerrá y abrí la página.
+- Probá en Chrome o Edge.
