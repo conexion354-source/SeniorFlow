@@ -1,0 +1,23 @@
+{
+  "name": "Mundo Led Control Pro",
+  "short_name": "Mundo Led",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#21b9d6",
+  "description": "Sistema interno para ventas, caja, stock, cuentas corrientes, presupuestos y usuarios.",
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
