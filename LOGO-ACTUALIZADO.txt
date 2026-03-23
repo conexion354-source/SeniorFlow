@@ -1,5 +1,0 @@
-Se actualizó el logo del sistema y del presupuesto con el logo oficial de Mundo Led enviado por el usuario.
-También se regeneraron los iconos de instalación de la app (PWA):
-- icons/icon-192.png
-- icons/icon-512.png
-- img/logo.png
