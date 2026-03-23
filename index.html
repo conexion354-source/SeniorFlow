@@ -3,49 +3,69 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <title>Mundo Led Control</title>
 
   <meta name="theme-color" content="#58c9d2" />
-  <meta name="description" content="Sistema de control interno Mundo Led" />
+  <meta name="description" content="Panel interno de control Mundo Led" />
 
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
 
-  <link rel="stylesheet" href="style.css?v=11" />
+  <link rel="stylesheet" href="style.css?v=12" />
 </head>
 
 <body>
 
-<!-- LOGIN -->
+<!-- ================= LOGIN ================= -->
 <section id="loginScreen" class="screen screen-login">
   <div class="login-wrap">
 
+    <div class="login-side">
+      <h1>Mundo Led</h1>
+      <p>Control total del negocio en tiempo real</p>
+    </div>
+
     <div class="login-card">
-      <h2>Mundo Led Control</h2>
+
+      <div class="logo-box">
+        <img src="img/logo.png" class="login-logo" />
+      </div>
+
+      <h2>Ingresar</h2>
 
       <form id="loginForm" class="stack">
         <input id="emailInput" type="email" placeholder="Email" required />
         <input id="passwordInput" type="password" placeholder="Contraseña" required />
 
-        <button type="submit">Ingresar</button>
+        <button type="submit" class="btn btn-primary">
+          Ingresar
+        </button>
       </form>
 
       <p id="loginError" class="error-text"></p>
-    </div>
 
+    </div>
   </div>
 </section>
 
-<!-- APP -->
+<!-- ================= APP ================= -->
 <section id="appScreen" class="screen hidden">
 
+  <!-- SIDEBAR -->
   <aside class="sidebar">
-    <h2>Mundo Led</h2>
-    <p id="userRoleText">Rol: —</p>
 
-    <nav>
-      <button class="nav-btn active" data-view="dashboard">Inicio</button>
+    <div class="brand">
+      <img src="img/logo.png" class="sidebar-logo" />
+      <div>
+        <h2>Mundo Led</h2>
+        <p id="userRoleText">Rol: —</p>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-btn active" data-view="dashboard">Dashboard</button>
       <button class="nav-btn" data-view="ventas">Ventas</button>
       <button class="nav-btn" data-view="gastos">Gastos</button>
       <button class="nav-btn" data-view="stock">Stock</button>
@@ -54,32 +74,44 @@
       <button class="nav-btn admin-only" data-view="usuarios">Usuarios</button>
     </nav>
 
-    <button id="logoutBtn">Cerrar sesión</button>
+    <div class="sidebar-footer">
+      <strong id="userEmailText"></strong>
+      <button id="logoutBtn" class="btn">Cerrar sesión</button>
+    </div>
+
   </aside>
 
-  <main>
+  <!-- MAIN -->
+  <main class="main">
 
-    <h1 id="viewTitle">Dashboard</h1>
-    <span id="todayText"></span>
+    <header class="topbar">
+      <h1 id="viewTitle">Dashboard</h1>
+      <span id="todayText"></span>
+    </header>
 
     <!-- DASHBOARD -->
     <section id="dashboardView" class="view active">
-      <h3>Bienvenido al sistema</h3>
+      <h3>Bienvenido al sistema ✔️</h3>
     </section>
 
     <!-- VENTAS -->
     <section id="ventasView" class="view">
       <h3>Cargar venta</h3>
-      <form id="ventaForm">
+
+      <form id="ventaForm" class="form-grid">
         <input name="fecha" type="date" required />
         <input name="monto" type="number" placeholder="Monto" required />
+
         <select name="metodo">
           <option value="efectivo">Efectivo</option>
           <option value="transferencia">Transferencia</option>
           <option value="tarjeta">Tarjeta</option>
+          <option value="otros">Otros</option>
         </select>
+
         <input name="detalle" placeholder="Detalle" />
-        <button type="submit">Guardar</button>
+
+        <button type="submit">Guardar venta</button>
       </form>
 
       <div id="ventasList"></div>
@@ -88,12 +120,14 @@
     <!-- GASTOS -->
     <section id="gastosView" class="view">
       <h3>Cargar gasto</h3>
-      <form id="gastoForm">
+
+      <form id="gastoForm" class="form-grid">
         <input name="fecha" type="date" required />
         <input name="monto" type="number" required />
         <input name="categoria" placeholder="Categoría" required />
         <input name="detalle" placeholder="Detalle" />
-        <button type="submit">Guardar</button>
+
+        <button type="submit">Guardar gasto</button>
       </form>
 
       <div id="gastosList"></div>
@@ -102,11 +136,14 @@
     <!-- STOCK -->
     <section id="stockView" class="view">
       <h3>Stock</h3>
-      <form id="stockForm">
+
+      <form id="stockForm" class="form-grid">
         <input name="codigo" placeholder="Código" required />
         <input name="nombre" placeholder="Producto" required />
         <input name="stockActual" type="number" placeholder="Stock actual" required />
         <input name="stockMinimo" type="number" placeholder="Stock mínimo" required />
+        <input name="costo" type="number" placeholder="Costo" />
+
         <button type="submit">Guardar</button>
       </form>
 
@@ -116,14 +153,19 @@
     <!-- CUENTAS -->
     <section id="cuentasView" class="view">
       <h3>Cuentas corrientes</h3>
-      <form id="cuentaForm">
+
+      <form id="cuentaForm" class="form-grid">
         <input name="cliente" placeholder="Cliente" required />
         <input name="saldo" type="number" placeholder="Saldo" required />
+
         <select name="estado">
           <option value="aldia">Al día</option>
           <option value="pendiente">Pendiente</option>
           <option value="vencido">Vencido</option>
         </select>
+
+        <input name="detalle" placeholder="Detalle" />
+
         <button type="submit">Guardar</button>
       </form>
 
@@ -132,14 +174,19 @@
 
     <!-- MOVIMIENTOS -->
     <section id="movimientosView" class="view">
-      <h3>Movimientos</h3>
-      <form id="movimientoForm">
+      <h3>Movimientos de caja</h3>
+
+      <form id="movimientoForm" class="form-grid">
         <input name="fecha" type="date" required />
+
         <select name="tipo">
           <option value="ingreso">Ingreso</option>
           <option value="egreso">Egreso</option>
         </select>
+
         <input name="monto" type="number" required />
+        <input name="detalle" placeholder="Detalle" />
+
         <button type="submit">Guardar</button>
       </form>
 
@@ -149,13 +196,17 @@
     <!-- USUARIOS -->
     <section id="usuariosView" class="view">
       <h3>Usuarios</h3>
-      <form id="rolForm">
+
+      <form id="rolForm" class="form-grid">
         <input name="email" type="email" placeholder="Email" required />
+
         <select name="role">
           <option value="admin">Admin</option>
           <option value="ventas">Ventas</option>
+          <option value="stock">Stock</option>
           <option value="consulta">Consulta</option>
         </select>
+
         <button type="submit">Guardar rol</button>
       </form>
 
@@ -166,9 +217,9 @@
 
 </section>
 
-<!-- 🔥 IMPORTANTE: SIN CACHE -->
-<script type="module" src="firebase-config.js?v=11"></script>
-<script type="module" src="app.js?v=11"></script>
+<!-- 🔥 SIN CACHE -->
+<script type="module" src="firebase-config.js?v=12"></script>
+<script type="module" src="app.js?v=12"></script>
 
 </body>
 </html>
