@@ -1,0 +1,1 @@
+Subí todos los archivos. Si el navegador sigue mostrando iconos viejos o no instala, borrá caché del sitio y desinstalá la app vieja antes de volver a abrir la web. En Android/iPhone también podés instalar desde el menú del navegador.
