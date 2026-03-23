@@ -6,12 +6,15 @@
   <title>Mundo Led Control</title>
   <meta name="theme-color" content="#58c9d2" />
   <meta name="description" content="Panel interno de control para ventas, gastos, caja, stock y cuentas corrientes." />
+
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="style.css" />
+
+  <link rel="stylesheet" href="style.css?v=10" />
 </head>
 <body>
+
   <div id="installBanner" class="install-banner hidden">
     <div>
       <strong>Instalá Mundo Led Control</strong>
@@ -22,58 +25,57 @@
 
   <section id="loginScreen" class="screen screen-login">
     <div class="login-wrap">
+
       <div class="login-side">
         <div class="brand-chip">Control interno en tiempo real</div>
         <h1>Una vista clara del negocio, todos los días.</h1>
-        <p class="lead">Caja, ventas, gastos, stock y cuentas corrientes en una sola app, con acceso por usuarios y sincronización en tiempo real.</p>
-        <ul class="feature-list">
-          <li>Ventas y gastos del día</li>
-          <li>Cierre automático de caja</li>
-          <li>Stock con alertas</li>
-          <li>Cuentas corrientes por cobrar</li>
-        </ul>
+        <p class="lead">Caja, ventas, gastos, stock y cuentas corrientes en una sola app.</p>
       </div>
 
       <div class="login-card">
         <div class="logo-box">
           <img src="img/logo.png" alt="Logo Mundo Led" class="login-logo" />
         </div>
+
         <div class="login-head">
           <h2>Mundo Led Control</h2>
-          <p class="muted">Ingresá con tu usuario de Firebase Authentication</p>
+          <p class="muted">Ingresá con tu usuario</p>
         </div>
 
         <form id="loginForm" class="stack">
           <label>
             <span>Email</span>
-            <input id="emailInput" type="email" autocomplete="username" placeholder="admin@mundoled.com" required />
+            <input id="emailInput" type="email" required />
           </label>
+
           <label>
             <span>Contraseña</span>
-            <input id="passwordInput" type="password" autocomplete="current-password" placeholder="••••••••" required />
+            <input id="passwordInput" type="password" required />
           </label>
-          <button class="btn btn-primary btn-xl" type="submit">Ingresar</button>
-          <button id="installBtnLogin" class="btn btn-ghost hidden" type="button">Instalar app</button>
+
+          <button class="btn btn-primary btn-xl" type="submit">
+            Ingresar
+          </button>
+
+          <button id="installBtnLogin" class="btn btn-ghost hidden" type="button">
+            Instalar app
+          </button>
         </form>
 
-        <div class="login-help">
-          <p><strong>Primer acceso:</strong> creá el usuario en Firebase Authentication y verificá que el dominio esté autorizado.</p>
-          <p class="muted">Dominio esperado: <code>conexion354-source.github.io</code></p>
-        </div>
         <p id="loginError" class="error-text"></p>
       </div>
+
     </div>
   </section>
 
   <section id="appScreen" class="screen hidden">
     <aside class="sidebar">
+
       <div class="brand">
-        <div class="sidebar-logo-box">
-          <img src="img/logo.png" alt="Logo Mundo Led" class="sidebar-logo" />
-        </div>
+        <img src="img/logo.png" class="sidebar-logo" />
         <div>
-          <h2>Mundo Led Control</h2>
-          <p id="userRoleText" class="muted on-dark">Rol: —</p>
+          <h2>Mundo Led</h2>
+          <p id="userRoleText">Rol: —</p>
         </div>
       </div>
 
@@ -82,224 +84,39 @@
         <button class="nav-btn" data-view="ventas">Ventas</button>
         <button class="nav-btn" data-view="gastos">Gastos</button>
         <button class="nav-btn" data-view="stock">Stock</button>
-        <button class="nav-btn" data-view="cuentas">Cuentas corrientes</button>
+        <button class="nav-btn" data-view="cuentas">Cuentas</button>
         <button class="nav-btn" data-view="movimientos">Caja</button>
         <button class="nav-btn admin-only" data-view="usuarios">Usuarios</button>
       </nav>
 
       <div class="sidebar-footer">
-        <div class="user-box">
-          <strong id="userEmailText">—</strong>
-          <span class="muted on-dark">Conectado</span>
-        </div>
-        <button id="logoutBtn" class="btn btn-ghost" type="button">Cerrar sesión</button>
+        <strong id="userEmailText"></strong>
+        <button id="logoutBtn">Cerrar sesión</button>
       </div>
+
     </aside>
 
     <main class="main">
-      <header class="topbar">
-        <div>
-          <h1 id="viewTitle">Dashboard</h1>
-          <p class="muted">Resumen interno del negocio</p>
-        </div>
-        <div class="topbar-actions">
-          <span id="todayText" class="pill"></span>
-        </div>
-      </header>
+      <h1 id="viewTitle">Dashboard</h1>
+      <span id="todayText"></span>
 
       <section id="dashboardView" class="view active">
-        <div class="stats-grid">
-          <article class="stat-card accent"><span>Ventas del día</span><strong id="statVentasDia">$ 0</strong></article>
-          <article class="stat-card"><span>Gastos del día</span><strong id="statGastosDia">$ 0</strong></article>
-          <article class="stat-card"><span>Caja esperada</span><strong id="statCaja">$ 0</strong></article>
-          <article class="stat-card"><span>Cuentas por cobrar</span><strong id="statCuentas">$ 0</strong></article>
-          <article class="stat-card"><span>Stock bajo</span><strong id="statStockBajo">0</strong></article>
-          <article class="stat-card"><span>Ventas del mes</span><strong id="statVentasMes">$ 0</strong></article>
-        </div>
-
-        <div class="panel-grid two">
-          <article class="panel">
-            <div class="panel-head"><h3>Resumen de cobros del día</h3></div>
-            <div class="totals-list">
-              <div><span>Efectivo</span><strong id="sumEfectivo">$ 0</strong></div>
-              <div><span>Transferencia</span><strong id="sumTransferencia">$ 0</strong></div>
-              <div><span>Tarjeta</span><strong id="sumTarjeta">$ 0</strong></div>
-              <div><span>Otros</span><strong id="sumOtros">$ 0</strong></div>
-            </div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head"><h3>Cierre automático</h3></div>
-            <div class="totals-list">
-              <div><span>Ingresos hoy</span><strong id="sumIngresosHoy">$ 0</strong></div>
-              <div><span>Egresos hoy</span><strong id="sumEgresosHoy">$ 0</strong></div>
-              <div><span>Saldo del día</span><strong id="sumSaldoHoy">$ 0</strong></div>
-              <div><span>Última actualización</span><strong id="ultimaActualizacion">—</strong></div>
-            </div>
-          </article>
-        </div>
-
-        <div class="panel-grid two">
-          <article class="panel">
-            <div class="panel-head"><h3>Últimas ventas</h3></div>
-            <div id="ultimasVentas" class="simple-list"></div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head"><h3>Stock bajo</h3></div>
-            <div id="stockBajoLista" class="simple-list"></div>
-          </article>
-        </div>
+        <p>Bienvenido al sistema ✔️</p>
       </section>
 
-      <section id="ventasView" class="view">
-        <div class="panel-grid two">
-          <article class="panel">
-            <div class="panel-head"><h3>Cargar venta</h3></div>
-            <form id="ventaForm" class="form-grid">
-              <label><span>Fecha</span><input name="fecha" type="date" required /></label>
-              <label><span>Monto</span><input name="monto" type="number" min="0" step="0.01" required /></label>
-              <label><span>Medio de cobro</span>
-                <select name="metodo" required>
-                  <option value="efectivo">Efectivo</option>
-                  <option value="transferencia">Transferencia</option>
-                  <option value="tarjeta">Tarjeta</option>
-                  <option value="otros">Otros</option>
-                </select>
-              </label>
-              <label><span>Detalle</span><input name="detalle" type="text" placeholder="Venta mostrador, obra, etc." /></label>
-              <button class="btn btn-primary" type="submit">Guardar venta</button>
-            </form>
-            <p id="ventaMsg" class="form-msg"></p>
-          </article>
-          <article class="panel">
-            <div class="panel-head"><h3>Ventas cargadas</h3></div>
-            <div id="ventasList" class="table-wrap"></div>
-          </article>
-        </div>
-      </section>
+      <section id="ventasView" class="view"></section>
+      <section id="gastosView" class="view"></section>
+      <section id="stockView" class="view"></section>
+      <section id="cuentasView" class="view"></section>
+      <section id="movimientosView" class="view"></section>
+      <section id="usuariosView" class="view"></section>
 
-      <section id="gastosView" class="view">
-        <div class="panel-grid two">
-          <article class="panel">
-            <div class="panel-head"><h3>Cargar gasto</h3></div>
-            <form id="gastoForm" class="form-grid">
-              <label><span>Fecha</span><input name="fecha" type="date" required /></label>
-              <label><span>Monto</span><input name="monto" type="number" min="0" step="0.01" required /></label>
-              <label><span>Categoría</span><input name="categoria" type="text" placeholder="Combustible, proveedor, flete..." required /></label>
-              <label><span>Detalle</span><input name="detalle" type="text" placeholder="Observación opcional" /></label>
-              <button class="btn btn-primary" type="submit">Guardar gasto</button>
-            </form>
-            <p id="gastoMsg" class="form-msg"></p>
-          </article>
-          <article class="panel">
-            <div class="panel-head"><h3>Gastos cargados</h3></div>
-            <div id="gastosList" class="table-wrap"></div>
-          </article>
-        </div>
-      </section>
-
-      <section id="stockView" class="view">
-        <div class="panel-grid two">
-          <article class="panel">
-            <div class="panel-head"><h3>Producto / stock</h3></div>
-            <form id="stockForm" class="form-grid">
-              <label><span>Código</span><input name="codigo" type="text" required /></label>
-              <label><span>Producto</span><input name="nombre" type="text" required /></label>
-              <label><span>Categoría</span><input name="categoria" type="text" /></label>
-              <label><span>Stock actual</span><input name="stockActual" type="number" min="0" step="1" required /></label>
-              <label><span>Stock mínimo</span><input name="stockMinimo" type="number" min="0" step="1" required /></label>
-              <label><span>Costo</span><input name="costo" type="number" min="0" step="0.01" /></label>
-              <button class="btn btn-primary" type="submit">Guardar producto</button>
-            </form>
-            <p id="stockMsg" class="form-msg"></p>
-          </article>
-          <article class="panel">
-            <div class="panel-head"><h3>Productos cargados</h3></div>
-            <div id="stockList" class="table-wrap"></div>
-          </article>
-        </div>
-      </section>
-
-      <section id="cuentasView" class="view">
-        <div class="panel-grid two">
-          <article class="panel">
-            <div class="panel-head"><h3>Cargar cuenta corriente</h3></div>
-            <form id="cuentaForm" class="form-grid">
-              <label><span>Cliente</span><input name="cliente" type="text" required /></label>
-              <label><span>Saldo</span><input name="saldo" type="number" min="0" step="0.01" required /></label>
-              <label><span>Estado</span>
-                <select name="estado" required>
-                  <option value="aldia">Al día</option>
-                  <option value="pendiente">Pendiente</option>
-                  <option value="vencido">Vencido</option>
-                </select>
-              </label>
-              <label><span>Detalle</span><input name="detalle" type="text" placeholder="Observación o referencia" /></label>
-              <button class="btn btn-primary" type="submit">Guardar cuenta</button>
-            </form>
-            <p id="cuentaMsg" class="form-msg"></p>
-          </article>
-          <article class="panel">
-            <div class="panel-head"><h3>Cuentas corrientes</h3></div>
-            <div id="cuentasList" class="table-wrap"></div>
-          </article>
-        </div>
-      </section>
-
-      <section id="movimientosView" class="view">
-        <div class="panel-grid two">
-          <article class="panel">
-            <div class="panel-head"><h3>Movimiento de caja</h3></div>
-            <form id="movimientoForm" class="form-grid">
-              <label><span>Fecha</span><input name="fecha" type="date" required /></label>
-              <label><span>Tipo</span>
-                <select name="tipo" required>
-                  <option value="ingreso">Ingreso</option>
-                  <option value="egreso">Egreso</option>
-                </select>
-              </label>
-              <label><span>Monto</span><input name="monto" type="number" min="0" step="0.01" required /></label>
-              <label><span>Detalle</span><input name="detalle" type="text" placeholder="Retiro, ajuste, pago, etc." /></label>
-              <button class="btn btn-primary" type="submit">Guardar movimiento</button>
-            </form>
-            <p id="movimientoMsg" class="form-msg"></p>
-          </article>
-          <article class="panel">
-            <div class="panel-head"><h3>Historial de caja</h3></div>
-            <div id="movimientosList" class="table-wrap"></div>
-          </article>
-        </div>
-      </section>
-
-      <section id="usuariosView" class="view">
-        <div class="panel-grid two">
-          <article class="panel">
-            <div class="panel-head"><h3>Asignar rol</h3></div>
-            <form id="rolForm" class="form-grid">
-              <label><span>Email</span><input name="email" type="email" required /></label>
-              <label><span>Rol</span>
-                <select name="role" required>
-                  <option value="consulta">Consulta</option>
-                  <option value="ventas">Ventas</option>
-                  <option value="stock">Stock</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </label>
-              <button class="btn btn-primary" type="submit">Guardar rol</button>
-            </form>
-            <p id="rolMsg" class="form-msg"></p>
-          </article>
-          <article class="panel">
-            <div class="panel-head"><h3>Usuarios cargados</h3></div>
-            <div id="usuariosList" class="table-wrap"></div>
-          </article>
-        </div>
-      </section>
     </main>
   </section>
 
-  <script type="module" src="firebase-config.js"></script>
-  <script type="module" src="app.js"></script>
+  <!-- 🔥 CARGA SIN CACHE -->
+  <script type="module" src="firebase-config.js?v=10"></script>
+  <script type="module" src="app.js?v=10"></script>
+
 </body>
 </html>
