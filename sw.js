@@ -1,4 +1,4 @@
-const CACHE_NAME = "mundo-led-control-pro-v12";
+const CACHE_NAME = "mundo-led-control-pro-v20";
 const ASSETS = [
   "./",
   "./manifest.json",
@@ -31,19 +31,15 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
   const url = new URL(event.request.url);
-
-  // No cachear archivos sensibles o que cambian seguido
-  const shouldBypassCache =
+  const bypass =
     url.pathname.endsWith("/index.html") ||
+    url.pathname.endsWith("/style.css") ||
     url.pathname.endsWith("/app.js") ||
     url.pathname.endsWith("/firebase-config.js") ||
-    url.pathname.endsWith("/style.css") ||
     url.search.includes("v=");
 
-  if (shouldBypassCache) {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
-    );
+  if (bypass) {
+    event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
     return;
   }
 
@@ -52,10 +48,8 @@ self.addEventListener("fetch", (event) => {
       if (cached) return cached;
 
       return fetch(event.request).then((response) => {
-        const responseClone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseClone);
-        });
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         return response;
       });
     })
