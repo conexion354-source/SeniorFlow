@@ -1,25 +1,10 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
-
-/*
-  IMPORTANTE:
-  1) En Firebase > Configuración del proyecto > Tus apps > Web
-  2) Copiá tu bloque firebaseConfig real
-  3) Reemplazá SOLO los valores de abajo
-*/
-
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "PEGA_AQUI_TU_API_KEY",
-  authDomain: "TU_PROYECTO.firebaseapp.com",
-  projectId: "TU_PROYECTO",
-  storageBucket: "TU_PROYECTO.appspot.com",
-  messagingSenderId: "TU_MESSAGING_SENDER_ID",
-  appId: "TU_APP_ID"
+  apiKey: "AIzaSyCm35oVEiiFZr8bNgJZJXQp_6JJqMFSSD4",
+  authDomain: "mundoledcontrol.firebaseapp.com",
+  projectId: "mundoledcontrol",
+  storageBucket: "mundoledcontrol.firebasestorage.app",
+  messagingSenderId: "1058675840412",
+  appId: "1:1058675840412:web:f5f739886abbd7b4fa2459",
+  measurementId: "G-6TYTKKN90Y"
 };
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-export { auth, db };
