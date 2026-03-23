@@ -3,15 +3,16 @@ import { getAuth } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-aut
 import { getFirestore } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "REEMPLAZAR_API_KEY",
-  authDomain: "REEMPLAZAR_AUTH_DOMAIN",
-  projectId: "REEMPLAZAR_PROJECT_ID",
-  storageBucket: "REEMPLAZAR_STORAGE_BUCKET",
-  messagingSenderId: "REEMPLAZAR_MESSAGING_SENDER_ID",
-  appId: "REEMPLAZAR_APP_ID"
+  apiKey: "AIzaSyCm35oVEiiFZr8bNgJZJXQp_6JJqMFSSD4",
+  authDomain: "mundoledcontrol.firebaseapp.com",
+  projectId: "mundoledcontrol",
+  storageBucket: "mundoledcontrol.appspot.com",
+  messagingSenderId: "1058675840412",
+  appId: "1:1058675840412:web:f5f739886abbd7b4fa2459"
 };
 
 const app = initializeApp(firebaseConfig);
+
 const auth = getAuth(app);
 const db = getFirestore(app);
 
