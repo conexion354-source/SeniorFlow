@@ -1,4 +1,3 @@
-
 import { auth, db } from "./firebase-config.js";
 import {
   signInWithEmailAndPassword,
@@ -49,8 +48,14 @@ const els = {
   installBtnLogin: document.getElementById("installBtnLogin")
 };
 
+let unsubscribers = [];
+
 const fmtMoney = (value) =>
-  new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(Number(value || 0));
+  new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    maximumFractionDigits: 0
+  }).format(Number(value || 0));
 
 const todayISO = () => {
   const now = new Date();
@@ -59,7 +64,21 @@ const todayISO = () => {
 };
 
 const todayText = () =>
-  new Date().toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+  new Date().toLocaleDateString("es-AR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric"
+  });
+
+function clearRealtimeListeners() {
+  unsubscribers.forEach((unsub) => {
+    try {
+      unsub();
+    } catch (_) {}
+  });
+  unsubscribers = [];
+}
 
 function setDefaultDates() {
   ["ventaForm", "gastoForm", "movimientoForm"].forEach((id) => {
@@ -77,6 +96,7 @@ function initNavigation() {
       document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
       const section = document.getElementById(`${view}View`);
       if (section) section.classList.add("active");
+
       const titles = {
         dashboard: "Dashboard",
         ventas: "Ventas",
@@ -86,6 +106,7 @@ function initNavigation() {
         movimientos: "Caja",
         usuarios: "Usuarios"
       };
+
       els.viewTitle.textContent = titles[view] || "Panel";
     });
   });
@@ -94,6 +115,7 @@ function initNavigation() {
 function updateRoleUI() {
   const role = state.role;
   els.userRoleText.textContent = `Rol: ${role}`;
+
   document.querySelectorAll(".admin-only").forEach((el) => {
     el.classList.toggle("hidden", role !== "admin");
   });
@@ -112,21 +134,28 @@ function updateRoleUI() {
 
   const currentActive = document.querySelector(".nav-btn.active");
   if (currentActive?.classList.contains("hidden")) {
-    const firstVisible = [...document.querySelectorAll(".nav-btn")].find((btn) => !btn.classList.contains("hidden"));
+    const firstVisible = [...document.querySelectorAll(".nav-btn")].find(
+      (btn) => !btn.classList.contains("hidden")
+    );
     firstVisible?.click();
   }
 }
 
 async function resolveUserRole(user) {
-  const email = user.email?.toLowerCase() || "";
+  const email = (user.email || "").toLowerCase();
+
   if (ADMIN_EMAILS.map((e) => e.toLowerCase()).includes(email)) {
     state.role = "admin";
-    await setDoc(doc(db, "users", user.uid), {
-      uid: user.uid,
-      email: user.email,
-      role: "admin",
-      updatedAt: serverTimestamp()
-    }, { merge: true });
+    await setDoc(
+      doc(db, "users", user.uid),
+      {
+        uid: user.uid,
+        email: user.email,
+        role: "admin",
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
     return;
   }
 
@@ -140,6 +169,7 @@ async function resolveUserRole(user) {
 
   const usersByEmail = await getDocs(query(collection(db, "users")));
   let matched = null;
+
   usersByEmail.forEach((d) => {
     const data = d.data();
     if ((data.email || "").toLowerCase() === email) matched = data;
@@ -147,36 +177,47 @@ async function resolveUserRole(user) {
 
   if (matched) {
     state.role = matched.role || "consulta";
-    await setDoc(userRef, {
-      uid: user.uid,
-      email: user.email,
-      role: state.role,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
+    await setDoc(
+      userRef,
+      {
+        uid: user.uid,
+        email: user.email,
+        role: state.role,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
   } else {
     state.role = "consulta";
-    await setDoc(userRef, {
-      uid: user.uid,
-      email: user.email,
-      role: "consulta",
-      updatedAt: serverTimestamp()
-    }, { merge: true });
+    await setDoc(
+      userRef,
+      {
+        uid: user.uid,
+        email: user.email,
+        role: "consulta",
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
   }
 }
 
 function renderSimpleList(containerId, items, builder, emptyText) {
   const el = document.getElementById(containerId);
   if (!el) return;
+
   if (!items.length) {
     el.innerHTML = `<div class="empty">${emptyText}</div>`;
     return;
   }
+
   el.innerHTML = items.map(builder).join("");
 }
 
 function renderTable(containerId, columns, rows, emptyText, deleteCollection = null) {
   const el = document.getElementById(containerId);
   if (!el) return;
+
   if (!rows.length) {
     el.innerHTML = `<div class="empty">${emptyText}</div>`;
     return;
@@ -185,15 +226,26 @@ function renderTable(containerId, columns, rows, emptyText, deleteCollection = n
   el.innerHTML = `
     <table class="data-table">
       <thead>
-        <tr>${columns.map((c) => `<th>${c.label}</th>`).join("")}${state.role === "admin" ? "<th>Acción</th>" : ""}</tr>
+        <tr>
+          ${columns.map((c) => `<th>${c.label}</th>`).join("")}
+          ${state.role === "admin" ? "<th>Acción</th>" : ""}
+        </tr>
       </thead>
       <tbody>
-        ${rows.map((row) => `
+        ${rows
+          .map(
+            (row) => `
           <tr>
             ${columns.map((c) => `<td>${row[c.key] ?? ""}</td>`).join("")}
-            ${state.role === "admin" && deleteCollection ? `<td><button class="delete-btn" data-collection="${deleteCollection}" data-id="${row.id}">Eliminar</button></td>` : ""}
+            ${
+              state.role === "admin" && deleteCollection
+                ? `<td><button class="delete-btn" data-collection="${deleteCollection}" data-id="${row.id}">Eliminar</button></td>`
+                : ""
+            }
           </tr>
-        `).join("")}
+        `
+          )
+          .join("")}
       </tbody>
     </table>
   `;
@@ -201,10 +253,11 @@ function renderTable(containerId, columns, rows, emptyText, deleteCollection = n
   el.querySelectorAll(".delete-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
       if (!confirm("¿Eliminar este registro?")) return;
+
       try {
         await deleteDoc(doc(db, btn.dataset.collection, btn.dataset.id));
       } catch (error) {
-        alert("No se pudo eliminar: " + error.message);
+        alert("No se pudo eliminar: " + (error.message || error));
       }
     });
   });
@@ -221,13 +274,26 @@ function renderAll() {
   const totalVentasHoy = ventasHoy.reduce((sum, v) => sum + Number(v.monto || 0), 0);
   const totalGastosHoy = gastosHoy.reduce((sum, g) => sum + Number(g.monto || 0), 0);
 
-  const ingresosHoy = movimientosHoy.filter((m) => m.tipo === "ingreso").reduce((sum, m) => sum + Number(m.monto || 0), 0) + totalVentasHoy;
-  const egresosHoy = movimientosHoy.filter((m) => m.tipo === "egreso").reduce((sum, m) => sum + Number(m.monto || 0), 0) + totalGastosHoy;
+  const ingresosHoy =
+    movimientosHoy
+      .filter((m) => m.tipo === "ingreso")
+      .reduce((sum, m) => sum + Number(m.monto || 0), 0) + totalVentasHoy;
+
+  const egresosHoy =
+    movimientosHoy
+      .filter((m) => m.tipo === "egreso")
+      .reduce((sum, m) => sum + Number(m.monto || 0), 0) + totalGastosHoy;
+
   const saldoHoy = ingresosHoy - egresosHoy;
 
-  const totalVentasMes = state.ventas.filter((v) => (v.fecha || "").startsWith(month)).reduce((sum, v) => sum + Number(v.monto || 0), 0);
+  const totalVentasMes = state.ventas
+    .filter((v) => (v.fecha || "").startsWith(month))
+    .reduce((sum, v) => sum + Number(v.monto || 0), 0);
+
   const cuentasPorCobrar = state.cuentas.reduce((sum, c) => sum + Number(c.saldo || 0), 0);
-  const stockBajo = state.stock.filter((p) => Number(p.stockActual || 0) <= Number(p.stockMinimo || 0));
+  const stockBajo = state.stock.filter(
+    (p) => Number(p.stockActual || 0) <= Number(p.stockMinimo || 0)
+  );
 
   document.getElementById("statVentasDia").textContent = fmtMoney(totalVentasHoy);
   document.getElementById("statGastosDia").textContent = fmtMoney(totalGastosHoy);
@@ -237,7 +303,9 @@ function renderAll() {
   document.getElementById("statVentasMes").textContent = fmtMoney(totalVentasMes);
 
   const porMetodo = { efectivo: 0, transferencia: 0, tarjeta: 0, otros: 0 };
-  ventasHoy.forEach((v) => { porMetodo[v.metodo] = (porMetodo[v.metodo] || 0) + Number(v.monto || 0); });
+  ventasHoy.forEach((v) => {
+    porMetodo[v.metodo] = (porMetodo[v.metodo] || 0) + Number(v.monto || 0);
+  });
 
   document.getElementById("sumEfectivo").textContent = fmtMoney(porMetodo.efectivo);
   document.getElementById("sumTransferencia").textContent = fmtMoney(porMetodo.transferencia);
@@ -249,19 +317,24 @@ function renderAll() {
   document.getElementById("sumSaldoHoy").textContent = fmtMoney(saldoHoy);
   document.getElementById("ultimaActualizacion").textContent = new Date().toLocaleTimeString("es-AR");
 
-  renderSimpleList("ultimasVentas",
+  renderSimpleList(
+    "ultimasVentas",
     state.ventas.slice(0, 6),
-    (v) => `<div class="simple-item"><strong>${fmtMoney(v.monto)}</strong><span>${v.metodo} · ${v.fecha}</span><div class="muted">${v.detalle || "Sin detalle"}</div></div>`,
+    (v) =>
+      `<div class="simple-item"><strong>${fmtMoney(v.monto)}</strong><span>${v.metodo} · ${v.fecha}</span><div class="muted">${v.detalle || "Sin detalle"}</div></div>`,
     "Todavía no hay ventas cargadas."
   );
 
-  renderSimpleList("stockBajoLista",
+  renderSimpleList(
+    "stockBajoLista",
     stockBajo.slice(0, 8),
-    (p) => `<div class="simple-item"><strong>${p.nombre}</strong><span>Código ${p.codigo || "-"}</span><div class="muted">Actual: ${p.stockActual} · Mínimo: ${p.stockMinimo}</div></div>`,
+    (p) =>
+      `<div class="simple-item"><strong>${p.nombre}</strong><span>Código ${p.codigo || "-"}</span><div class="muted">Actual: ${p.stockActual} · Mínimo: ${p.stockMinimo}</div></div>`,
     "No hay productos con stock bajo."
   );
 
-  renderTable("ventasList",
+  renderTable(
+    "ventasList",
     [
       { key: "fecha", label: "Fecha" },
       { key: "montoFmt", label: "Monto" },
@@ -273,7 +346,8 @@ function renderAll() {
     "ventas"
   );
 
-  renderTable("gastosList",
+  renderTable(
+    "gastosList",
     [
       { key: "fecha", label: "Fecha" },
       { key: "montoFmt", label: "Monto" },
@@ -285,7 +359,8 @@ function renderAll() {
     "gastos"
   );
 
-  renderTable("stockList",
+  renderTable(
+    "stockList",
     [
       { key: "codigo", label: "Código" },
       { key: "nombre", label: "Producto" },
@@ -299,7 +374,8 @@ function renderAll() {
     "stock"
   );
 
-  renderTable("cuentasList",
+  renderTable(
+    "cuentasList",
     [
       { key: "cliente", label: "Cliente" },
       { key: "saldoFmt", label: "Saldo" },
@@ -313,14 +389,15 @@ function renderAll() {
         c.estado === "vencido"
           ? `<span class="badge danger">Vencido</span>`
           : c.estado === "pendiente"
-          ? `<span class="badge warn">Pendiente</span>`
-          : `<span class="badge">Al día</span>`
+            ? `<span class="badge warn">Pendiente</span>`
+            : `<span class="badge">Al día</span>`
     })),
     "No hay cuentas cargadas.",
     "cuentas_corrientes"
   );
 
-  renderTable("movimientosList",
+  renderTable(
+    "movimientosList",
     [
       { key: "fecha", label: "Fecha" },
       { key: "tipoBadge", label: "Tipo" },
@@ -330,13 +407,17 @@ function renderAll() {
     state.movimientos.map((m) => ({
       ...m,
       montoFmt: fmtMoney(m.monto || 0),
-      tipoBadge: m.tipo === "ingreso" ? `<span class="badge">Ingreso</span>` : `<span class="badge warn">Egreso</span>`
+      tipoBadge:
+        m.tipo === "ingreso"
+          ? `<span class="badge">Ingreso</span>`
+          : `<span class="badge warn">Egreso</span>`
     })),
     "No hay movimientos cargados.",
     "movimientos_caja"
   );
 
-  renderTable("usuariosList",
+  renderTable(
+    "usuariosList",
     [
       { key: "email", label: "Email" },
       { key: "role", label: "Rol" }
@@ -350,123 +431,173 @@ function renderAll() {
 function bindForm(id, handler, msgId) {
   const form = document.getElementById(id);
   if (!form) return;
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const msg = document.getElementById(msgId);
     msg.textContent = "Guardando...";
     const data = Object.fromEntries(new FormData(form).entries());
+
     try {
       await handler(data);
       form.reset();
       if (form.fecha) form.fecha.value = todayISO();
       msg.textContent = "Guardado correctamente.";
     } catch (error) {
-      msg.textContent = "Error: " + error.message;
+      msg.textContent = "Error: " + (error.message || error);
     }
   });
 }
 
 function setupForms() {
-  bindForm("ventaForm", async (data) => {
-    await addDoc(collection(db, "ventas"), {
-      ...data,
-      monto: Number(data.monto || 0),
-      userId: state.currentUser.uid,
-      userEmail: state.currentUser.email,
-      createdAt: serverTimestamp()
-    });
-  }, "ventaMsg");
+  bindForm(
+    "ventaForm",
+    async (data) => {
+      await addDoc(collection(db, "ventas"), {
+        ...data,
+        monto: Number(data.monto || 0),
+        userId: state.currentUser.uid,
+        userEmail: state.currentUser.email,
+        createdAt: serverTimestamp()
+      });
+    },
+    "ventaMsg"
+  );
 
-  bindForm("gastoForm", async (data) => {
-    await addDoc(collection(db, "gastos"), {
-      ...data,
-      monto: Number(data.monto || 0),
-      userId: state.currentUser.uid,
-      userEmail: state.currentUser.email,
-      createdAt: serverTimestamp()
-    });
-  }, "gastoMsg");
+  bindForm(
+    "gastoForm",
+    async (data) => {
+      await addDoc(collection(db, "gastos"), {
+        ...data,
+        monto: Number(data.monto || 0),
+        userId: state.currentUser.uid,
+        userEmail: state.currentUser.email,
+        createdAt: serverTimestamp()
+      });
+    },
+    "gastoMsg"
+  );
 
-  bindForm("stockForm", async (data) => {
-    const id = data.codigo.trim();
-    await setDoc(doc(db, "stock", id), {
-      ...data,
-      stockActual: Number(data.stockActual || 0),
-      stockMinimo: Number(data.stockMinimo || 0),
-      costo: Number(data.costo || 0),
-      userId: state.currentUser.uid,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-  }, "stockMsg");
+  bindForm(
+    "stockForm",
+    async (data) => {
+      const id = data.codigo.trim();
+      await setDoc(
+        doc(db, "stock", id),
+        {
+          ...data,
+          stockActual: Number(data.stockActual || 0),
+          stockMinimo: Number(data.stockMinimo || 0),
+          costo: Number(data.costo || 0),
+          userId: state.currentUser.uid,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+    },
+    "stockMsg"
+  );
 
-  bindForm("cuentaForm", async (data) => {
-    await addDoc(collection(db, "cuentas_corrientes"), {
-      ...data,
-      saldo: Number(data.saldo || 0),
-      userId: state.currentUser.uid,
-      userEmail: state.currentUser.email,
-      createdAt: serverTimestamp()
-    });
-  }, "cuentaMsg");
+  bindForm(
+    "cuentaForm",
+    async (data) => {
+      await addDoc(collection(db, "cuentas_corrientes"), {
+        ...data,
+        saldo: Number(data.saldo || 0),
+        userId: state.currentUser.uid,
+        userEmail: state.currentUser.email,
+        createdAt: serverTimestamp()
+      });
+    },
+    "cuentaMsg"
+  );
 
-  bindForm("movimientoForm", async (data) => {
-    await addDoc(collection(db, "movimientos_caja"), {
-      ...data,
-      monto: Number(data.monto || 0),
-      userId: state.currentUser.uid,
-      userEmail: state.currentUser.email,
-      createdAt: serverTimestamp()
-    });
-  }, "movimientoMsg");
+  bindForm(
+    "movimientoForm",
+    async (data) => {
+      await addDoc(collection(db, "movimientos_caja"), {
+        ...data,
+        monto: Number(data.monto || 0),
+        userId: state.currentUser.uid,
+        userEmail: state.currentUser.email,
+        createdAt: serverTimestamp()
+      });
+    },
+    "movimientoMsg"
+  );
 
-  bindForm("rolForm", async (data) => {
-    const sanitizedId = data.email.trim().toLowerCase().replace(/[^a-z0-9]/g, "_");
-    await setDoc(doc(db, "users", sanitizedId), {
-      email: data.email.trim().toLowerCase(),
-      role: data.role,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-  }, "rolMsg");
+  bindForm(
+    "rolForm",
+    async (data) => {
+      const sanitizedId = data.email.trim().toLowerCase().replace(/[^a-z0-9]/g, "_");
+      await setDoc(
+        doc(db, "users", sanitizedId),
+        {
+          email: data.email.trim().toLowerCase(),
+          role: data.role,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+    },
+    "rolMsg"
+  );
 }
 
 function attachRealtime() {
-  onSnapshot(query(collection(db, "ventas"), orderBy("createdAt", "desc")), (snap) => {
-    state.ventas = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    renderAll();
-  });
+  clearRealtimeListeners();
 
-  onSnapshot(query(collection(db, "gastos"), orderBy("createdAt", "desc")), (snap) => {
-    state.gastos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    renderAll();
-  });
+  unsubscribers.push(
+    onSnapshot(query(collection(db, "ventas"), orderBy("createdAt", "desc")), (snap) => {
+      state.ventas = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderAll();
+    })
+  );
 
-  onSnapshot(query(collection(db, "stock"), orderBy("updatedAt", "desc")), (snap) => {
-    state.stock = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    renderAll();
-  });
+  unsubscribers.push(
+    onSnapshot(query(collection(db, "gastos"), orderBy("createdAt", "desc")), (snap) => {
+      state.gastos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderAll();
+    })
+  );
 
-  onSnapshot(query(collection(db, "cuentas_corrientes"), orderBy("createdAt", "desc")), (snap) => {
-    state.cuentas = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    renderAll();
-  });
+  unsubscribers.push(
+    onSnapshot(query(collection(db, "stock"), orderBy("updatedAt", "desc")), (snap) => {
+      state.stock = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderAll();
+    })
+  );
 
-  onSnapshot(query(collection(db, "movimientos_caja"), orderBy("createdAt", "desc")), (snap) => {
-    state.movimientos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    renderAll();
-  });
+  unsubscribers.push(
+    onSnapshot(query(collection(db, "cuentas_corrientes"), orderBy("createdAt", "desc")), (snap) => {
+      state.cuentas = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderAll();
+    })
+  );
 
-  onSnapshot(query(collection(db, "users"), orderBy("updatedAt", "desc")), (snap) => {
-    state.usuarios = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    renderAll();
-  });
+  unsubscribers.push(
+    onSnapshot(query(collection(db, "movimientos_caja"), orderBy("createdAt", "desc")), (snap) => {
+      state.movimientos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderAll();
+    })
+  );
+
+  unsubscribers.push(
+    onSnapshot(query(collection(db, "users"), orderBy("updatedAt", "desc")), (snap) => {
+      state.usuarios = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderAll();
+    })
+  );
 }
 
 function initInstall() {
   let deferredPrompt = null;
+
   const show = () => {
     els.installBanner.classList.remove("hidden");
     els.installBtnLogin.classList.remove("hidden");
   };
+
   const hide = () => {
     els.installBanner.classList.add("hidden");
     els.installBtnLogin.classList.add("hidden");
@@ -495,52 +626,86 @@ async function handleLogin(email, password) {
   await signInWithEmailAndPassword(auth, email, password);
 }
 
+function mapLoginError(error) {
+  const map = {
+    "auth/invalid-credential": "Email o contraseña incorrectos.",
+    "auth/invalid-email": "El email no tiene un formato válido.",
+    "auth/network-request-failed": "No se pudo conectar a internet.",
+    "auth/too-many-requests": "Demasiados intentos. Esperá unos minutos antes de volver a probar.",
+    "auth/operation-not-allowed": "El acceso por email/contraseña no está habilitado en Firebase.",
+    "auth/user-disabled": "Este usuario fue deshabilitado.",
+    "auth/unauthorized-domain": "Falta autorizar el dominio conexion354-source.github.io en Firebase Authentication."
+  };
+
+  return map[error.code] || ("No se pudo iniciar sesión: " + (error.message || error.code || error));
+}
+
 function initAuth() {
   els.loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     els.loginError.textContent = "";
+
     try {
       await handleLogin(els.emailInput.value.trim(), els.passwordInput.value);
     } catch (error) {
-            const map = {
-        "auth/invalid-credential": "Email o contraseña incorrectos.",
-        "auth/invalid-email": "El email no tiene un formato válido.",
-        "auth/network-request-failed": "No se pudo conectar a internet.",
-        "auth/too-many-requests": "Demasiados intentos. Probá de nuevo en unos minutos.",
-        "auth/operation-not-allowed": "El acceso por email/contraseña no está habilitado en Firebase.",
-        "auth/user-disabled": "Este usuario fue deshabilitado.",
-        "auth/unauthorized-domain": "Falta autorizar el dominio conexion354-source.github.io en Firebase Authentication."
-      };
-      els.loginError.textContent = map[error.code] || ("No se pudo iniciar sesión: " + error.message);
+      console.error("Error de login:", error);
+      els.loginError.textContent = mapLoginError(error);
     }
   });
 
   els.logoutBtn.addEventListener("click", async () => {
-    await signOut(auth);
+    try {
+      clearRealtimeListeners();
+      await signOut(auth);
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+    }
   });
 
   onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      state.currentUser = user;
-      await resolveUserRole(user);
-      els.userEmailText.textContent = user.email || "Sin email";
-      els.todayText.textContent = todayText();
-      els.loginError.textContent = "";
-      updateRoleUI();
-      els.loginScreen.classList.add("hidden");
-      els.appScreen.classList.remove("hidden");
-      attachRealtime();
-    } else {
-      state.currentUser = null;
+    try {
+      if (user) {
+        state.currentUser = user;
+        await resolveUserRole(user);
+
+        els.userEmailText.textContent = user.email || "Sin email";
+        els.todayText.textContent = todayText();
+        els.loginError.textContent = "";
+
+        updateRoleUI();
+        els.loginScreen.classList.add("hidden");
+        els.appScreen.classList.remove("hidden");
+
+        attachRealtime();
+      } else {
+        clearRealtimeListeners();
+
+        state.currentUser = null;
+        state.role = "consulta";
+
+        els.loginScreen.classList.remove("hidden");
+        els.appScreen.classList.add("hidden");
+      }
+    } catch (error) {
+      console.error("Error después del login:", error);
+      els.loginError.textContent =
+        "El usuario ingresó, pero falló la conexión con Firestore o la carga del rol. Revisá reglas de Firestore y permisos.";
       els.loginScreen.classList.remove("hidden");
       els.appScreen.classList.add("hidden");
     }
   });
 }
 
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
-}
+/*
+  Service Worker desactivado temporalmente para evitar que el navegador
+  siga cargando archivos viejos mientras terminamos de corregir el login.
+  Cuando todo funcione, lo volvemos a activar.
+*/
+// if ("serviceWorker" in navigator) {
+//   window.addEventListener("load", () =>
+//     navigator.serviceWorker.register("./sw.js").catch(() => {})
+//   );
+// }
 
 setDefaultDates();
 initNavigation();
