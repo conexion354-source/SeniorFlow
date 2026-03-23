@@ -4,119 +4,171 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mundo Led Control</title>
+
   <meta name="theme-color" content="#58c9d2" />
-  <meta name="description" content="Panel interno de control para ventas, gastos, caja, stock y cuentas corrientes." />
+  <meta name="description" content="Sistema de control interno Mundo Led" />
 
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
 
-  <link rel="stylesheet" href="style.css?v=10" />
+  <link rel="stylesheet" href="style.css?v=11" />
 </head>
+
 <body>
 
-  <div id="installBanner" class="install-banner hidden">
-    <div>
-      <strong>Instalá Mundo Led Control</strong>
-      <span>Usalo como app en PC o celular.</span>
+<!-- LOGIN -->
+<section id="loginScreen" class="screen screen-login">
+  <div class="login-wrap">
+
+    <div class="login-card">
+      <h2>Mundo Led Control</h2>
+
+      <form id="loginForm" class="stack">
+        <input id="emailInput" type="email" placeholder="Email" required />
+        <input id="passwordInput" type="password" placeholder="Contraseña" required />
+
+        <button type="submit">Ingresar</button>
+      </form>
+
+      <p id="loginError" class="error-text"></p>
     </div>
-    <button id="installBtnTop" class="btn btn-primary btn-sm" type="button">Instalar</button>
+
   </div>
+</section>
 
-  <section id="loginScreen" class="screen screen-login">
-    <div class="login-wrap">
+<!-- APP -->
+<section id="appScreen" class="screen hidden">
 
-      <div class="login-side">
-        <div class="brand-chip">Control interno en tiempo real</div>
-        <h1>Una vista clara del negocio, todos los días.</h1>
-        <p class="lead">Caja, ventas, gastos, stock y cuentas corrientes en una sola app.</p>
-      </div>
+  <aside class="sidebar">
+    <h2>Mundo Led</h2>
+    <p id="userRoleText">Rol: —</p>
 
-      <div class="login-card">
-        <div class="logo-box">
-          <img src="img/logo.png" alt="Logo Mundo Led" class="login-logo" />
-        </div>
+    <nav>
+      <button class="nav-btn active" data-view="dashboard">Inicio</button>
+      <button class="nav-btn" data-view="ventas">Ventas</button>
+      <button class="nav-btn" data-view="gastos">Gastos</button>
+      <button class="nav-btn" data-view="stock">Stock</button>
+      <button class="nav-btn" data-view="cuentas">Cuentas</button>
+      <button class="nav-btn" data-view="movimientos">Caja</button>
+      <button class="nav-btn admin-only" data-view="usuarios">Usuarios</button>
+    </nav>
 
-        <div class="login-head">
-          <h2>Mundo Led Control</h2>
-          <p class="muted">Ingresá con tu usuario</p>
-        </div>
+    <button id="logoutBtn">Cerrar sesión</button>
+  </aside>
 
-        <form id="loginForm" class="stack">
-          <label>
-            <span>Email</span>
-            <input id="emailInput" type="email" required />
-          </label>
+  <main>
 
-          <label>
-            <span>Contraseña</span>
-            <input id="passwordInput" type="password" required />
-          </label>
+    <h1 id="viewTitle">Dashboard</h1>
+    <span id="todayText"></span>
 
-          <button class="btn btn-primary btn-xl" type="submit">
-            Ingresar
-          </button>
+    <!-- DASHBOARD -->
+    <section id="dashboardView" class="view active">
+      <h3>Bienvenido al sistema</h3>
+    </section>
 
-          <button id="installBtnLogin" class="btn btn-ghost hidden" type="button">
-            Instalar app
-          </button>
-        </form>
+    <!-- VENTAS -->
+    <section id="ventasView" class="view">
+      <h3>Cargar venta</h3>
+      <form id="ventaForm">
+        <input name="fecha" type="date" required />
+        <input name="monto" type="number" placeholder="Monto" required />
+        <select name="metodo">
+          <option value="efectivo">Efectivo</option>
+          <option value="transferencia">Transferencia</option>
+          <option value="tarjeta">Tarjeta</option>
+        </select>
+        <input name="detalle" placeholder="Detalle" />
+        <button type="submit">Guardar</button>
+      </form>
 
-        <p id="loginError" class="error-text"></p>
-      </div>
+      <div id="ventasList"></div>
+    </section>
 
-    </div>
-  </section>
+    <!-- GASTOS -->
+    <section id="gastosView" class="view">
+      <h3>Cargar gasto</h3>
+      <form id="gastoForm">
+        <input name="fecha" type="date" required />
+        <input name="monto" type="number" required />
+        <input name="categoria" placeholder="Categoría" required />
+        <input name="detalle" placeholder="Detalle" />
+        <button type="submit">Guardar</button>
+      </form>
 
-  <section id="appScreen" class="screen hidden">
-    <aside class="sidebar">
+      <div id="gastosList"></div>
+    </section>
 
-      <div class="brand">
-        <img src="img/logo.png" class="sidebar-logo" />
-        <div>
-          <h2>Mundo Led</h2>
-          <p id="userRoleText">Rol: —</p>
-        </div>
-      </div>
+    <!-- STOCK -->
+    <section id="stockView" class="view">
+      <h3>Stock</h3>
+      <form id="stockForm">
+        <input name="codigo" placeholder="Código" required />
+        <input name="nombre" placeholder="Producto" required />
+        <input name="stockActual" type="number" placeholder="Stock actual" required />
+        <input name="stockMinimo" type="number" placeholder="Stock mínimo" required />
+        <button type="submit">Guardar</button>
+      </form>
 
-      <nav class="nav">
-        <button class="nav-btn active" data-view="dashboard">Inicio</button>
-        <button class="nav-btn" data-view="ventas">Ventas</button>
-        <button class="nav-btn" data-view="gastos">Gastos</button>
-        <button class="nav-btn" data-view="stock">Stock</button>
-        <button class="nav-btn" data-view="cuentas">Cuentas</button>
-        <button class="nav-btn" data-view="movimientos">Caja</button>
-        <button class="nav-btn admin-only" data-view="usuarios">Usuarios</button>
-      </nav>
+      <div id="stockList"></div>
+    </section>
 
-      <div class="sidebar-footer">
-        <strong id="userEmailText"></strong>
-        <button id="logoutBtn">Cerrar sesión</button>
-      </div>
+    <!-- CUENTAS -->
+    <section id="cuentasView" class="view">
+      <h3>Cuentas corrientes</h3>
+      <form id="cuentaForm">
+        <input name="cliente" placeholder="Cliente" required />
+        <input name="saldo" type="number" placeholder="Saldo" required />
+        <select name="estado">
+          <option value="aldia">Al día</option>
+          <option value="pendiente">Pendiente</option>
+          <option value="vencido">Vencido</option>
+        </select>
+        <button type="submit">Guardar</button>
+      </form>
 
-    </aside>
+      <div id="cuentasList"></div>
+    </section>
 
-    <main class="main">
-      <h1 id="viewTitle">Dashboard</h1>
-      <span id="todayText"></span>
+    <!-- MOVIMIENTOS -->
+    <section id="movimientosView" class="view">
+      <h3>Movimientos</h3>
+      <form id="movimientoForm">
+        <input name="fecha" type="date" required />
+        <select name="tipo">
+          <option value="ingreso">Ingreso</option>
+          <option value="egreso">Egreso</option>
+        </select>
+        <input name="monto" type="number" required />
+        <button type="submit">Guardar</button>
+      </form>
 
-      <section id="dashboardView" class="view active">
-        <p>Bienvenido al sistema ✔️</p>
-      </section>
+      <div id="movimientosList"></div>
+    </section>
 
-      <section id="ventasView" class="view"></section>
-      <section id="gastosView" class="view"></section>
-      <section id="stockView" class="view"></section>
-      <section id="cuentasView" class="view"></section>
-      <section id="movimientosView" class="view"></section>
-      <section id="usuariosView" class="view"></section>
+    <!-- USUARIOS -->
+    <section id="usuariosView" class="view">
+      <h3>Usuarios</h3>
+      <form id="rolForm">
+        <input name="email" type="email" placeholder="Email" required />
+        <select name="role">
+          <option value="admin">Admin</option>
+          <option value="ventas">Ventas</option>
+          <option value="consulta">Consulta</option>
+        </select>
+        <button type="submit">Guardar rol</button>
+      </form>
 
-    </main>
-  </section>
+      <div id="usuariosList"></div>
+    </section>
 
-  <!-- 🔥 CARGA SIN CACHE -->
-  <script type="module" src="firebase-config.js?v=10"></script>
-  <script type="module" src="app.js?v=10"></script>
+  </main>
+
+</section>
+
+<!-- 🔥 IMPORTANTE: SIN CACHE -->
+<script type="module" src="firebase-config.js?v=11"></script>
+<script type="module" src="app.js?v=11"></script>
 
 </body>
 </html>
