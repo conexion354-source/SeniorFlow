@@ -1,0 +1,17 @@
+{
+  "name": "SeniorFlow Control Pro",
+  "short_name": "SeniorFlow",
+  "start_url": "./seniorflow-pro.html",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#21b9d6",
+  "description": "Sistema profesional SeniorFlow para ventas, caja, stock, cuentas corrientes, presupuestos y usuarios.",
+  "icons": [
+    {
+      "src": "./icons/icon-app.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
