@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" role="img" aria-label="Mundo Led">
-  <rect width="1200" height="360" fill="#f2f2f2"/>
-  <text x="40" y="190" font-family="Arial, Helvetica, sans-serif" font-size="150" font-weight="800" fill="#000000">MUNDO</text>
-  <text x="650" y="190" font-family="Arial, Helvetica, sans-serif" font-size="150" font-weight="800" fill="#63d3db">LED</text>
-  <text x="670" y="255" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="400" fill="#000000">que brillen tus ideas</text>
-  <path d="M700 280 C850 255, 1010 255, 1140 268" fill="none" stroke="#000000" stroke-width="8" stroke-linecap="round"/>
-</svg>
