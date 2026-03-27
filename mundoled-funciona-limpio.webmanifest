@@ -1,0 +1,24 @@
+{
+  "name": "Mundo Led · Gestión Pro",
+  "short_name": "Mundo Led",
+  "start_url": "./mundoled-funciona-limpio.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#21b9d6",
+  "description": "Gestión comercial de Mundo Led con ventas, caja, cuentas corrientes y presupuestos.",
+  "icons": [
+    {
+      "src": "./icons/icon-app.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./img/app-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

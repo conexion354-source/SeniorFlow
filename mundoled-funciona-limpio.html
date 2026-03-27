@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mundo Led · Gestión Pro</title>
+</head>
+<body>
+<script>
+(async () => {
+  const res = await fetch('./mundoled-gestion-final.html', { cache: 'no-store' });
+  let html = await res.text();
+
+  html = html.replace(
+    '<script>window.SENIORFLOW_SW_PATH = \'./mundoled-gestion-final-sw.js\';</script>',
+    '<script>window.SENIORFLOW_SW_PATH = \'./mundoled-funciona-limpio-sw.js\';</script>'
+  );
+
+  html = html.replace(
+    '<script type="module" src="./mundoled-gestion-final.js"></script>',
+    ''
+  );
+
+  const inject = '\n<script type="module" src="./sales-list-fix.js"><\\/script>\n';
+  html = html.replace('</body>', inject + '</body>');
+
+  document.open();
+  document.write(html);
+  document.close();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mundo Led · Gestión Pro</title>
+  <meta name="theme-color" content="#21b9d6" />
+  <meta name="description" content="Gestión comercial de Mundo Led" />
+  <link rel="manifest" href="./mundoled-gestion-final.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="./icons/icon-app.png" />
+  <link rel="apple-touch-icon" href="./icons/icon-app.png" />
+  <link rel="stylesheet" href="./style.css" />
+  <style>
+    .stats-grid.business{grid-template-columns:repeat(5,minmax(0,1fr))}.stat-card.cash-green{background:linear-gradient(145deg,rgba(22,163,74,.22),rgba(34,197,94,.10))}.stat-card.sales-soft{background:linear-gradient(145deg,rgba(74,222,128,.18),rgba(187,247,208,.08))}.stat-card.expense-red{background:linear-gradient(145deg,rgba(220,38,38,.20),rgba(248,113,113,.08))}.stat-card.transfer-blue{background:linear-gradient(145deg,rgba(37,99,235,.20),rgba(96,165,250,.08))}.stat-card.accounts-amber{background:linear-gradient(145deg,rgba(245,158,11,.18),rgba(251,191,36,.08))}.widget-note{font-size:.82rem;color:#dcecff}.budget-builder{display:grid;gap:16px}.budget-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.budget-totals{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;flex-wrap:wrap;background:rgba(255,255,255,.05);border:1px solid var(--stroke);padding:16px;border-radius:18px;margin-top:16px}.budget-total-box strong{font-size:1.6rem;display:block}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px}.budget-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}.budget-filters{display:flex;gap:10px;flex-wrap:wrap}.budget-filters input,.budget-filters select{min-width:180px}.composer-shell{margin-top:18px}.doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.customer-results{display:grid;gap:10px;margin-top:10px}.hint{font-size:.84rem;color:#9bb0ca}.hidden{display:none!important}.login-minimal{max-width:520px;margin:56px auto;padding:32px;border-radius:24px;background:rgba(15,23,42,.86);border:1px solid rgba(255,255,255,.1);box-shadow:0 24px 70px rgba(0,0,0,.28)}.login-minimal h1{font-size:2.4rem;margin:0 0 10px}.login-minimal p{margin:0 0 20px;color:#c7d2fe}.login-minimal .install-card{margin:0 0 18px}@media (max-width:1200px){.stats-grid.business{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (max-width:760px){.stats-grid.business,.budget-grid,.two-col,.doc-grid{grid-template-columns:1fr}.stat-card strong{font-size:1.4rem}.list-item{grid-template-columns:1fr!important}.list-item>div:last-child{justify-content:flex-start!important}.budget-toolbar,.budget-filters{flex-direction:column;align-items:stretch}.login-minimal{margin:24px auto;padding:22px}.login-minimal h1{font-size:1.9rem}}
+  </style>
+</head>
+<body>
+  <section id="loginScreen" class="login-screen">
+    <div class="login-minimal login-card">
+      <h1>Mundo Led · Gestión Pro</h1>
+      <p>Ingresá con tu usuario para continuar.</p>
+      <div class="install-card">
+        <div>
+          <strong>Instalación tipo app</strong>
+          <p>Instalala en Android, iPhone, Windows o Mac para usarla como software principal.</p>
+        </div>
+        <button id="installBtn" class="btn secondary hidden" type="button">Instalar app</button>
+      </div>
+      <div class="tabs">
+        <button id="adminTab" class="tab active" type="button">Administración</button>
+        <button id="sellerTab" class="tab" type="button">Vendedor</button>
+      </div>
+      <h2 id="loginTitle">Ingresar como administrador</h2>
+      <p id="loginSubtitle" class="muted">Si no existe ningún administrador, el primer ingreso lo crea automáticamente.</p>
+      <form id="loginForm" class="form stack">
+        <label><span>Usuario</span><input id="username" type="text" autocomplete="username" required /></label>
+        <label><span>Contraseña</span><input id="password" type="password" autocomplete="current-password" required /></label>
+        <button class="btn primary full" type="submit">Ingresar</button>
+      </form>
+      <p id="loginError" class="error-text"></p>
+    </div>
+  </section>
+
+  <section id="appScreen" class="app-screen hidden">
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <img src="./img/app-icon.png" alt="Logo" class="sidebar-logo" />
+        <div>
+          <h2>Mundo Led</h2>
+          <p id="sessionMeta" class="muted on-dark">—</p>
+        </div>
+      </div>
+      <nav class="nav">
+        <button class="nav-btn active" data-view="inicio">Inicio</button>
+        <button class="nav-btn" data-view="caja">Caja</button>
+        <button class="nav-btn" data-view="ventas">Ventas</button>
+        <button class="nav-btn" data-view="gastos">Gastos</button>
+        <button class="nav-btn" data-view="stock">Stock</button>
+        <button class="nav-btn" data-view="cuentas">Cuentas corrientes</button>
+        <button class="nav-btn" data-view="presupuestos">Presupuestos</button>
+        <button class="nav-btn admin-only" data-view="usuarios">Usuarios</button>
+      </nav>
+      <div class="sidebar-foot"><button id="logoutBtn" class="btn ghost" type="button">Cerrar sesión</button></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><h1 id="viewTitle">Inicio</h1><p id="viewSubtitle" class="muted">Resumen del negocio</p></div>
+        <div class="topbar-actions"><span id="todayLabel" class="pill"></span></div>
+      </header>
+
+      <section id="inicioView" class="view active">
+        <div class="stats-grid business">
+          <article class="stat-card cash-green"><span>Dinero en caja</span><strong id="statCashTotal">$ 0</strong><small id="statCashBreakdown" class="widget-note">Dinero en efectivo disponible</small></article>
+          <article class="stat-card transfer-blue"><span>Transferencias</span><strong id="statTransferTotal">$ 0</strong><small id="statTransferBreakdown" class="widget-note">Transferencias registradas y cobradas</small></article>
+          <article class="stat-card sales-soft"><span>Ventas del día</span><strong id="statSalesToday">$ 0</strong><small id="statSalesBreakdown" class="widget-note">Ventas cargadas hoy</small></article>
+          <article class="stat-card accounts-amber"><span>Cuentas corrientes</span><strong id="statAccountsReceivable">$ 0</strong><small id="statAccountsReceivableBreakdown" class="widget-note">Saldo deudor total</small></article>
+          <article class="stat-card expense-red"><span>Gastos del día</span><strong id="statExpensesToday">$ 0</strong><small id="statExpensesCount" class="widget-note">0 gastos del día</small></article>
+        </div>
+        <div class="grid two"><article class="panel"><div class="panel-head"><h3>Resumen semanal</h3></div><div id="weeklyChart" class="chart"></div></article><article class="panel"><div class="panel-head"><h3>Resumen mensual</h3></div><div id="monthlyChart" class="chart"></div></article></div>
+        <div class="grid two"><article class="panel"><div class="panel-head"><h3>Últimos movimientos</h3></div><div id="recentMovements" class="list"></div></article><article class="panel"><div class="panel-head"><h3>Morosos y saldos</h3></div><div id="balancesList" class="list"></div></article></div>
+      </section>
+
+      <section id="cajaView" class="view"><div class="grid two"><article class="panel"><div class="panel-head"><h3>Abrir caja</h3></div><form id="openCashForm" class="form-grid"><label><span>Fecha</span><input name="date" type="date" required /></label><label><span>Efectivo inicial</span><input name="cashAmount" type="text" data-money required /></label><label><span>Cheques iniciales</span><input name="checkAmount" type="text" data-money required /></label><label class="full"><span>Detalle</span><input name="note" type="text" placeholder="Apertura de turno o conteo inicial" /></label><button class="btn primary" type="submit">Guardar apertura</button></form></article><article class="panel"><div class="panel-head"><h3>Agregar dinero o valores</h3></div><form id="cashAdjustmentForm" class="form-grid"><label><span>Fecha</span><input name="date" type="date" required /></label><label><span>Tipo</span><select name="kind"><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select></label><label><span>Medio</span><select name="method"><option value="efectivo">Efectivo</option><option value="cheque">Cheque</option></select></label><label><span>Monto</span><input name="amount" type="text" data-money required /></label><label class="full"><span>Detalle</span><input name="detail" type="text" placeholder="Por qué ingresó o salió dinero" required /></label><button class="btn primary" type="submit">Registrar movimiento</button></form></article></div><article class="panel"><div class="panel-head"><h3>Historial de caja</h3></div><div id="cashHistory" class="list"></div></article></section>
+
+      <section id="ventasView" class="view"><div class="grid two"><article class="panel"><div class="panel-head"><h3>Nueva venta</h3></div><form id="saleForm" class="form-grid"><label><span>Fecha</span><input name="date" type="date" required /></label><label><span>Monto</span><input name="amount" type="text" data-money required /></label><label><span>Medio de cobro</span><select name="paymentMethod"><option value="efectivo">Efectivo</option><option value="cheque">Cheque</option><option value="transferencia">Transferencia</option><option value="tarjeta">Tarjeta</option><option value="otro">Otro</option></select></label><label><span>Operación</span><select name="operationType" id="operationType"><option value="contado">Contado</option><option value="cuenta_corriente">Cuenta corriente</option></select></label><label><span>Comprobante</span><input name="documentType" type="text" value="Remito X" required /></label><label><span>Número</span><input name="documentNumber" type="text" required /></label><div id="customerFields" class="subgrid hidden full"><label><span>Nombre</span><input name="customerFirstName" type="text" /></label><label><span>Apellido</span><input name="customerLastName" type="text" /></label><label class="full"><span>Celular</span><input name="customerPhone" type="text" /></label></div><div id="checkFields" class="subgrid hidden full"><label><span>Banco</span><input name="checkBank" type="text" /></label><label><span>Número de cheque</span><input name="checkNumber" type="text" /></label><label><span>Titular</span><input name="checkHolder" type="text" /></label><label><span>Fecha cobro</span><input name="checkDueDate" type="date" /></label></div><label class="full"><span>Detalle</span><input name="details" type="text" /></label><button class="btn primary" type="submit">Guardar venta</button></form></article><article class="panel"><div class="panel-head"><h3>Ventas recientes</h3></div><div id="salesList" class="list"></div></article></div></section>
+
+      <section id="gastosView" class="view"><div class="grid two"><article class="panel"><div class="panel-head"><h3>Nuevo gasto</h3></div><form id="expenseForm" class="form-grid"><label><span>Fecha</span><input name="date" type="date" required /></label><label><span>Monto</span><input name="amount" type="text" data-money required /></label><label><span>Categoría</span><select name="category" id="expenseCategory"></select></label><label class="full"><span>Detalle obligatorio</span><input name="detail" type="text" required placeholder="Detalle del gasto" /></label><button class="btn primary" type="submit">Guardar gasto</button></form></article><article class="panel"><div class="panel-head"><h3>Gastos recientes</h3></div><div id="expensesList" class="list"></div></article></div></section>
+
+      <section id="stockView" class="view"><article class="panel"><div class="panel-head row-between"><h3>Stock y productos</h3><div class="inline-tools"><input id="productSearch" type="search" placeholder="Buscar por código, descripción o unidad" /><button id="toggleProductFormBtn" class="btn secondary" type="button">Agregar producto</button></div></div><form id="productForm" class="form-grid hidden"><label><span>Código</span><input name="code" type="text" /></label><label><span>Descripción</span><input name="name" type="text" required /></label><label><span>Categoría</span><input name="category" type="text" /></label><label><span>Unidad</span><select name="unit" data-unit-select></select></label><label><span>Stock</span><input name="stock" type="number" min="0" step="1" value="0" required /></label><label><span>Precio costo</span><input name="cost" type="text" data-money /></label><label><span>Precio venta</span><input name="price" type="text" data-money required /></label><button class="btn primary" type="submit">Guardar producto</button></form><div id="stockList" class="list compact"></div></article></section>
+
+      <section id="cuentasView" class="view"><div class="grid two"><article class="panel"><div class="panel-head"><h3>Agregar cobro</h3></div><form id="accountPaymentForm" class="form-grid"><label><span>Cliente</span><select name="customerId" id="paymentCustomerId" required></select></label><label><span>Fecha</span><input name="date" type="date" required /></label><label><span>Monto</span><input name="amount" type="text" data-money required /></label><label><span>Medio</span><select name="method"><option value="efectivo">Efectivo</option><option value="cheque">Cheque</option><option value="transferencia">Transferencia</option></select></label><label class="full"><span>Detalle</span><input name="detail" type="text" placeholder="Detalle del cobro" /></label><button class="btn primary" type="submit">Registrar cobro</button></form></article><article class="panel"><div class="panel-head row-between"><h3>Saldos por cliente</h3><input id="customerSearch" type="search" placeholder="Buscar cliente, CUIT o DNI" /></div><div id="customersList" class="list"></div></article></div></section>
+
+      <section id="presupuestosView" class="view">
+        <article class="panel">
+          <div class="budget-toolbar"><div><h3 style="margin:0">Listado de presupuestos</h3><p class="muted" style="margin:6px 0 0">Consultá estados, buscá y administrá presupuestos.</p></div><button id="openBudgetComposerBtn" class="btn primary" type="button">Crear presupuesto</button></div>
+          <div class="budget-filters"><input id="budgetSearch" type="search" placeholder="Buscar por cliente, fecha o número" /><select id="budgetStatusFilter"><option value="todos">Todos</option><option value="borrador">Borrador</option><option value="enviado">Enviado</option><option value="aprobado">Aprobado</option></select></div>
+          <div id="budgetsList" class="list" style="margin-top:16px"></div>
+        </article>
+        <article id="budgetComposer" class="panel composer-shell hidden">
+          <div class="panel-head row-between"><h3>Crear presupuesto profesional</h3><button id="closeBudgetComposerBtn" class="btn ghost" type="button">Cerrar</button></div>
+          <form id="budgetForm" class="budget-builder">
+            <div class="form-grid"><label><span>Fecha</span><input name="date" type="date" required /></label><label><span>Cliente</span><input id="budgetCustomerName" name="customerName" type="text" required /></label><label><span>Validez</span><input id="budgetValidity" name="validity" type="text" value="7 días" /></label><label class="full"><span>Observaciones</span><textarea id="budgetNote" name="note" rows="3"></textarea></label></div>
+            <div class="panel"><div class="panel-head"><h3>Buscar cliente guardado</h3></div><input id="budgetCustomerSearch" type="search" placeholder="Buscar por nombre, CUIT o DNI" /><div id="budgetCustomerResults" class="customer-results"></div><p id="budgetSelectedCustomerHint" class="hint">Todavía no seleccionaste un cliente guardado.</p></div>
+            <div class="panel"><div class="panel-head"><h3>Agregar nuevo cliente</h3></div><div class="doc-grid"><label><span>Nombre y apellido</span><input id="budgetNewCustomerName" type="text" /></label><label><span>Celular</span><input id="budgetNewCustomerPhone" type="text" /></label><label><span>Tipo documento</span><select id="budgetNewCustomerDocType"><option value="DNI">DNI</option><option value="CUIT">CUIT</option></select></label><label><span>Número</span><input id="budgetNewCustomerDocNumber" type="text" /></label></div><div style="margin-top:12px"><button id="saveBudgetCustomerBtn" class="btn secondary" type="button">Guardar cliente</button></div></div>
+            <div class="budget-grid"><div class="panel"><div class="panel-head"><h3>Agregar desde stock</h3></div><div class="form-grid"><label class="full"><span>Producto</span><select id="budgetStockProduct"></select></label><label><span>Cantidad</span><input id="budgetStockQty" type="number" min="0.01" step="0.01" value="1" /></label><button id="addBudgetStockItemBtn" class="btn secondary" type="button">Agregar ítem de stock</button></div></div><div class="panel"><div class="panel-head"><h3>Agregar ítem manual</h3></div><div class="form-grid"><label class="full"><span>Descripción</span><input id="budgetManualName" type="text" /></label><label><span>Cantidad</span><input id="budgetManualQty" type="number" min="0.01" step="0.01" value="1" /></label><label><span>Unidad</span><select id="budgetManualUnit" data-unit-select></select></label><label class="full"><span>Precio unitario</span><input id="budgetManualPrice" type="text" data-money /></label><button id="addBudgetManualItemBtn" class="btn secondary" type="button">Agregar ítem manual</button></div></div></div>
+            <div id="budgetDraftItems" class="list"></div>
+            <div class="budget-totals"><div class="budget-total-box"><span>Total</span><strong id="budgetGrandTotal">$ 0</strong><small id="budgetGrandTotalWords" class="muted"></small></div><div><button class="btn primary" type="submit">Guardar presupuesto</button></div></div>
+          </form>
+        </article>
+      </section>
+
+      <section id="usuariosView" class="view"><div class="grid two"><article class="panel"><div class="panel-head"><h3>Crear vendedor</h3></div><form id="userForm" class="form-grid"><label><span>Nombre</span><input name="name" type="text" required /></label><label><span>Usuario</span><input name="username" type="text" required /></label><label><span>Contraseña</span><input name="password" type="password" required /></label><button class="btn primary" type="submit">Guardar usuario</button></form></article><article class="panel"><div class="panel-head"><h3>Usuarios activos</h3></div><div id="usersList" class="list"></div></article></div></section>
+    </main>
+  </section>
+
+  <script>window.SENIORFLOW_SW_PATH = './mundoled-gestion-final-sw.js';</script>
+  <script type="module" src="./app-operations-v2.js"></script>
+  <script type="module" src="./mundoled-gestion-final.js"></script>
+</body>
+</html>
