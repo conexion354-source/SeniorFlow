@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mundo Led Control</title>
+  <meta name="theme-color" content="#21b9d6" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Mundo Led" />
+  <meta name="description" content="Sistema interno para ventas, stock, gastos, cuentas corrientes, presupuestos y usuarios." />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="./icons/icon-512.png" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <section id="loginScreen" class="login-screen">
+    <div class="login-shell">
+      <div class="login-side">
+        <div class="chip">Mundo Led Control</div>
+        <img src="./img/app-icon.png" alt="Mundo Led" class="hero-logo" />
+        <h1>Panel interno profesional</h1>
+        <p>Ventas, stock, gastos, cuentas corrientes, presupuestos y usuarios en una sola app.</p>
+        <div class="install-box">
+          <p>Instalá la app en PC o celular para usarla como sistema.</p>
+          <button id="installBtn" class="btn btn-secondary" type="button">Instalar app</button>
+          <small class="muted install-help">Si el navegador no muestra la instalación, se verán instrucciones rápidas.</small>
+        </div>
+      </div>
+
+      <div class="login-card">
+        <div class="login-tabs">
+          <button id="tabAdmin" class="tab active" type="button">Administración</button>
+          <button id="tabVendor" class="tab" type="button">Vendedor</button>
+        </div>
+
+        <div class="logo-mini-wrap">
+          <img src="./img/app-icon.png" alt="Mundo Led" class="logo-mini" />
+        </div>
+
+        <h2 id="loginTitle">Ingreso administración</h2>
+        <p class="muted" id="loginSubtitle">Usá usuario y contraseña. Si todavía no existe un administrador, el primer ingreso lo crea.</p>
+
+        <form id="loginForm" class="stack">
+          <label>
+            <span>Usuario</span>
+            <input id="usernameInput" type="text" placeholder="usuario" autocomplete="username" required />
+          </label>
+          <label>
+            <span>Contraseña</span>
+            <input id="passwordInput" type="password" placeholder="••••••••" autocomplete="current-password" required />
+          </label>
+          <button class="btn btn-primary btn-xl" type="submit">Ingresar</button>
+        </form>
+
+        <p id="loginError" class="error-text"></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="appScreen" class="app-screen hidden">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo-box">
+          <img src="./img/app-icon.png" alt="Logo Mundo Led" class="brand-logo" />
+        </div>
+        <div>
+          <h2>Mundo Led</h2>
+          <p id="userRoleText" class="muted on-dark">Rol: —</p>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-btn active admin-only-nav" data-view="inicio">Inicio</button>
+        <button class="nav-btn" data-view="ventas">Ventas</button>
+        <button class="nav-btn" data-view="gastos">Gastos</button>
+        <button class="nav-btn" data-view="caja">Caja</button>
+        <button class="nav-btn" data-view="stock">Stock</button>
+        <button class="nav-btn" data-view="cuentas">Cuentas corrientes</button>
+        <button class="nav-btn admin-only-nav" data-view="presupuestos">Presupuestos</button>
+        <button class="nav-btn admin-only-nav" data-view="usuarios">Usuarios</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-box">
+          <strong id="sessionUserText">—</strong>
+          <span class="muted on-dark">Sesión iniciada</span>
+        </div>
+        <button id="logoutBtn" class="btn btn-ghost" type="button">Cerrar sesión</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="viewTitle">Inicio</h1>
+          <p id="viewSubtitle" class="muted">Resumen general del negocio</p>
+        </div>
+        <div class="topbar-right">
+          <span id="todayText" class="pill"></span>
+        </div>
+      </header>
+
+      <section id="inicioView" class="view active">
+        <div class="stats-grid">
+          <article class="stat-card accent">
+            <span>Dinero en caja</span>
+            <strong id="statCash">$ 0</strong>
+            <small id="statCashBreakdown" class="stat-detail">Efectivo $0 · Cheques $0 · Otros $0</small>
+          </article>
+          <article class="stat-card">
+            <span>Ventas de hoy</span>
+            <strong id="statSalesDay">$ 0</strong>
+            <small id="statSalesDayBreakdown" class="stat-detail">Efectivo $0 · Cheques $0 · Otros $0</small>
+          </article>
+          <article class="stat-card">
+            <span>Gastos del día</span>
+            <strong id="statExpensesDay">$ 0</strong>
+            <small class="stat-detail">Impacta sobre la caja operativa</small>
+          </article>
+          <article class="stat-card">
+            <span>Ventas del mes</span>
+            <strong id="statSalesTotal">$ 0</strong>
+            <small id="statSalesMonthBreakdown" class="stat-detail">Semana actual $0 · Ticket medio $0</small>
+          </article>
+          <article class="stat-card">
+            <span>Morosos +30 días</span>
+            <strong id="statOverdueCount">0</strong>
+            <small class="stat-detail">Clientes con saldo vencido</small>
+          </article>
+        </div>
+
+        <div class="panel-grid two analytics-grid">
+          <article class="panel">
+            <div class="panel-head"><h3>Resumen semanal</h3></div>
+            <div id="weekSummaryCards" class="mini-stats"></div>
+            <div id="weekSalesChart" class="chart-bars"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><h3>Resumen mensual</h3></div>
+            <div id="monthSummaryCards" class="mini-stats"></div>
+            <div id="monthSalesChart" class="chart-bars"></div>
+          </article>
+        </div>
+
+        <div class="panel-grid two">
+          <article class="panel">
+            <div class="panel-head"><h3>Productos con stock bajo</h3></div>
+            <div id="stockRankingList" class="simple-list"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><h3>Clientes morosos</h3></div>
+            <div id="overdueList" class="simple-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="ventasView" class="view">
+        <div class="panel-grid two">
+          <article class="panel">
+            <div class="panel-head">
+              <h3 id="saleFormTitle">Cargar venta</h3>
+              <button id="cancelSaleEditBtn" class="btn btn-secondary hidden" type="button">Cancelar edición</button>
+            </div>
+
+            <form id="saleForm" class="form-grid">
+              <label>
+                <span>Fecha</span>
+                <input name="date" type="date" required />
+              </label>
+
+              <label>
+                <span>Monto</span>
+                <div class="money-input">
+                  <span>$</span>
+                  <input name="amount" type="text" inputmode="decimal" data-money="true" placeholder="0,00" required />
+                </div>
+                <small class="money-text" data-money-text-for="amount">Cero pesos</small>
+              </label>
+
+              <label>
+                <span>Comprobante</span>
+                <select name="documentType" required>
+                  <option value="Remito X">Remito X</option>
+                  <option value="Factura A">Factura A</option>
+                  <option value="Factura B">Factura B</option>
+                  <option value="Ticket">Ticket</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Número</span>
+                <input name="documentNumber" type="text" required />
+              </label>
+
+              <label>
+                <span>Operación</span>
+                <select id="saleOperationType" name="operationType" required>
+                  <option value="contado">Contado</option>
+                  <option value="cuenta_corriente">Cuenta corriente</option>
+                </select>
+              </label>
+
+              <div id="saleCashFields" class="subgrid">
+                <label>
+                  <span>Medio de cobro</span>
+                  <select id="paymentMethod" name="paymentMethod">
+                    <option value="efectivo">Efectivo</option>
+                    <option value="transferencia">Transferencia</option>
+                    <option value="tarjeta">Tarjeta</option>
+                    <option value="cheque">Cheque</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </label>
+
+                <label>
+                  <span>Detalle</span>
+                  <input name="details" type="text" placeholder="Observación opcional" />
+                </label>
+
+                <div id="checkFields" class="subgrid hidden full">
+                  <label>
+                    <span>Banco</span>
+                    <input name="checkBank" type="text" />
+                  </label>
+                  <label>
+                    <span>Número de cheque</span>
+                    <input name="checkNumber" type="text" />
+                  </label>
+                  <label>
+                    <span>Titular</span>
+                    <input name="checkHolder" type="text" />
+                  </label>
+                  <label>
+                    <span>Fecha de cobro</span>
+                    <input name="checkDueDate" type="date" />
+                  </label>
+                </div>
+              </div>
+
+              <div id="saleAccountFields" class="subgrid hidden full">
+                <label>
+                  <span>Nombre</span>
+                  <input name="customerFirstName" type="text" />
+                </label>
+                <label>
+                  <span>Apellido</span>
+                  <input name="customerLastName" type="text" />
+                </label>
+                <label>
+                  <span>Celular</span>
+                  <input name="customerPhone" type="text" />
+                </label>
+                <label>
+                  <span>Email</span>
+                  <input name="customerEmail" type="email" />
+                </label>
+                <label class="full">
+                  <span>Dirección</span>
+                  <input name="customerAddress" type="text" />
+                </label>
+              </div>
+
+              <button id="saleSubmitBtn" class="btn btn-primary" type="submit">Guardar venta</button>
+            </form>
+
+            <p id="saleMsg" class="form-msg"></p>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Historial de ventas</h3>
+            </div>
+
+            <div class="filter-grid">
+              <label>
+                <span>Buscar</span>
+                <input id="salesSearchInput" type="text" placeholder="Número, cliente o comprobante" />
+              </label>
+              <label>
+                <span>Día</span>
+                <input id="salesFilterDate" type="date" />
+              </label>
+              <label>
+                <span>Mes</span>
+                <input id="salesFilterMonth" type="month" />
+              </label>
+              <label>
+                <span>Año</span>
+                <input id="salesFilterYear" type="number" min="2000" step="1" placeholder="2026" />
+              </label>
+              <label>
+                <span>Desde</span>
+                <input id="salesFilterFrom" type="date" />
+              </label>
+              <label>
+                <span>Hasta</span>
+                <input id="salesFilterTo" type="date" />
+              </label>
+            </div>
+
+            <div id="salesTableWrap" class="table-wrap"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="gastosView" class="view">
+        <div class="panel-grid two">
+          <article class="panel">
+            <div class="panel-head">
+              <h3 id="expenseFormTitle">Cargar gasto</h3>
+              <button id="cancelExpenseEditBtn" class="btn btn-secondary hidden" type="button">Cancelar edición</button>
+            </div>
+
+            <form id="expenseForm" class="form-grid">
+              <label>
+                <span>Fecha</span>
+                <input name="date" type="date" required />
+              </label>
+
+              <label>
+                <span>Monto</span>
+                <div class="money-input">
+                  <span>$</span>
+                  <input name="amount" type="text" inputmode="decimal" data-money="true" placeholder="0,00" required />
+                </div>
+                <small class="money-text" data-money-text-for="amount">Cero pesos</small>
+              </label>
+
+              <label>
+                <span>Categoría</span>
+                <select id="expenseCategory" name="category" required>
+                  <option value="Gastos Insumos Negocio">Gastos Insumos Negocio</option>
+                  <option value="Alquiler">Alquiler</option>
+                  <option value="Luz">Luz</option>
+                  <option value="Internet">Internet</option>
+                  <option value="Sueldos">Sueldos</option>
+                  <option value="Fletes">Fletes</option>
+                  <option value="Mano de Obra">Mano de Obra</option>
+                </select>
+              </label>
+
+              <label class="full">
+                <span>Detalle / aclaración</span>
+                <input name="details" type="text" placeholder="Aclarar proveedor, motivo, servicio o referencia" />
+              </label>
+
+              <button id="expenseSubmitBtn" class="btn btn-primary" type="submit">Guardar gasto</button>
+            </form>
+
+            <p id="expenseMsg" class="form-msg"></p>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><h3>Gastos registrados</h3></div>
+            <div id="expensesTableWrap" class="table-wrap"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="stockView" class="view">
+        <div class="panel-grid two">
+          <article class="panel">
+            <div class="panel-head stock-head">
+              <h3 id="productFormTitle">Crear producto</h3>
+              <div class="inline-actions">
+                <button id="cancelProductEditBtn" class="btn btn-secondary hidden" type="button">Cancelar</button>
+                <button id="goCreateProductBtn" class="btn btn-primary" type="button">Nuevo producto</button>
+              </div>
+            </div>
+
+            <form id="productForm" class="form-grid">
+              <label>
+                <span>Código</span>
+                <input name="code" type="text" required />
+              </label>
+
+              <label>
+                <span>Producto</span>
+                <input name="name" type="text" required />
+              </label>
+
+              <label class="full">
+                <span>Descripción completa</span>
+                <input name="description" type="text" placeholder="Descripción completa del producto" />
+              </label>
+
+              <label>
+                <span>Categoría</span>
+                <select id="productCategorySelect" name="category"></select>
+              </label>
+
+              <label>
+                <span>Unidad</span>
+                <select name="unit" required>
+                  <option value="unidad">Unidad</option>
+                  <option value="kilos">Kilos</option>
+                  <option value="metros">Metros</option>
+                  <option value="litros">Litros</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Stock actual</span>
+                <input name="currentStock" type="number" min="0" step="0.01" required />
+              </label>
+
+              <label>
+                <span>Stock mínimo</span>
+                <input name="minStock" type="number" min="0" step="0.01" required />
+              </label>
+
+              <label>
+                <span>Precio costo</span>
+                <div class="money-input">
+                  <span>$</span>
+                  <input name="cost" type="text" inputmode="decimal" data-money="true" placeholder="0,00" />
+                </div>
+                <small class="money-text" data-money-text-for="cost">Cero pesos</small>
+              </label>
+
+              <label>
+                <span>Precio final</span>
+                <div class="money-input">
+                  <span>$</span>
+                  <input name="salePrice" type="text" inputmode="decimal" data-money="true" placeholder="0,00" />
+                </div>
+                <small class="money-text" data-money-text-for="salePrice">Cero pesos</small>
+              </label>
+
+              <div class="inline-actions full">
+                <button id="productSubmitBtn" class="btn btn-primary" type="submit">Guardar producto</button>
+                <button id="cancelProductBtn" class="btn btn-secondary" type="button">Cancelar</button>
+              </div>
+            </form>
+
+            <div class="separator"></div>
+
+            <form id="categoryForm" class="form-grid admin-only-block">
+              <label class="full">
+                <span>Nueva categoría</span>
+                <input name="name" type="text" required />
+              </label>
+              <button class="btn btn-secondary" type="submit">Agregar categoría</button>
+            </form>
+
+            <p id="productMsg" class="form-msg"></p>
+            <p id="categoryMsg" class="form-msg"></p>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head stock-head">
+              <h3>Productos</h3>
+              <button id="exportProductsPdfBtn" class="btn btn-secondary" type="button">Exportar lista PDF por categorías</button>
+            </div>
+            <div class="toolbar-inline">
+              <input id="productSearchInput" type="text" placeholder="Buscar por código, descripción o categoría" />
+            </div>
+            <div id="stockRankingListSide" class="simple-list compact"></div>
+            <div class="separator"></div>
+            <div id="productsTableWrap" class="table-wrap"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="cuentasView" class="view">
+        <div class="panel-grid three">
+          <article class="panel">
+            <div class="panel-head"><h3>Buscador de cuentas</h3></div>
+            <input id="customerSearchInput" type="text" placeholder="Buscar por nombre, apellido o celular" />
+            <div id="customersList" class="simple-list"></div>
+          </article>
+
+          <article class="panel span-two">
+            <div class="panel-head">
+              <h3>Estado de cuenta</h3>
+              <div class="inline-actions">
+                <button id="captureAccountBtn" class="btn btn-secondary" type="button">Imagen</button>
+                <button id="accountPdfBtn" class="btn btn-secondary" type="button">PDF</button>
+                <button id="deleteAccountBtn" class="btn btn-danger admin-only-block" type="button">Eliminar cuenta</button>
+              </div>
+            </div>
+
+            <div id="accountDetailCard" class="account-detail">
+              <div class="empty">Buscá y seleccioná un cliente para ver sus movimientos.</div>
+            </div>
+
+            <div class="separator"></div>
+
+            <form id="paymentForm" class="form-grid">
+              <label>
+                <span>ID cliente</span>
+                <input id="paymentCustomerId" name="customerId" type="text" readonly required />
+              </label>
+
+              <label>
+                <span>Fecha</span>
+                <input name="date" type="date" required />
+              </label>
+
+              <label>
+                <span>Monto del cobro</span>
+                <div class="money-input">
+                  <span>$</span>
+                  <input name="amount" type="text" inputmode="decimal" data-money="true" placeholder="0,00" required />
+                </div>
+                <small class="money-text" data-money-text-for="amount">Cero pesos</small>
+              </label>
+
+              <label>
+                <span>Tipo</span>
+                <select name="paymentKind">
+                  <option value="parcial">Cobro parcial</option>
+                  <option value="total">Cobro total</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Medio de cobro</span>
+                <select name="paymentMethod">
+                  <option value="efectivo">Efectivo</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="tarjeta">Tarjeta</option>
+                  <option value="cheque">Cheque</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </label>
+
+              <label class="full">
+                <span>Detalle</span>
+                <input name="details" type="text" placeholder="Observación del cobro" />
+              </label>
+
+              <button class="btn btn-primary" type="submit">Registrar cobro</button>
+            </form>
+
+            <p id="paymentMsg" class="form-msg"></p>
+          </article>
+        </div>
+      </section>
+
+      <section id="cajaView" class="view">
+        <div class="panel-grid two">
+          <article class="panel">
+            <div class="panel-head"><h3>Abrir caja</h3></div>
+
+            <form id="cashOpenForm" class="form-grid admin-only-block">
+              <label>
+                <span>Fecha</span>
+                <input name="date" type="date" required />
+              </label>
+
+              <label>
+                <span>Efectivo inicial</span>
+                <div class="money-input">
+                  <span>$</span>
+                  <input name="cashAmount" type="text" inputmode="decimal" data-money="true" placeholder="0,00" />
+                </div>
+                <small class="money-text" data-money-text-for="cashAmount">Cero pesos</small>
+              </label>
+
+              <label>
+                <span>Cheques iniciales</span>
+                <div class="money-input">
+                  <span>$</span>
+                  <input name="checkAmount" type="text" inputmode="decimal" data-money="true" placeholder="0,00" />
+                </div>
+                <small class="money-text" data-money-text-for="checkAmount">Cero pesos</small>
+              </label>
+
+              <label>
+                <span>Otros medios iniciales</span>
+                <div class="money-input">
+                  <span>$</span>
+                  <input name="otherAmount" type="text" inputmode="decimal" data-money="true" placeholder="0,00" />
+                </div>
+                <small class="money-text" data-money-text-for="otherAmount">Cero pesos</small>
+              </label>
+
+              <label class="full">
+                <span>Detalle</span>
+                <input name="details" type="text" placeholder="Ej: apertura de caja" />
+              </label>
+
+              <button class="btn btn-primary" type="submit">Guardar apertura</button>
+            </form>
+
+            <div class="separator"></div>
+
+            <div class="panel-head"><h3>Agregar dinero en caja</h3></div>
+
+            <form id="cashEntryForm" class="form-grid admin-only-block">
+              <label>
+                <span>Fecha</span>
+                <input name="date" type="date" required />
+              </label>
+
+              <label>
+                <span>Monto</span>
+                <div class="money-input">
+                  <span>$</span>
+                  <input name="amount" type="text" inputmode="decimal" data-money="true" placeholder="0,00" required />
+                </div>
+                <small class="money-text" data-money-text-for="amount">Cero pesos</small>
+              </label>
+
+              <label>
+                <span>Medio</span>
+                <select name="medium" required>
+                  <option value="efectivo">Efectivo</option>
+                  <option value="cheque">Cheque</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </label>
+
+              <label class="full">
+                <span>Motivo / detalle</span>
+                <input name="details" type="text" placeholder="Ej: ajuste de caja, préstamo, ingreso extra" required />
+              </label>
+
+              <button class="btn btn-secondary" type="submit">Agregar ingreso</button>
+            </form>
+
+            <p id="cashMsg" class="form-msg"></p>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><h3>Estado actual de caja</h3></div>
+            <div id="cashStatusCards" class="mini-stats"></div>
+
+            <div class="separator"></div>
+
+            <div class="panel-head"><h3>Movimientos de caja</h3></div>
+            <div id="cashMovementsList" class="simple-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="presupuestosView" class="view">
+        <div class="panel-grid two">
+          <article class="panel">
+            <div class="panel-head budgets-head">
+              <h3 id="budgetFormTitle">Presupuesto nuevo</h3>
+              <div class="inline-actions">
+                <button id="cancelBudgetEditBtn" class="btn btn-secondary hidden" type="button">Cancelar edición</button>
+                <button id="goCreateBudgetBtn" class="btn btn-primary" type="button">Crear presupuesto nuevo</button>
+              </div>
+            </div>
+
+            <form id="budgetForm" class="form-grid">
+              <label>
+                <span>Fecha</span>
+                <input name="date" type="date" required />
+              </label>
+
+              <label>
+                <span>Validez</span>
+                <input name="validUntil" type="date" />
+              </label>
+
+              <label>
+                <span>Cliente</span>
+                <select id="budgetClientMode" name="clientMode">
+                  <option value="manual">Cargar manualmente</option>
+                  <option value="existing">Elegir cliente cargado</option>
+                </select>
+              </label>
+
+              <label id="budgetCustomerSelectWrap" class="hidden">
+                <span>Cliente existente</span>
+                <select id="budgetCustomerSelect" name="existingCustomerId"></select>
+              </label>
+
+              <label id="budgetClientNameWrap">
+                <span>Cliente / razón social</span>
+                <input name="clientName" type="text" required />
+              </label>
+
+              <label id="budgetClientPhoneWrap">
+                <span>Celular</span>
+                <input name="clientPhone" type="text" />
+              </label>
+
+              <label id="budgetClientEmailWrap" class="full">
+                <span>Email</span>
+                <input name="clientEmail" type="email" />
+              </label>
+
+              <label id="budgetClientAddressWrap" class="full">
+                <span>Dirección / localidad</span>
+                <input name="clientAddress" type="text" />
+              </label>
+
+              <label>
+                <span>Condición de pago</span>
+                <select id="budgetPaymentTerms" name="paymentTerms" required>
+                  <option value="Efectivo">Efectivo</option>
+                  <option value="Transferencia">Transferencia</option>
+                  <option value="Cuenta corriente">Cuenta corriente</option>
+                  <option value="Cheque a 30 días">Cheque a 30 días</option>
+                  <option value="Cheque a 45 días">Cheque a 45 días</option>
+                  <option value="Cheque a 60 días">Cheque a 60 días</option>
+                  <option value="Cheque 30 y 60 días">Cheque 30 y 60 días</option>
+                  <option value="Cheque 30 / 60 / 90 días">Cheque 30 / 60 / 90 días</option>
+                  <option value="Personalizado">Personalizado</option>
+                </select>
+              </label>
+
+              <label id="budgetCustomTermsWrap" class="hidden">
+                <span>Detalle personalizado</span>
+                <input name="paymentTermsCustom" type="text" placeholder="Ej: 50% anticipo + saldo a 15 días" />
+              </label>
+
+              <label class="full">
+                <span>Observaciones</span>
+                <input name="notes" type="text" placeholder="Incluye instalación, envío, plazo de entrega, etc." />
+              </label>
+
+              <div class="budget-builder full">
+                <div class="budget-builder-head">
+                  <h4>Ítems del presupuesto</h4>
+                  <div class="budget-builder-actions">
+                    <button id="addBudgetStockItemBtn" class="btn btn-secondary" type="button">Agregar desde stock</button>
+                    <button id="addBudgetManualItemBtn" class="btn btn-secondary" type="button">Agregar manual</button>
+                  </div>
+                </div>
+                <div id="budgetItemsWrap" class="budget-items-wrap"></div>
+              </div>
+
+              <div class="budget-totals full">
+                <div class="budget-total-card">
+                  <span>Subtotal</span>
+                  <strong id="budgetSubtotal">$ 0</strong>
+                </div>
+                <div class="budget-total-card">
+                  <span>Total</span>
+                  <strong id="budgetTotal">$ 0</strong>
+                </div>
+              </div>
+
+              <button id="budgetSubmitBtn" class="btn btn-primary" type="submit">Guardar presupuesto</button>
+            </form>
+
+            <p id="budgetMsg" class="form-msg"></p>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head budgets-head">
+              <h3>Lista de presupuestos</h3>
+            </div>
+            <div class="budget-search-bar">
+              <label>
+                <span>Buscar por cliente</span>
+                <input id="budgetSearchInput" type="text" placeholder="Ej: Municipalidad, Ariel, etc." />
+              </label>
+              <label>
+                <span>Desde</span>
+                <input id="budgetSearchFrom" type="date" />
+              </label>
+              <label>
+                <span>Hasta</span>
+                <input id="budgetSearchTo" type="date" />
+              </label>
+            </div>
+            <div id="budgetsList" class="simple-list"></div>
+
+            <div class="separator"></div>
+
+            <div class="panel-head">
+              <h3>Vista previa</h3>
+              <div class="budget-preview-actions">
+                <button id="budgetToggleSentBtn" class="btn btn-secondary" type="button">Enviado</button>
+                <button id="budgetToggleApprovedBtn" class="btn btn-secondary" type="button">Aprobado</button>
+                <button id="budgetDownloadPdfBtn" class="btn btn-secondary" type="button">PDF</button>
+                <button id="budgetDownloadPngBtn" class="btn btn-secondary" type="button">Imagen</button>
+                <button id="budgetShareBtn" class="btn btn-secondary" type="button">Compartir</button>
+              </div>
+            </div>
+
+            <div id="budgetPreviewCard" class="budget-preview-card">
+              <div class="empty">Seleccioná un presupuesto para verlo, editarlo o compartirlo.</div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="usuariosView" class="view">
+        <div class="panel-grid two">
+          <article class="panel">
+            <div class="panel-head"><h3>Usuarios</h3></div>
+
+            <form id="userForm" class="form-grid">
+              <label>
+                <span>Nombre</span>
+                <input name="name" type="text" required />
+              </label>
+
+              <label>
+                <span>Usuario</span>
+                <input name="username" type="text" required />
+              </label>
+
+              <label>
+                <span>Contraseña</span>
+                <input name="password" type="password" required />
+              </label>
+
+              <label>
+                <span>Rol</span>
+                <select name="role" required>
+                  <option value="vendedor">Vendedor</option>
+                  <option value="administrador">Administrador</option>
+                </select>
+              </label>
+
+              <button class="btn btn-primary" type="submit">Guardar usuario</button>
+            </form>
+
+            <p id="userMsg" class="form-msg"></p>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><h3>Usuarios cargados</h3></div>
+            <div id="usersTableWrap" class="table-wrap"></div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </section>
+
+  <div id="renderHost" class="render-host"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js", { scope: "./" }).catch((error) => {
+          console.error("No se pudo registrar el service worker", error);
+        });
+      });
+    }
+  </script>
+  <script type="module" src="./firebase-config.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
