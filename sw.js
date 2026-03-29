@@ -1,12 +1,10 @@
-const CACHE_NAME = 'mundo-led-v2';
+const CACHE_NAME = 'mundo-led-v4';
 const ASSETS = [
   './',
   './index.html',
   './app.js',
   './firebase-config.js',
-  './manifest.json',
-  'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+  './manifest.json'
 ];
 
 self.addEventListener('install', (e) => {
