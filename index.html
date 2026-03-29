@@ -11,71 +11,407 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
   <link rel="icon" type="image/png" href="./icons/icon-192.png">
-  
-  <!-- Estilos Críticos Mejorado -->
   <style>
     :root {
-      --primary: #21b9d6; --danger: #ef4444; --success: #10b981; --warning: #f59e0b;
-      --bg: #edf4fb; --text: #1f2937; --card: #ffffff;
+      --primary: #21b9d6;
+      --primary-dark: #1a9ab8;
+      --danger: #ef4444;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --bg: #edf4fb;
+      --text: #1f2937;
+      --card: #ffffff;
+      --muted: #6b7280;
+      --border: #e5e7eb;
     }
-    [data-theme="dark"] { --bg: #111827; --text: #f3f4f6; --card: #1f2937; }
-    
+    [data-theme="dark"] {
+      --bg: #111827;
+      --text: #f3f4f6;
+      --card: #1f2937;
+      --border: #374151;
+      --muted: #9ca3af;
+    }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
     .hidden { display: none !important; }
-    
-    /* Toast Notifications */
-    #toastContainer { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
-    .toast { min-width: 300px; padding: 16px; border-radius: 8px; background: var(--card); box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 12px; animation: slideIn 0.3s ease; border-left: 4px solid var(--primary); }
+    #toastContainer {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .toast {
+      min-width: 300px;
+      padding: 16px 20px;
+      border-radius: 8px;
+      background: var(--card);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      animation: slideIn 0.3s ease;
+      border-left: 4px solid var(--primary);
+    }
     .toast.success { border-color: var(--success); }
     .toast.error { border-color: var(--danger); }
     .toast.warning { border-color: var(--warning); }
-    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-    
-    /* Loading Spinner */
-    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; margin-right: 8px; }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 8px;
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
     button:disabled { opacity: 0.7; cursor: not-allowed; }
-    
-    /* Mobile Touch */
+    .login-container {
+      max-width: 400px;
+      margin: 60px auto;
+      padding: 30px;
+      background: var(--card);
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    .app-logo {
+      width: 80px;
+      height: 80px;
+      display: block;
+      margin: 0 auto 20px;
+      background: var(--primary);
+      border-radius: 12px;
+    }
+    .tabs { display: flex; gap: 10px; margin: 20px 0; }
+    .tab-btn {
+      flex: 1;
+      padding: 12px;
+      border: 2px solid var(--border);
+      background: transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .tab-btn.active {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: white;
+    }
+    form label { display: block; margin-bottom: 15px; }
+    input, select, textarea {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      font-size: 16px;
+      background: var(--card);
+      color: var(--text);
+      margin-top: 5px;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-secondary { background: var(--border); color: var(--text); }
+    .btn-success { background: var(--success); color: white; }
+    .btn-sm { padding: 8px 16px; font-size: 14px; }
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 20px;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      background: var(--primary);
+      border-radius: 8px;
+    }
+    .nav-bar {
+      display: flex;
+      gap: 5px;
+      padding: 10px 20px;
+      background: var(--card);
+      overflow-x: auto;
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-btn {
+      padding: 10px 16px;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+    .nav-btn.active { background: var(--primary); color: white; }
+    .app-content { padding: 20px; }
+    .view-section { display: none; }
+    .view-section.active { display: block; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 15px;
+      margin: 20px 0;
+    }
+    .stat-card {
+      background: var(--card);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .stat-card.warning { border-left: 4px solid var(--warning); }
+    .stat-card span { display: block; color: var(--muted); font-size: 14px; margin-bottom: 8px; }
+    .stat-card strong { font-size: 24px; color: var(--text); }
+    .record-list { display: grid; gap: 10px; margin-top: 20px; }
+    .record-card {
+      background: var(--card);
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .record-main { flex: 1; min-width: 200px; }
+    .record-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .record-amount { font-weight: 700; color: var(--primary); }
+    .record-meta {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .record-actions { display: flex; gap: 8px; }
+    .status-pill {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .status-pill.success { background: #d1fae5; color: #065f46; }
+    .status-pill.warning { background: #fef3c7; color: #92400e; }
+    .filters-bar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 15px 0;
+    }
+    .filters-bar input, .filters-bar select {
+      flex: 1;
+      min-width: 150px;
+      margin: 0;
+    }
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--card);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .data-table th, .data-table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .data-table th { background: var(--bg); font-weight: 600; }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+    .form-card {
+      background: var(--card);
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+    }
+    .msg-box {
+      padding: 10px;
+      border-radius: 8px;
+      margin: 10px 0;
+      font-size: 14px;
+    }
+    .error-msg { color: var(--danger); }
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-content {
+      background: var(--card);
+      border-radius: 12px;
+      max-width: 800px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      padding: 20px;
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .charts-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 15px;
+      margin: 20px 0;
+    }
+    .chart-card {
+      background: var(--card);
+      padding: 20px;
+      border-radius: 12px;
+    }
+    .chart-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    .chart-label { width: 80px; font-size: 14px; }
+    .chart-track {
+      flex: 1;
+      height: 24px;
+      background: var(--bg);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .chart-fill {
+      height: 100%;
+      background: var(--primary);
+      border-radius: 4px;
+    }
+    .chart-value { width: 100px; text-align: right; font-size: 14px; }
+    .simple-item {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .simple-item:last-child { border-bottom: none; }
+    .simple-item strong { display: block; margin-bottom: 4px; }
+    .simple-item span { color: var(--muted); font-size: 14px; }
+    .budget-item-row {
+      background: var(--bg);
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    .budget-item-fields {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .budget-totals {
+      display: flex;
+      justify-content: space-between;
+      padding: 15px;
+      background: var(--bg);
+      border-radius: 8px;
+      margin: 15px 0;
+      font-size: 18px;
+    }
     button, input, select { min-height: 44px; font-size: 16px; }
-    .record-list { display: grid; gap: 10px; }
-    .record-card { background: var(--card); padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    @media (max-width: 768px) {
+      .login-container { margin: 20px; padding: 20px; }
+      .stats-grid { grid-template-columns: 1fr; }
+      .nav-bar { padding: 10px; }
+      .app-content { padding: 15px; }
+      .record-card { flex-direction: column; align-items: flex-start; }
+      .record-actions { width: 100%; justify-content: flex-end; }
+    }
   </style>
 </head>
 <body>
-  <!-- Contenedor de Notificaciones -->
   <div id="toastContainer"></div>
 
-  <!-- Pantalla de Login -->
+  <!-- LOGIN SCREEN -->
   <section id="loginScreen" class="view active">
     <div class="login-container">
-      <img src="./img/app-icon.png" alt="Logo" class="app-logo">
+      <div class="app-logo"></div>
       <h1 id="loginTitle">Ingreso administración</h1>
-      <p id="loginSubtitle" class="muted">Usá usuario y contraseña.</p>
-      
+      <p id="loginSubtitle" style="color:var(--muted)">Usá usuario y contraseña.</p>
       <div class="tabs">
         <button id="tabAdmin" class="tab-btn active">Administración</button>
         <button id="tabVendor" class="tab-btn">Vendedor</button>
       </div>
-
       <form id="loginForm">
-        <label>Usuario <input id="usernameInput" type="text" required autocomplete="username"></label>
-        <label>Contraseña <input id="passwordInput" type="password" required autocomplete="current-password"></label>
+        <label>
+          Usuario
+          <input id="usernameInput" type="text" required autocomplete="username">
+        </label>
+        <label>
+          Contraseña
+          <input id="passwordInput" type="password" required autocomplete="current-password">
+        </label>
         <div id="loginError" class="error-msg"></div>
-        <button type="submit" class="btn btn-primary">Ingresar</button>
+        <button type="submit" class="btn btn-primary" style="width:100%">Ingresar</button>
       </form>
     </div>
   </section>
 
-  <!-- Pantalla Principal -->
+  <!-- APP SCREEN -->
   <section id="appScreen" class="view hidden">
     <header class="app-header">
       <div class="brand">
-        <img src="./img/app-icon.png" alt="Logo">
+        <div class="brand-logo"></div>
         <div>
           <strong>Mundo Led</strong>
-          <span id="userRoleText" class="muted">Rol: —</span>
+          <div id="sessionUserText" style="font-size:12px;color:var(--muted)">—</div>
         </div>
       </div>
       <div class="actions">
@@ -97,46 +433,56 @@
     </nav>
 
     <main class="app-content">
+      <!-- INICIO -->
       <div id="inicioView" class="view-section active">
         <h2 id="viewTitle">Inicio</h2>
-        <p id="viewSubtitle" class="muted">Resumen general del negocio</p>
-        <p id="todayText" class="date-display"></p>
-        
+        <p id="viewSubtitle" style="color:var(--muted)">Resumen general del negocio</p>
+        <p id="todayText" style="color:var(--muted);margin:10px 0"></p>
         <div class="stats-grid">
           <div class="stat-card">
             <span>Dinero en caja</span>
             <strong id="statCash">$ 0</strong>
-            <small id="statCashBreakdown" class="muted"></small>
+            <small id="statCashBreakdown" style="color:var(--muted)"></small>
           </div>
           <div class="stat-card">
             <span>Ventas de hoy</span>
             <strong id="statSalesDay">$ 0</strong>
-            <small id="statSalesDayBreakdown" class="muted"></small>
+            <small id="statSalesDayBreakdown" style="color:var(--muted)"></small>
           </div>
           <div class="stat-card">
             <span>Ventas del mes</span>
             <strong id="statSalesTotal">$ 0</strong>
-            <small id="statSalesMonthBreakdown" class="muted"></small>
+            <small id="statSalesMonthBreakdown" style="color:var(--muted)"></small>
           </div>
           <div class="stat-card warning">
             <span>Morosos +30 días</span>
             <strong id="statOverdueCount">0</strong>
-            <small class="muted">Clientes con saldo vencido</small>
+            <small style="color:var(--muted)">Clientes con saldo vencido</small>
           </div>
         </div>
-
         <div class="charts-row">
-          <div class="chart-card"><h3>Resumen semanal</h3><div id="weekSalesChart"></div></div>
-          <div class="chart-card"><h3>Resumen mensual</h3><div id="monthSalesChart"></div></div>
+          <div class="chart-card">
+            <h3>Resumen semanal</h3>
+            <div id="weekSalesChart"></div>
+          </div>
+          <div class="chart-card">
+            <h3>Resumen mensual</h3>
+            <div id="monthSalesChart"></div>
+          </div>
         </div>
-
-        <div class="lists-row">
-          <div class="list-card"><h3>Productos con stock bajo</h3><div id="stockRankingList"></div></div>
-          <div class="list-card"><h3>Clientes morosos</h3><div id="overdueList"></div></div>
+        <div class="charts-row">
+          <div class="chart-card">
+            <h3>Productos con stock bajo</h3>
+            <div id="stockRankingList"></div>
+          </div>
+          <div class="chart-card">
+            <h3>Clientes morosos</h3>
+            <div id="overdueList"></div>
+          </div>
         </div>
       </div>
 
-      <!-- Sección Ventas -->
+      <!-- VENTAS -->
       <div id="ventasView" class="view-section hidden">
         <h2>Cargar venta</h2>
         <form id="saleForm" class="form-card">
@@ -145,24 +491,36 @@
             <label>Fecha <input type="date" name="date" required></label>
             <label>Monto $ <input type="text" name="amount" data-money="true" required></label>
             <label>Comprobante 
-              <select name="documentType"><option>Remito X</option><option>Factura A</option><option>Factura B</option><option>Ticket</option></select>
+              <select name="documentType">
+                <option>Remito X</option>
+                <option>Factura A</option>
+                <option>Factura B</option>
+                <option>Ticket</option>
+              </select>
             </label>
             <label>Número <input type="text" name="documentNumber"></label>
             <label>Operación 
-              <select id="saleOperationType" name="operationType"><option value="contado">Contado</option><option value="cuenta_corriente">Cuenta corriente</option></select>
+              <select id="saleOperationType" name="operationType">
+                <option value="contado">Contado</option>
+                <option value="cuenta_corriente">Cuenta corriente</option>
+              </select>
             </label>
             <label id="saleCashFields">Medio de cobro 
-              <select id="paymentMethod" name="paymentMethod"><option>efectivo</option><option>transferencia</option><option>tarjeta</option><option>cheque</option><option>otro</option></select>
+              <select id="paymentMethod" name="paymentMethod">
+                <option>efectivo</option>
+                <option>transferencia</option>
+                <option>tarjeta</option>
+                <option>cheque</option>
+                <option>otro</option>
+              </select>
             </label>
           </div>
-          
           <div id="checkFields" class="hidden form-grid">
             <label>Banco <input type="text" name="checkBank"></label>
             <label>Número <input type="text" name="checkNumber"></label>
             <label>Titular <input type="text" name="checkHolder"></label>
             <label>Fecha cobro <input type="date" name="checkDueDate"></label>
           </div>
-
           <div id="saleAccountFields" class="hidden form-grid">
             <label>Nombre <input type="text" name="customerFirstName" placeholder="Nombre"></label>
             <label>Apellido <input type="text" name="customerLastName" placeholder="Apellido"></label>
@@ -170,12 +528,10 @@
             <label>Email <input type="email" name="customerEmail"></label>
             <label>Dirección <input type="text" name="customerAddress"></label>
           </div>
-          
-          <label>Detalle <textarea name="details"></textarea></label>
+          <label>Detalle <textarea name="details" rows="3"></textarea></label>
           <div id="saleMsg" class="msg-box"></div>
           <button type="submit" id="saleSubmitBtn" class="btn btn-primary">Guardar venta</button>
         </form>
-
         <div class="filters-bar">
           <input id="salesSearchInput" type="text" placeholder="Buscar venta...">
           <input id="salesFilterDate" type="date">
@@ -187,7 +543,7 @@
         <div id="salesTableWrap" class="record-list"></div>
       </div>
 
-      <!-- Sección Gastos -->
+      <!-- GASTOS -->
       <div id="gastosView" class="view-section hidden">
         <h2>Cargar gasto</h2>
         <form id="expenseForm" class="form-card">
@@ -197,33 +553,35 @@
             <label>Monto $ <input type="text" name="amount" data-money="true" required></label>
             <label>Categoría 
               <select id="expenseCategory" name="category">
-                <option>Gastos Insumos Negocio</option><option>Alquiler</option><option>Luz</option><option>Internet</option><option>Sueldos</option><option>Fletes</option><option>Mano de Obra</option>
+                <option>Gastos Insumos Negocio</option>
+                <option>Alquiler</option>
+                <option>Luz</option>
+                <option>Internet</option>
+                <option>Sueldos</option>
+                <option>Fletes</option>
+                <option>Mano de Obra</option>
               </select>
             </label>
           </div>
-          <label>Detalle <textarea name="details"></textarea></label>
+          <label>Detalle <textarea name="details" rows="3"></textarea></label>
           <div id="expenseMsg" class="msg-box"></div>
           <button type="submit" id="expenseSubmitBtn" class="btn btn-primary">Guardar gasto</button>
         </form>
-        
         <div class="filters-bar">
           <input id="expenseSearchInput" type="text" placeholder="Buscar gasto...">
           <input id="expenseFilterMonth" type="month">
           <input id="expenseFilterFrom" type="date">
           <input id="expenseFilterTo" type="date">
-          <button id="exportExpensesPdfBtn" class="btn btn-sm">PDF resumen</button>
         </div>
         <div id="expensesTableWrap" class="record-list"></div>
       </div>
 
-      <!-- Sección Stock -->
+      <!-- STOCK -->
       <div id="stockView" class="view-section hidden">
-        <div class="action-bar">
+        <div class="filters-bar">
           <h2>Productos</h2>
           <button id="goCreateProductBtn" class="btn btn-primary">Crear producto</button>
-          <button id="exportProductsPdfBtn" class="btn btn-secondary">Exportar lista PDF</button>
         </div>
-        
         <form id="productForm" class="form-card">
           <button type="button" id="cancelProductEditBtn" class="btn btn-sm btn-secondary hidden">Cancelar</button>
           <div class="form-grid">
@@ -232,7 +590,12 @@
             <label>Descripción <input type="text" name="description"></label>
             <label>Categoría <select id="productCategorySelect" name="category"></select></label>
             <label>Unidad 
-              <select name="unit"><option>unidad</option><option>kilos</option><option>metros</option><option>litros</option></select>
+              <select name="unit">
+                <option>unidad</option>
+                <option>kilos</option>
+                <option>metros</option>
+                <option>litros</option>
+              </select>
             </label>
             <label>Stock Actual <input type="number" name="currentStock" value="0"></label>
             <label>Stock Mínimo <input type="number" name="minStock" value="5"></label>
@@ -242,15 +605,76 @@
           <div id="productMsg" class="msg-box"></div>
           <button type="submit" id="productSubmitBtn" class="btn btn-primary">Guardar producto</button>
         </form>
-
-        <input id="productSearchInput" type="text" placeholder="Buscar producto..." class="filters-bar">
+        <input id="productSearchInput" type="text" placeholder="Buscar producto..." style="width:100%;margin:15px 0;padding:12px;border:2px solid var(--border);border-radius:8px">
         <div id="productsTableWrap"></div>
-        <div id="stockRankingListSide" class="list-card"><h3>Alertas de stock</h3></div>
       </div>
 
-      <!-- Sección Presupuestos -->
+      <!-- CUENTAS -->
+      <div id="cuentasView" class="view-section hidden admin-only-block">
+        <h2>Cuentas corrientes</h2>
+        <input id="customerSearchInput" type="text" placeholder="Buscador de cuentas..." style="width:100%;margin:15px 0;padding:12px;border:2px solid var(--border);border-radius:8px">
+        <div class="charts-row">
+          <div id="customersList" class="chart-card" style="max-height:400px;overflow-y:auto"></div>
+          <div id="accountDetailCard" class="chart-card">
+            <p>Buscá y seleccioná un cliente para ver sus movimientos.</p>
+          </div>
+        </div>
+        <div id="accountActionBar" class="filters-bar hidden" style="margin-top:15px">
+          <form id="paymentForm" class="filters-bar" style="flex:1">
+            <input type="hidden" id="paymentCustomerId">
+            <input type="date" name="date" required style="flex:1">
+            <input type="text" name="amount" data-money="true" placeholder="Monto" required style="flex:1">
+            <select name="paymentMethod" style="flex:1">
+              <option>efectivo</option>
+              <option>transferencia</option>
+              <option>cheque</option>
+            </select>
+            <select name="paymentKind" style="flex:1">
+              <option value="partial">Cobro parcial</option>
+              <option value="total">Cobro total</option>
+            </select>
+            <input type="text" name="details" placeholder="Detalle" style="flex:2">
+            <button type="submit" class="btn btn-primary">Registrar cobro</button>
+          </form>
+          <div id="paymentMsg" class="msg-box" style="width:100%"></div>
+        </div>
+      </div>
+
+      <!-- CAJA -->
+      <div id="cajaView" class="view-section hidden admin-only-block">
+        <h2>Caja</h2>
+        <div id="cashStatusCards" class="stats-grid"></div>
+        <div class="charts-row">
+          <form id="cashOpenForm" class="form-card">
+            <h3>Abrir caja</h3>
+            <input type="date" name="date" required style="width:100%;margin-bottom:10px">
+            <input type="text" name="cashAmount" data-money="true" placeholder="Efectivo inicial" style="width:100%;margin-bottom:10px">
+            <input type="text" name="checkAmount" data-money="true" placeholder="Cheques iniciales" style="width:100%;margin-bottom:10px">
+            <input type="text" name="otherAmount" data-money="true" placeholder="Otros medios" style="width:100%;margin-bottom:10px">
+            <input type="text" name="details" placeholder="Detalle" style="width:100%;margin-bottom:10px">
+            <button type="submit" class="btn btn-primary" style="width:100%">Guardar apertura</button>
+            <div id="cashMsg" class="msg-box"></div>
+          </form>
+          <form id="cashEntryForm" class="form-card">
+            <h3>Agregar dinero en caja</h3>
+            <input type="date" name="date" required style="width:100%;margin-bottom:10px">
+            <input type="text" name="amount" data-money="true" placeholder="Monto" required style="width:100%;margin-bottom:10px">
+            <select name="medium" style="width:100%;margin-bottom:10px">
+              <option>efectivo</option>
+              <option>cheque</option>
+              <option>otro</option>
+            </select>
+            <input type="text" name="details" placeholder="Motivo / detalle" style="width:100%;margin-bottom:10px">
+            <button type="submit" class="btn btn-primary" style="width:100%">Agregar ingreso</button>
+          </form>
+        </div>
+        <h3>Movimientos de caja</h3>
+        <div id="cashMovementsList" class="record-list"></div>
+      </div>
+
+      <!-- PRESUPUESTOS -->
       <div id="presupuestosView" class="view-section hidden">
-        <div class="action-bar">
+        <div class="filters-bar">
           <h2>Presupuestos</h2>
           <button id="goCreateBudgetBtn" class="btn btn-primary">Nuevo</button>
         </div>
@@ -259,9 +683,8 @@
           <input id="budgetSearchFrom" type="date">
           <input id="budgetSearchTo" type="date">
         </div>
-        
-        <div class="budget-layout">
-          <div id="budgetsList" class="budget-list"></div>
+        <div class="charts-row">
+          <div id="budgetsList" class="chart-card" style="max-height:400px;overflow-y:auto"></div>
           <div id="budgetFormWrap" class="form-card">
             <h3 id="budgetFormTitle">Presupuesto nuevo</h3>
             <button type="button" id="cancelBudgetEditBtn" class="btn btn-sm btn-secondary hidden">Cancelar</button>
@@ -270,129 +693,77 @@
                 <label>Fecha <input type="date" name="date" required></label>
                 <label>Validez <input type="date" name="validUntil"></label>
                 <label>Modo cliente 
-                  <select id="budgetClientMode"><option value="manual">Cargar manualmente</option><option value="existing">Elegir cliente cargado</option></select>
+                  <select id="budgetClientMode">
+                    <option value="manual">Cargar manualmente</option>
+                    <option value="existing">Elegir cliente cargado</option>
+                  </select>
                 </label>
               </div>
-              
               <div id="budgetCustomerSelectWrap" class="hidden">
-                <label>Buscar cliente cargado <input id="budgetCustomerSearch" type="text" list="budgetCustomerOptions"></label>
+                <label>Buscar cliente cargado 
+                  <input id="budgetCustomerSearch" type="text" list="budgetCustomerOptions">
+                </label>
                 <datalist id="budgetCustomerOptions"></datalist>
                 <input type="hidden" id="budgetCustomerId">
-                <div id="budgetCustomerSelectedCard" class="hidden"></div>
+                <div id="budgetCustomerSelectedCard" class="hidden" style="background:var(--bg);padding:10px;border-radius:8px;margin:10px 0"></div>
               </div>
-
               <div id="budgetClientNameWrap">
                 <label>Cliente / razón social <input type="text" name="clientName" required></label>
                 <label>Celular <input type="tel" name="clientPhone"></label>
                 <label>Email <input type="email" name="clientEmail"></label>
                 <label>Dirección <input type="text" name="clientAddress"></label>
               </div>
-
               <div class="form-grid">
                 <label>Condición de pago 
                   <select id="budgetPaymentTerms" name="paymentTerms">
-                    <option>Efectivo</option><option>Transferencia</option><option>Cuenta corriente</option>
-                    <option>Cheque a 30 días</option><option>Cheque a 45 días</option><option>Cheque a 60 días</option>
+                    <option>Efectivo</option>
+                    <option>Transferencia</option>
+                    <option>Cuenta corriente</option>
+                    <option>Cheque a 30 días</option>
+                    <option>Cheque a 45 días</option>
+                    <option>Cheque a 60 días</option>
                     <option>Personalizado</option>
                   </select>
                 </label>
-                <div id="budgetCustomTermsWrap" class="hidden"><label>Detalle personalizado <input type="text" name="paymentTermsCustom"></label></div>
+                <div id="budgetCustomTermsWrap" class="hidden">
+                  <label>Detalle personalizado <input type="text" name="paymentTermsCustom"></label>
+                </div>
               </div>
-              <label>Observaciones <textarea name="notes"></textarea></label>
-
-              <div class="budget-items">
+              <label>Observaciones <textarea name="notes" rows="3"></textarea></label>
+              <div style="margin:20px 0">
                 <h4>Ítems</h4>
                 <div id="budgetItemsWrap"></div>
                 <button type="button" id="addBudgetItemBtn" class="btn btn-sm">+ Agregar ítem</button>
               </div>
-
               <div class="budget-totals">
-                <span>Subtotal</span><strong id="budgetSubtotal">$ 0</strong>
-                <span>Total</span><strong id="budgetTotal">$ 0</strong>
+                <span>Subtotal</span>
+                <strong id="budgetSubtotal">$ 0</strong>
+                <span>Total</span>
+                <strong id="budgetTotal">$ 0</strong>
               </div>
               <div id="budgetMsg" class="msg-box"></div>
               <button type="submit" id="budgetSubmitBtn" class="btn btn-primary">Guardar presupuesto</button>
             </form>
           </div>
         </div>
-
-        <!-- Modal Preview -->
         <div id="budgetPreviewModal" class="modal hidden">
           <div class="modal-content">
             <div class="modal-header">
               <h3 id="budgetModalTitle">Vista previa</h3>
-              <button id="budgetPreviewCloseBtn" class="btn-sm">✕</button>
+              <button id="budgetPreviewCloseBtn" class="btn btn-sm">✕</button>
             </div>
-            <div id="budgetPreviewCard" class="sheet-card"></div>
+            <div id="budgetPreviewCard" class="form-card" style="margin:20px"></div>
             <div id="budgetPreviewActions" class="modal-actions hidden">
               <button id="budgetToggleSentBtn" class="btn btn-sm">Enviado</button>
               <button id="budgetToggleApprovedBtn" class="btn btn-sm">Aprobado</button>
               <button id="budgetModalEditBtn" class="btn btn-sm btn-secondary">Editar</button>
-              <button id="budgetDownloadPdfBtn" class="btn btn-sm">PDF</button>
-              <button id="budgetDownloadPngBtn" class="btn btn-sm">Imagen</button>
               <button id="budgetShareBtn" class="btn btn-sm btn-primary">Compartir</button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Sección Cuentas (Admin) -->
-      <div id="cuentasView" class="view-section hidden admin-only-block">
-        <h2>Cuentas corrientes</h2>
-        <input id="customerSearchInput" type="text" placeholder="Buscador de cuentas..." class="filters-bar">
-        <div class="accounts-layout">
-          <div id="customersList" class="customer-list"></div>
-          <div id="accountDetailCard" class="account-detail">
-            <p>Buscá y seleccioná un cliente para ver sus movimientos.</p>
-          </div>
-        </div>
-        <div id="accountActionBar" class="action-bar hidden">
-          <form id="paymentForm" class="form-inline">
-            <input type="hidden" id="paymentCustomerId">
-            <input type="date" name="date" required>
-            <input type="text" name="amount" data-money="true" placeholder="Monto" required>
-            <select name="paymentMethod"><option>efectivo</option><option>transferencia</option><option>cheque</option></select>
-            <select name="paymentKind"><option value="partial">Cobro parcial</option><option value="total">Cobro total</option></select>
-            <input type="text" name="details" placeholder="Detalle">
-            <button type="submit" class="btn btn-primary">Registrar cobro</button>
-          </form>
-          <div id="paymentMsg" class="msg-box"></div>
-          <button id="captureAccountBtn" class="btn btn-sm">Imagen</button>
-          <button id="accountPdfBtn" class="btn btn-sm">PDF</button>
-          <button id="deleteAccountBtn" class="btn btn-sm btn-danger">Eliminar cuenta</button>
-        </div>
-      </div>
-
-      <!-- Sección Caja (Admin) -->
-      <div id="cajaView" class="view-section hidden admin-only-block">
-        <h2>Caja</h2>
-        <div id="cashStatusCards" class="stats-grid"></div>
-        
-        <div class="forms-row">
-          <form id="cashOpenForm" class="form-card">
-            <h3>Abrir caja</h3>
-            <input type="date" name="date" required>
-            <input type="text" name="cashAmount" data-money="true" placeholder="Efectivo inicial">
-            <input type="text" name="checkAmount" data-money="true" placeholder="Cheques iniciales">
-            <input type="text" name="otherAmount" data-money="true" placeholder="Otros medios">
-            <input type="text" name="details" placeholder="Detalle">
-            <button type="submit" class="btn btn-primary">Guardar apertura</button>
-            <div id="cashMsg" class="msg-box"></div>
-          </form>
-          <form id="cashEntryForm" class="form-card">
-            <h3>Agregar dinero en caja</h3>
-            <input type="date" name="date" required>
-            <input type="text" name="amount" data-money="true" placeholder="Monto" required>
-            <select name="medium"><option>efectivo</option><option>cheque</option><option>otro</option></select>
-            <input type="text" name="details" placeholder="Motivo / detalle">
-            <button type="submit" class="btn btn-primary">Agregar ingreso</button>
-          </form>
-        </div>
-        <h3>Movimientos de caja</h3>
-        <div id="cashMovementsList" class="record-list"></div>
-      </div>
-
-      <!-- Sección Usuarios (Admin) -->
+      <!-- USUARIOS -->
       <div id="usuariosView" class="view-section hidden admin-only-block">
         <h2>Usuarios</h2>
         <form id="userForm" class="form-card">
@@ -401,7 +772,12 @@
             <label>Nombre <input type="text" name="name" required></label>
             <label>Usuario <input type="text" name="username" required></label>
             <label>Contraseña <input type="password" name="password"></label>
-            <label>Rol <select name="role"><option>vendedor</option><option>administrador</option></select></label>
+            <label>Rol 
+              <select name="role">
+                <option>vendedor</option>
+                <option>administrador</option>
+              </select>
+            </label>
           </div>
           <div id="userMsg" class="msg-box"></div>
           <button type="submit" id="userSubmitBtn" class="btn btn-primary">Guardar usuario</button>
@@ -409,12 +785,12 @@
         <div id="usersTableWrap" class="record-list"></div>
       </div>
 
-      <!-- Sección Ajustes -->
+      <!-- AJUSTES -->
       <div id="ajustesView" class="view-section hidden">
         <h2>Ajustes de apariencia</h2>
         <div class="form-card">
           <p>Tema del sistema</p>
-          <div class="btn-group">
+          <div class="filters-bar">
             <button id="themeLightBtn" class="btn">Tema día</button>
             <button id="themeDarkBtn" class="btn">Tema noche</button>
           </div>
@@ -424,18 +800,13 @@
           <ul>
             <li>Diseño adaptable (Móvil/PC)</li>
             <li>Instalable como PWA</li>
+            <li>Funciona offline (caché)</li>
           </ul>
         </div>
       </div>
     </main>
-    
-    <!-- Render Host oculto para generación de PDF -->
-    <div id="renderHost" class="hidden"></div>
   </section>
 
-  <!-- Scripts -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script type="module" src="./app.js"></script>
 </body>
 </html>
