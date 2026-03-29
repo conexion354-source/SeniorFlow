@@ -2,7 +2,7 @@ import { auth, db } from "./firebase-config.js";
 import { signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
 import { addDoc, collection, deleteDoc, doc, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, where, writeBatch, updateDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
-// ESTADO GLOBAL
+// === ESTADO GLOBAL ===
 const state = {
   authUser: null,
   sessionUser: null,
@@ -22,10 +22,12 @@ const state = {
   editingExpenseId: "",
   editingProductId: "",
   editingBudgetId: "",
+  editingCashId: "",
+  editingPaymentId: "",
   editingUserId: ""
 };
 
-// REFERENCIAS DOM
+// === REFERENCIAS DOM ===
 const els = {
   loginScreen: document.getElementById("loginScreen"),
   appScreen: document.getElementById("appScreen"),
@@ -117,16 +119,23 @@ const els = {
   cashEntryForm: document.getElementById("cashEntryForm"),
   cashMovementsList: document.getElementById("cashMovementsList"),
   customersList: document.getElementById("customersList"),
-  paymentForm: document.getElementById("paymentForm")
+  paymentForm: document.getElementById("paymentForm"),
+  exportProductsPdfBtn: document.getElementById("exportProductsPdfBtn"),
+  exportExpensesPdfBtn: document.getElementById("exportExpensesPdfBtn"),
+  renderHost: document.getElementById("renderHost")
 };
 
 let unsubscribers = [];
 let deferredPrompt = null;
 
-// UTILIDADES
+// === UTILIDADES ===
 const currency = (value) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: Number(value || 0) % 1 ? 2 : 0, maximumFractionDigits: 2 }).format(Number(value || 0));
 const todayISO = () => { const now = new Date(); const tzOffset = now.getTimezoneOffset() * 60000; return new Date(now - tzOffset).toISOString().slice(0, 10); };
 const todayLongText = () => new Date().toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+
+function sanitizeId(value) {
+  return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "").replace(/^+|_+$/g, "");
+}
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
@@ -135,35 +144,16 @@ function escapeHtml(value) {
 function roleLabel(role) { return role === "administrador" ? "Administrador" : "Vendedor"; }
 function isAdmin() { return state.sessionUser?.role === "administrador"; }
 
-function showToast(message, type = "success", duration = 3000) {
-  const container = document.getElementById("toastContainer");
-  if (!container) return;
-  const toast = document.createElement("div");
-  toast.className = `toast ${type}`;
-  toast.innerHTML = `<span>${type === "success" ? "✓" : type === "error" ? "✕" : "⚠"}</span><span>${message}</span>`;
-  container.appendChild(toast);
-  setTimeout(() => { toast.style.opacity = "0"; toast.style.transform = "translateX(100%)"; setTimeout(() => toast.remove(), 300); }, duration);
+function showMessage(id, text, isError = false) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text || "";
+  el.style.color = isError ? "var(--danger)" : "var(--success)";
 }
 
-function setLoading(button, isLoading, text = "Guardando...") {
-  if (!button) return;
-  if (isLoading) {
-    button.disabled = true;
-    button.dataset.originalText = button.textContent;
-    button.innerHTML = `<span class="spinner"></span>${text}`;
-  } else {
-    button.disabled = false;
-    button.textContent = button.dataset.originalText || "Guardar";
-  }
-}
-
-function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => { clearTimeout(timeout); func(...args); };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
+function clearMessage(id) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = "";
 }
 
 function parseMoneyValue(input) {
@@ -171,9 +161,14 @@ function parseMoneyValue(input) {
   if (!raw) return 0;
   let normalized = raw.replace(/\s+/g, " ");
   if (normalized.includes(",") && normalized.includes(".")) {
-    if (normalized.lastIndexOf(",") > normalized.lastIndexOf(".")) { normalized = normalized.replace(/\./g, "").replace(",", "."); }
-    else { normalized = normalized.replace(/,/g, ""); }
-  } else if (normalized.includes(",")) { normalized = normalized.replace(/\./g, "").replace(",", "."); }
+    if (normalized.lastIndexOf(",") > normalized.lastIndexOf(".")) {
+      normalized = normalized.replace(/\./g, "").replace(",", ".");
+    } else {
+      normalized = normalized.replace(/,/g, "");
+    }
+  } else if (normalized.includes(",")) {
+    normalized = normalized.replace(/\./g, "").replace(",", ".");
+  }
   normalized = normalized.replace(/[^0-9.-]/g, "");
   const value = Number(normalized);
   return Number.isFinite(value) ? value : 0;
@@ -307,18 +302,18 @@ function buildSalesBreakdown(items) {
 function renderMiniStats(targetId, cards = []) {
   const node = document.getElementById(targetId);
   if (!node) return;
-  if (!cards.length) { node.innerHTML = '<p style="color:var(--muted)">Sin datos suficientes.</p>'; return; }
-  node.innerHTML = cards.map((card) => `<div><span style="color:var(--muted);font-size:14px">${card.label}</span><div style="font-size:24px;font-weight:700">${card.value}</div></div>`).join("");
+  if (!cards.length) { node.innerHTML = '<p class="muted">Sin datos suficientes.</p>'; return; }
+  node.innerHTML = cards.map((card) => `<div><span class="muted" style="font-size:14px">${card.label}</span><div style="font-size:28px;font-weight:700">${card.value}</div></div>`).join("");
 }
 
 function renderBarChart(targetId, rows = [], monthMode = false) {
   const node = document.getElementById(targetId);
   if (!node) return;
-  if (!rows.length) { node.innerHTML = '<p style="color:var(--muted)">Sin ventas para graficar.</p>'; return; }
+  if (!rows.length) { node.innerHTML = '<p class="muted">Sin ventas para graficar.</p>'; return; }
   const max = Math.max(...rows.map((row) => Number(row.amount || 0)), 1);
   node.innerHTML = rows.map((row) => {
     const width = Math.max(6, (Number(row.amount || 0) / max) * 100);
-    return `<div style="display:flex;align-items:center;gap:10px;margin:10px 0"><div style="width:80px;font-size:14px">${row.label}</div><div style="flex:1;height:24px;background:var(--bg);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--primary);border-radius:4px;width:${width}%"></div></div><div style="width:100px;text-align:right;font-size:14px">${currency(row.amount || 0)}</div></div>`;
+    return `<div style="display:flex;align-items:center;gap:12px;margin:12px 0"><div style="width:85px;font-size:14px;color:var(--muted)">${row.label}</div><div style="flex:1;height:28px;background:var(--bg);border-radius:6px;overflow:hidden"><div style="height:100%;background:linear-gradient(90deg,var(--primary),var(--primary-dark));border-radius:6px;width:${width}%"></div></div><div style="width:110px;text-align:right;font-size:14px;font-weight:600">${currency(row.amount || 0)}</div></div>`;
   }).join("");
 }
 
@@ -347,7 +342,7 @@ function renderBudgetSelectedCustomer(customer = null) {
     return;
   }
   els.budgetCustomerSelectedCard.classList.remove("hidden");
-  els.budgetCustomerSelectedCard.innerHTML = `<div><strong>#${escapeHtml(getCustomerCode(customer))} · ${escapeHtml(getCustomerFullName(customer))}</strong><span style="color:var(--success)">Cliente cargado</span></div><div style="color:var(--muted);font-size:14px">${escapeHtml(customer.phone || "Sin celular")} · ${escapeHtml(customer.email || "Sin email")}</div>`;
+  els.budgetCustomerSelectedCard.innerHTML = `<div><strong>#${escapeHtml(getCustomerCode(customer))} · ${escapeHtml(getCustomerFullName(customer))}</strong><span style="color:var(--success)">Cliente cargado</span></div><div class="muted" style="font-size:14px">${escapeHtml(customer.phone || "Sin celular")} · ${escapeHtml(customer.email || "Sin email")}</div>`;
 }
 
 function resolveBudgetCustomerSearch() {
@@ -365,7 +360,9 @@ function resolveBudgetCustomerSearch() {
     return null;
   }
   if (els.budgetCustomerId) els.budgetCustomerId.value = customer.id;
-  if (els.budgetCustomerSearch) els.budgetCustomerSearch.value = `${getCustomerCode(customer)} · ${getCustomerFullName(customer)} · ${customer.phone || ""}`;
+  if (els.budgetCustomerSearch) {
+    els.budgetCustomerSearch.value = `${getCustomerCode(customer)} · ${getCustomerFullName(customer)} · ${customer.phone || ""}`;
+  }
   const form = els.budgetForm;
   form.clientName.value = getCustomerFullName(customer);
   form.clientPhone.value = customer.phone || "";
@@ -412,6 +409,7 @@ function applyRoleUI() {
   }
 }
 
+// === RENDERIZADO ===
 function renderDashboard() {
   const today = todayISO();
   const monthStart = startOfMonthISO(today);
@@ -419,10 +417,10 @@ function renderDashboard() {
   const monthSalesItems = state.sales.filter((sale) => (sale.date || "") >= monthStart && (sale.date || "") <= today);
   const allSalesTotal = monthSalesItems.reduce((sum, sale) => sum + Number(sale.amount || 0), 0);
   const salesDay = salesTodayItems.reduce((sum, sale) => sum + Number(sale.amount || 0), 0);
-  const expensesDay = state.expenses.filter((exp) => exp.date === today).reduce((sum, exp) => sum + Number(exp.amount || 0), 0);
   const cajaBreakdown = currentCajaBreakdown();
   const cash = sumBreakdown(cajaBreakdown);
   const salesDayBreakdown = buildSalesBreakdown(salesTodayItems);
+  
   const overdueCustomers = state.customers.map((customer) => {
     const movements = accountMovementsForCustomer(customer.id);
     const balance = accountBalance(customer.id);
@@ -469,9 +467,9 @@ function renderDashboard() {
   renderBarChart("monthSalesChart", monthRows, true);
 
   const lowStock = state.products.slice().sort((a, b) => (Number(a.currentStock || 0) - Number(a.minStock || 0)) - (Number(b.currentStock || 0) - Number(b.minStock || 0))).filter((item) => Number(item.currentStock || 0) <= Number(item.minStock || 0));
-  document.getElementById("stockRankingList").innerHTML = lowStock.length ? lowStock.slice(0, 8).map((item) => `<div class="simple-item"><strong>${escapeHtml(item.name || "-")}</strong><span>${escapeHtml(item.category || "General")} · Actual: ${item.currentStock} · Mínimo: ${item.minStock}</span></div>`).join("") : '<p style="color:var(--muted)">No hay productos con stock bajo.</p>';
+  document.getElementById("stockRankingList").innerHTML = lowStock.length ? lowStock.slice(0, 8).map((item) => `<div class="simple-item"><strong>${escapeHtml(item.name || "-")}</strong><span>${escapeHtml(item.category || "General")} · Actual: ${item.currentStock} · Mínimo: ${item.minStock}</span></div>`).join("") : '<p class="muted">No hay productos con stock bajo.</p>';
 
-  document.getElementById("overdueList").innerHTML = overdueCustomers.length ? overdueCustomers.slice(0, 20).map((customer) => `<div class="simple-item"><strong>${escapeHtml(getCustomerFullName(customer))}</strong><span>${currency(customer.balance)} · ${escapeHtml(customer.phone || "")}</span></div>`).join("") : '<p style="color:var(--muted)">No hay clientes morosos.</p>';
+  document.getElementById("overdueList").innerHTML = overdueCustomers.length ? overdueCustomers.slice(0, 20).map((customer) => `<div class="simple-item"><strong>${escapeHtml(getCustomerFullName(customer))}</strong><span>${currency(customer.balance)}</span><div class="muted">${escapeHtml(customer.phone || "")}</div></div>`).join("") : '<p class="muted">No hay clientes morosos.</p>';
 }
 
 function getSalesFiltered() {
@@ -495,12 +493,12 @@ function getSalesFiltered() {
 
 function renderSales() {
   const rows = getSalesFiltered();
-  if (!rows.length) { els.salesTableWrap.innerHTML = '<p style="color:var(--muted)">No hay ventas para mostrar.</p>'; return; }
-  els.salesTableWrap.innerHTML = rows.map((sale) => `<div class="record-card"><div class="record-main"><div class="record-head"><strong>${escapeHtml(sale.documentType || "-")} · ${escapeHtml(sale.documentNumber || "-")}</strong><span class="record-amount">${currency(sale.amount)}</span></div><div class="record-meta"><span>${escapeHtml(sale.date || "-")}</span>${sale.operationType === "cuenta_corriente" ? `<span class="status-pill warning">Cta. Cte.</span>` : `<span class="status-pill success">Contado</span>`}</div></div><div class="record-actions"><button class="btn btn-sm btn-secondary sale-edit-btn" data-id="${sale.id}">Editar</button><button class="btn btn-sm btn-danger sale-delete-btn" data-id="${sale.id}">Eliminar</button></div></div>`).join("");
+  if (!rows.length) { els.salesTableWrap.innerHTML = '<p class="muted">No hay ventas para mostrar.</p>'; return; }
+  els.salesTableWrap.innerHTML = rows.map((sale) => `<div class="record-card"><div class="record-main"><div class="record-head"><strong>${escapeHtml(sale.documentType || "-")} · ${escapeHtml(sale.documentNumber || "-")}</strong><span class="record-amount">${currency(sale.amount)}</span></div><div class="record-meta"><span>${escapeHtml(sale.date || "-")}</span>${sale.operationType === "cuenta_corriente" ? '<span class="status-pill warning">Cta. Cte.</span>' : '<span class="status-pill success">Contado</span>'}</div></div><div class="record-actions"><button class="btn btn-sm btn-secondary sale-edit-btn" data-id="${sale.id}">Editar</button><button class="btn btn-sm btn-danger sale-delete-btn" data-id="${sale.id}">Eliminar</button></div></div>`).join("");
   els.salesTableWrap.querySelectorAll(".sale-edit-btn").forEach((btn) => btn.addEventListener("click", () => loadSaleIntoForm(btn.dataset.id)));
   els.salesTableWrap.querySelectorAll(".sale-delete-btn").forEach((btn) => btn.addEventListener("click", async () => {
     if (!confirm("¿Eliminar esta venta?")) return;
-    try { await deleteSale(btn.dataset.id); showToast("Venta eliminada"); } catch (error) { showToast(error.message, "error"); }
+    try { await deleteSale(btn.dataset.id); showMessage("saleMsg", "Venta eliminada"); } catch (error) { showMessage("saleMsg", error.message, true); }
   }));
 }
 
@@ -521,12 +519,12 @@ function getExpensesFiltered() {
 
 function renderExpenses() {
   const items = getExpensesFiltered();
-  if (!items.length) { els.expensesTableWrap.innerHTML = '<p style="color:var(--muted)">No hay gastos para mostrar.</p>'; return; }
+  if (!items.length) { els.expensesTableWrap.innerHTML = '<p class="muted">No hay gastos para mostrar.</p>'; return; }
   els.expensesTableWrap.innerHTML = items.map((exp) => `<div class="record-card"><div class="record-main"><div class="record-head"><strong>${escapeHtml(exp.category || "-")}</strong><span class="record-amount">${currency(exp.amount)}</span></div><div class="record-meta"><span>${escapeHtml(exp.date || "-")}</span><span>${escapeHtml(exp.details || "Sin detalle")}</span></div></div><div class="record-actions"><button class="btn btn-sm btn-secondary expense-edit-btn" data-id="${exp.id}">Editar</button><button class="btn btn-sm btn-danger expense-delete-btn" data-id="${exp.id}">Eliminar</button></div></div>`).join("");
   els.expensesTableWrap.querySelectorAll(".expense-edit-btn").forEach((btn) => btn.addEventListener("click", () => loadExpenseIntoForm(btn.dataset.id)));
   els.expensesTableWrap.querySelectorAll(".expense-delete-btn").forEach((btn) => btn.addEventListener("click", async () => {
     if (!confirm("¿Eliminar este gasto?")) return;
-    try { await deleteDoc(doc(db, "expenses", btn.dataset.id)); showToast("Gasto eliminado"); } catch (error) { showToast(error.message, "error"); }
+    try { await deleteDoc(doc(db, "expenses", btn.dataset.id)); showMessage("expenseMsg", "Gasto eliminado"); } catch (error) { showMessage("expenseMsg", error.message, true); }
   }));
 }
 
@@ -536,12 +534,12 @@ function renderProducts() {
     const text = `${item.code || ""} ${item.name || ""} ${item.description || ""} ${item.category || ""}`.toLowerCase();
     return !productFilter || text.includes(productFilter);
   });
-  if (!filteredProducts.length) { els.productsTableWrap.innerHTML = '<p style="color:var(--muted)">No hay productos cargados.</p>'; return; }
+  if (!filteredProducts.length) { els.productsTableWrap.innerHTML = '<p class="muted">No hay productos cargados.</p>'; return; }
   els.productsTableWrap.innerHTML = `<table class="data-table"><thead><tr><th>Código</th><th>Producto</th><th>Categoría</th><th>Stock</th><th>Precio</th><th>Acciones</th></tr></thead><tbody>${filteredProducts.map((item) => `<tr><td>${escapeHtml(item.code || "-")}</td><td>${escapeHtml(item.name || "-")}</td><td>${escapeHtml(item.category || "General")}</td><td>${item.currentStock ?? 0}</td><td>${currency(item.salePrice)}</td><td><button class="btn btn-sm btn-secondary product-edit-btn" data-id="${item.id}">Editar</button><button class="btn btn-sm btn-danger product-delete-btn" data-id="${item.id}">Eliminar</button></td></tr>`).join("")}</tbody></table>`;
   els.productsTableWrap.querySelectorAll(".product-edit-btn").forEach((btn) => btn.addEventListener("click", () => loadProductIntoForm(btn.dataset.id)));
   els.productsTableWrap.querySelectorAll(".product-delete-btn").forEach((btn) => btn.addEventListener("click", async () => {
     if (!confirm("¿Eliminar este producto?")) return;
-    try { await deleteDoc(doc(db, "products", btn.dataset.id)); showToast("Producto eliminado"); } catch (error) { showToast(error.message, "error"); }
+    try { await deleteDoc(doc(db, "products", btn.dataset.id)); showMessage("productMsg", "Producto eliminado"); } catch (error) { showMessage("productMsg", error.message, true); }
   }));
 }
 
@@ -552,7 +550,7 @@ function renderCustomers() {
     return !filter || text.includes(filter);
   });
   const target = document.getElementById("customersList");
-  target.innerHTML = filteredCustomers.length ? filteredCustomers.map((customer) => `<button class="simple-item customer-btn ${state.selectedCustomerId === customer.id ? "active" : ""}" data-id="${customer.id}" type="button" style="width:100%;text-align:left;background:transparent;border:none;cursor:pointer"><strong>#${escapeHtml(getCustomerCode(customer))} · ${escapeHtml(getCustomerFullName(customer))}</strong><span>${currency(accountBalance(customer.id))}</span><div style="color:var(--muted);font-size:14px">${escapeHtml(customer.phone || "")}</div></button>`).join("") : '<p style="color:var(--muted)">No hay clientes.</p>';
+  target.innerHTML = filteredCustomers.length ? filteredCustomers.map((customer) => `<button class="simple-item customer-btn ${state.selectedCustomerId === customer.id ? "active" : ""}" data-id="${customer.id}" type="button"><strong>#${escapeHtml(getCustomerCode(customer))} · ${escapeHtml(getCustomerFullName(customer))}</strong><span>${currency(accountBalance(customer.id))}</span><div class="muted">${escapeHtml(customer.phone || "")}</div></button>`).join("") : '<p class="muted">No hay clientes.</p>';
   document.querySelectorAll(".customer-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.selectedCustomerId = btn.dataset.id;
@@ -568,14 +566,14 @@ function renderAccountDetail(customerId) {
   const customer = state.customers.find((item) => item.id === customerId);
   els.accountActionBar?.classList.toggle("hidden", !customer);
   if (!customer) {
-    card.innerHTML = '<p style="color:var(--muted)">Buscá y seleccioná un cliente para ver sus movimientos.</p>';
+    card.innerHTML = '<p class="muted">Buscá y seleccioná un cliente para ver sus movimientos.</p>';
     els.paymentCustomerId.value = "";
     return;
   }
   const movements = accountMovementsForCustomer(customerId);
   const balance = accountBalance(customerId);
   els.paymentCustomerId.value = customerId;
-  card.innerHTML = `<div><strong>#${escapeHtml(getCustomerCode(customer))} · ${escapeHtml(getCustomerFullName(customer))}</strong><div style="color:var(--muted);font-size:14px">Celular: ${escapeHtml(customer.phone || "-")} · Email: ${escapeHtml(customer.email || "-")}</div><div style="font-size:24px;font-weight:700;margin:10px 0">${currency(balance)}</div></div><div>${movements.length ? movements.map((item) => `<div class="simple-item"><strong>${escapeHtml(item.type === "cobro" ? "Cobro" : "Cargo")}</strong><span>${currency(item.amount)} · ${escapeHtml(item.date || "-")} · ${escapeHtml(item.paymentMethod || "-")}</span></div>`).join("") : '<p style="color:var(--muted)">Sin movimientos.</p>'}</div>`;
+  card.innerHTML = `<div><strong>#${escapeHtml(getCustomerCode(customer))} · ${escapeHtml(getCustomerFullName(customer))}</strong><div class="muted" style="font-size:14px">Celular: ${escapeHtml(customer.phone || "-")} · Email: ${escapeHtml(customer.email || "-")}</div><div style="font-size:24px;font-weight:700;margin:10px 0">${currency(balance)}</div></div><div>${movements.length ? movements.map((item) => `<div class="simple-item"><strong>${escapeHtml(item.type === "cobro" ? "Cobro" : "Cargo")}</strong><span>${currency(item.amount)} · ${escapeHtml(item.date || "-")} · ${escapeHtml(item.paymentMethod || "-")}</span></div>`).join("") : '<p class="muted">Sin movimientos.</p>'}</div>`;
 }
 
 function renderCash() {
@@ -586,7 +584,7 @@ function renderCash() {
     { label: "Cheques", value: currency(cajaBreakdown.cheque || 0) }
   ]);
   const node = document.getElementById("cashMovementsList");
-  node.innerHTML = state.cashMovements.length ? state.cashMovements.slice(0, 40).map((item) => `<div class="record-card"><div class="record-main"><div class="record-head"><strong>${item.kind === "apertura" ? "Apertura de caja" : "Ingreso manual"}</strong><span class="record-amount">${item.kind === "apertura" ? currency((item.cashAmount || 0) + (item.checkAmount || 0) + (item.otherAmount || 0)) : currency(item.amount || 0)}</span></div><div class="record-meta"><span>${escapeHtml(item.date || "-")}</span><span>${item.kind === "apertura" ? `Efectivo ${currency(item.cashAmount || 0)}` : `${escapeHtml(String(item.medium || "otro"))}`}</span></div></div></div>`).join("") : '<p style="color:var(--muted)">Sin movimientos de caja.</p>';
+  node.innerHTML = state.cashMovements.length ? state.cashMovements.slice(0, 40).map((item) => `<div class="record-card"><div class="record-main"><div class="record-head"><strong>${item.kind === "apertura" ? "Apertura de caja" : "Ingreso manual"}</strong><span class="record-amount">${item.kind === "apertura" ? currency((item.cashAmount || 0) + (item.checkAmount || 0) + (item.otherAmount || 0)) : currency(item.amount || 0)}</span></div><div class="record-meta"><span>${escapeHtml(item.date || "-")}</span><span>${item.kind === "apertura" ? `Efectivo ${currency(item.cashAmount || 0)}` : `${escapeHtml(String(item.medium || "otro"))}`}</span></div></div></div>`).join("") : '<p class="muted">Sin movimientos de caja.</p>';
 }
 
 function renderBudgets() {
@@ -600,7 +598,7 @@ function renderBudgets() {
     const matchesTo = !budgetTo || (budget.date || "") <= budgetTo;
     return matchesText && matchesFrom && matchesTo;
   });
-  els.budgetsList.innerHTML = filteredBudgets.length ? filteredBudgets.map((budget) => `<div class="simple-item budget-item ${state.selectedBudgetId === budget.id ? "active" : ""}" data-id="${budget.id}" style="cursor:pointer"><strong>${escapeHtml(budget.number || budget.id)} · ${escapeHtml(budget.clientName || "Cliente")}</strong><span>${escapeHtml(budget.date || "-")} · ${currency(budget.total)}</span><div style="color:var(--muted);font-size:14px">${budget.sent ? '✓ Enviado' : ''} ${budget.approved ? '✓ Aprobado' : ''}</div></div>`).join("") : '<p style="color:var(--muted)">No hay presupuestos.</p>';
+  els.budgetsList.innerHTML = filteredBudgets.length ? filteredBudgets.map((budget) => `<div class="simple-item budget-item ${state.selectedBudgetId === budget.id ? "active" : ""}" data-id="${budget.id}" style="cursor:pointer"><strong>${escapeHtml(budget.number || budget.id)} · ${escapeHtml(budget.clientName || "Cliente")}</strong><span>${escapeHtml(budget.date || "-")} · ${currency(budget.total)}</span><div class="muted" style="font-size:14px">${budget.sent ? '✓ Enviado' : ''} ${budget.approved ? '✓ Aprobado' : ''}</div></div>`).join("") : '<p class="muted">No hay presupuestos.</p>';
   document.querySelectorAll(".budget-item").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.selectedBudgetId = btn.dataset.id;
@@ -614,7 +612,7 @@ function renderBudgets() {
 function renderBudgetPreview(budgetId) {
   const budget = state.budgets.find((item) => item.id === budgetId);
   if (!budget) {
-    els.budgetPreviewCard.innerHTML = '<p style="color:var(--muted)">Seleccioná un presupuesto.</p>';
+    els.budgetPreviewCard.innerHTML = '<p class="muted">Seleccioná un presupuesto.</p>';
     els.budgetPreviewActions?.classList.add("hidden");
     return;
   }
@@ -629,10 +627,10 @@ function renderBudgetPreview(budgetId) {
 function renderUsers() {
   const wrap = document.getElementById("usersTableWrap");
   if (!wrap) return;
-  wrap.innerHTML = state.users.length ? state.users.map((user) => `<div class="record-card"><div class="record-main"><div class="record-head"><strong>${escapeHtml(user.name || "-")}</strong><span>${escapeHtml(roleLabel(user.role))}</span></div><div class="record-meta"><span>${escapeHtml(user.username || "-")}</span></div></div><div class="record-actions">${isAdmin() && user.id !== state.sessionUser.id ? `<button class="btn btn-sm btn-danger user-delete-btn" data-id="${user.id}">Eliminar</button>` : ""}</div></div>`).join("") : '<p style="color:var(--muted)">No hay usuarios.</p>';
+  wrap.innerHTML = state.users.length ? state.users.map((user) => `<div class="record-card"><div class="record-main"><div class="record-head"><strong>${escapeHtml(user.name || "-")}</strong><span>${escapeHtml(roleLabel(user.role))}</span></div><div class="record-meta"><span>${escapeHtml(user.username || "-")}</span></div></div><div class="record-actions">${isAdmin() && user.id !== state.sessionUser.id ? `<button class="btn btn-sm btn-danger user-delete-btn" data-id="${user.id}">Eliminar</button>` : ""}</div></div>`).join("") : '<p class="muted">No hay usuarios.</p>';
   wrap.querySelectorAll(".user-delete-btn").forEach((btn) => btn.addEventListener("click", async () => {
     if (!confirm("¿Eliminar este usuario?")) return;
-    try { await deleteDoc(doc(db, "users", btn.dataset.id)); showToast("Usuario eliminado"); } catch (error) { showToast(error.message, "error"); }
+    try { await deleteDoc(doc(db, "users", btn.dataset.id)); showMessage("userMsg", "Usuario eliminado"); } catch (error) { showMessage("userMsg", error.message, true); }
   }));
 }
 
@@ -650,7 +648,7 @@ function renderEverything() {
   syncBudgetClientMode();
 }
 
-// LOGIN Y AUTENTICACIÓN
+// === LOGIN Y AUTENTICACIÓN ===
 async function ensureAnonymousSession() {
   if (state.authUser) return;
   await signInAnonymously(auth);
@@ -694,7 +692,7 @@ async function handleLogin(username, password) {
   return vendor;
 }
 
-// FORMULARIOS
+// === FORMULARIOS ===
 function syncSaleFormVisibility() {
   const accountMode = els.saleOperationType.value === "cuenta_corriente";
   els.saleCashFields.classList.toggle("hidden", accountMode);
@@ -869,7 +867,7 @@ function loadUserIntoForm(id) {
   document.querySelector('[data-view="usuarios"]')?.click();
 }
 
-// GUARDAR DATOS
+// === GUARDAR DATOS ===
 async function saveSaleForm(event) {
   event.preventDefault();
   const form = els.saleForm;
@@ -902,7 +900,7 @@ async function saveSaleForm(event) {
   renderEverything();
   const wasEditing = !!state.editingSaleId;
   resetSaleForm();
-  showToast(wasEditing ? "Venta actualizada." : "Venta guardada.");
+  showMessage("saleMsg", wasEditing ? "Venta actualizada." : "Venta guardada.");
 }
 
 async function saveExpenseForm(event) {
@@ -924,7 +922,7 @@ async function saveExpenseForm(event) {
   await setDoc(doc(db, "expenses", id), payload, { merge: true });
   const wasEditing = !!state.editingExpenseId;
   resetExpenseForm();
-  showToast(wasEditing ? "Gasto actualizado." : "Gasto guardado.");
+  showMessage("expenseMsg", wasEditing ? "Gasto actualizado." : "Gasto guardado.");
 }
 
 async function saveProductForm(event) {
@@ -946,7 +944,7 @@ async function saveProductForm(event) {
   }, { merge: true });
   const wasEditing = !!state.editingProductId;
   resetProductForm();
-  showToast(wasEditing ? "Producto actualizado." : "Producto guardado.");
+  showMessage("productMsg", wasEditing ? "Producto actualizado." : "Producto guardado.");
 }
 
 async function saveBudgetForm(event) {
@@ -1006,7 +1004,7 @@ async function saveBudgetForm(event) {
   renderBudgetPreview(id);
   const wasEditing = !!state.editingBudgetId;
   resetBudgetForm();
-  showToast(wasEditing ? "Presupuesto actualizado." : "Presupuesto guardado.");
+  showMessage("budgetMsg", wasEditing ? "Presupuesto actualizado." : "Presupuesto guardado.");
 }
 
 async function savePaymentForm(event) {
@@ -1032,7 +1030,7 @@ async function savePaymentForm(event) {
   form.reset();
   form.date.value = todayISO();
   form.customerId.value = state.selectedCustomerId || "";
-  showToast("Cobro registrado.");
+  showMessage("paymentMsg", "Cobro registrado.");
 }
 
 async function saveCashOpenForm(event) {
@@ -1056,7 +1054,7 @@ async function saveCashOpenForm(event) {
   });
   form.reset();
   form.date.value = todayISO();
-  showToast("Apertura guardada.");
+  showMessage("cashMsg", "Apertura guardada.");
 }
 
 async function saveCashEntryForm(event) {
@@ -1077,7 +1075,7 @@ async function saveCashEntryForm(event) {
   });
   form.reset();
   form.date.value = todayISO();
-  showToast("Ingreso guardado.");
+  showMessage("cashMsg", "Ingreso guardado.");
 }
 
 async function saveUserForm(event) {
@@ -1094,10 +1092,10 @@ async function saveUserForm(event) {
   await setDoc(doc(db, "users", userId), payload, { merge: true });
   const wasEditing = !!state.editingUserId;
   resetUserForm();
-  showToast(wasEditing ? "Usuario actualizado." : "Usuario guardado.");
+  showMessage("userMsg", wasEditing ? "Usuario actualizado." : "Usuario guardado.");
 }
 
-// EVENTOS Y NAVEGACIÓN
+// === EVENTOS Y NAVEGACIÓN ===
 function setupNavigation() {
   document.querySelectorAll(".nav-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1175,14 +1173,14 @@ function setupUiEvents() {
     const budget = state.budgets.find((item) => item.id === state.selectedBudgetId);
     if (!budget) return;
     await updateDoc(doc(db, "budgets", state.selectedBudgetId), { sent: !budget.sent, updatedAt: serverTimestamp() });
-    showToast(budget.sent ? "Marcado como no enviado." : "Marcado como enviado.");
+    showMessage("budgetMsg", budget.sent ? "Marcado como no enviado." : "Marcado como enviado.");
   });
   els.budgetToggleApprovedBtn?.addEventListener("click", async () => {
     if (!state.selectedBudgetId) return;
     const budget = state.budgets.find((item) => item.id === state.selectedBudgetId);
     if (!budget) return;
     await updateDoc(doc(db, "budgets", state.selectedBudgetId), { approved: !budget.approved, updatedAt: serverTimestamp() });
-    showToast(budget.approved ? "Marcado como no aprobado." : "Marcado como aprobado.");
+    showMessage("budgetMsg", budget.approved ? "Marcado como no aprobado." : "Marcado como aprobado.");
   });
   els.logoutBtn.addEventListener("click", async () => {
     state.sessionUser = null;
@@ -1200,14 +1198,14 @@ function setupUiEvents() {
 }
 
 function setupForms() {
-  els.saleForm.addEventListener("submit", async (event) => { try { await saveSaleForm(event); } catch (error) { showToast(error.message, "error"); } });
-  els.expenseForm.addEventListener("submit", async (event) => { try { await saveExpenseForm(event); } catch (error) { showToast(error.message, "error"); } });
-  els.productForm.addEventListener("submit", async (event) => { try { await saveProductForm(event); } catch (error) { showToast(error.message, "error"); } });
-  els.budgetForm.addEventListener("submit", async (event) => { try { await saveBudgetForm(event); } catch (error) { showToast(error.message, "error"); } });
-  els.paymentForm?.addEventListener("submit", async (event) => { try { await savePaymentForm(event); } catch (error) { showToast(error.message, "error"); } });
-  els.cashOpenForm?.addEventListener("submit", async (event) => { try { await saveCashOpenForm(event); } catch (error) { showToast(error.message, "error"); } });
-  els.cashEntryForm?.addEventListener("submit", async (event) => { try { await saveCashEntryForm(event); } catch (error) { showToast(error.message, "error"); } });
-  els.userForm?.addEventListener("submit", async (event) => { try { await saveUserForm(event); } catch (error) { showToast(error.message, "error"); } });
+  els.saleForm.addEventListener("submit", async (event) => { try { await saveSaleForm(event); } catch (error) { showMessage("saleMsg", error.message, true); } });
+  els.expenseForm.addEventListener("submit", async (event) => { try { await saveExpenseForm(event); } catch (error) { showMessage("expenseMsg", error.message, true); } });
+  els.productForm.addEventListener("submit", async (event) => { try { await saveProductForm(event); } catch (error) { showMessage("productMsg", error.message, true); } });
+  els.budgetForm.addEventListener("submit", async (event) => { try { await saveBudgetForm(event); } catch (error) { showMessage("budgetMsg", error.message, true); } });
+  els.paymentForm?.addEventListener("submit", async (event) => { try { await savePaymentForm(event); } catch (error) { showMessage("paymentMsg", error.message, true); } });
+  els.cashOpenForm?.addEventListener("submit", async (event) => { try { await saveCashOpenForm(event); } catch (error) { showMessage("cashMsg", error.message, true); } });
+  els.cashEntryForm?.addEventListener("submit", async (event) => { try { await saveCashEntryForm(event); } catch (error) { showMessage("cashMsg", error.message, true); } });
+  els.userForm?.addEventListener("submit", async (event) => { try { await saveUserForm(event); } catch (error) { showMessage("userMsg", error.message, true); } });
 }
 
 function attachRealtime() {
@@ -1242,7 +1240,7 @@ function initLoginFlow() {
   });
 }
 
-// INICIALIZACIÓN
+// === INICIALIZACIÓN ===
 setMode("administrador");
 setDefaultDates();
 setupNavigation();
