@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#19b3d1" />
+  <meta name="description" content="SF - control diario de ventas, gastos y caja" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>SF</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <link rel="icon" type="image/png" href="./icons/icon-192.png" />
+  <style>
+    :root {
+      --primary: #19b3d1;
+      --primary-dark: #0d89a2;
+      --bg: #f3f7fb;
+      --bg-soft: #edf4f9;
+      --card: #ffffff;
+      --text: #172534;
+      --muted: #637381;
+      --border: #dbe6ee;
+      --success: #0c9c6a;
+      --success-bg: #e6fbf3;
+      --danger: #d64545;
+      --danger-bg: #fff0f0;
+      --warning: #cb860a;
+      --warning-bg: #fff6de;
+      --purple: #7b5cff;
+      --purple-bg: #f0ecff;
+      --shadow: 0 10px 30px rgba(23, 37, 52, .08);
+      --radius: 20px;
+    }
+    body.dark {
+      --primary: #37c7e1;
+      --primary-dark: #1b9cb4;
+      --bg: #0d1620;
+      --bg-soft: #15202c;
+      --card: #121d28;
+      --text: #edf5ff;
+      --muted: #9aa9b7;
+      --border: #243445;
+      --success: #54d5a6;
+      --success-bg: rgba(84, 213, 166, .14);
+      --danger: #ff8b8b;
+      --danger-bg: rgba(255, 139, 139, .14);
+      --warning: #ffd073;
+      --warning-bg: rgba(255, 208, 115, .14);
+      --purple: #b79cff;
+      --purple-bg: rgba(183, 156, 255, .14);
+      --shadow: 0 14px 36px rgba(0, 0, 0, .28);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+    button, input, select, textarea { font: inherit; }
+    .hidden { display: none !important; }
+    .app-shell { min-height: 100vh; padding-bottom: 95px; }
+    .topbar {
+      position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 14px 16px; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(10px);
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+    }
+    .brand { display:flex; align-items:center; gap:12px; min-width:0; }
+    .brand img { width: 50px; height: 50px; border-radius: 16px; box-shadow: var(--shadow); background: var(--primary); object-fit: cover; }
+    .brand h1 { margin: 0; font-size: 1.12rem; }
+    .brand p { margin: 2px 0 0; color: var(--muted); font-size: .88rem; }
+    .top-actions { display:flex; align-items:center; gap:10px; }
+    .install-btn, .icon-btn {
+      border: 1px solid var(--border); background: var(--card); box-shadow: var(--shadow); border-radius: 999px; padding: 10px 14px;
+      color: var(--text); font-weight: 700; cursor: pointer;
+    }
+    .icon-btn { width: 44px; height: 44px; padding: 0; font-size: 1.1rem; }
+    .container { width: min(1150px, 100%); margin: 0 auto; padding: 16px; }
+    .hero-card, .card, .form-card, .list-card, .panel-card, .modal-box {
+      background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow);
+    }
+    .hero-card { padding: 20px; margin-bottom: 16px; }
+    .hero-card h2 { margin: 0 0 6px; font-size: 1.2rem; }
+    .hero-card p { margin: 0; color: var(--muted); }
+    .status-banner { margin-top: 14px; padding: 14px 16px; border-radius: 16px; font-weight: 800; }
+    .status-banner.open { background: var(--success-bg); color: var(--success); }
+    .status-banner.closed { background: var(--danger-bg); color: var(--danger); }
+    .section-title { display:flex; align-items:center; justify-content:space-between; gap:10px; margin: 8px 0 14px; }
+    .section-title h3 { margin: 0; font-size: 1.02rem; }
+    .stats-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .stat-card { padding: 18px; }
+    .stat-card span { display:block; font-size:.9rem; margin-bottom:8px; opacity:.95; }
+    .stat-card strong { display:block; font-size:1.55rem; line-height:1.1; }
+    .stat-card small { display:block; margin-top:10px; font-size:.82rem; opacity:.95; }
+    .stat-button { width:100%; border:1px solid var(--border); text-align:left; cursor:pointer; transition: transform .15s ease, filter .15s ease; }
+    .stat-button:active { transform: scale(.99); }
+    .stat-button:focus-visible { outline: 3px solid color-mix(in srgb, var(--primary) 55%, transparent); outline-offset: 3px; }
+    .stat-sales-day { background: linear-gradient(135deg, #19b3d1, #0d89a2); color:#fff; }
+    .stat-expenses-day { background: linear-gradient(135deg, #ff9f6f, #ff6d5f); color:#fff; }
+    .stat-cash { background: linear-gradient(135deg, #2bc97b, #139b58); color:#fff; }
+    .stat-month { background: linear-gradient(135deg, #7b5cff, #5d46d9); color:#fff; }
+    .content-grid { display:grid; grid-template-columns: 1.08fr .92fr; gap: 16px; margin-top:16px; }
+    .chart-card, .mini-card { padding: 16px; }
+    .bars { display:grid; gap:12px; margin-top: 12px; }
+    .bar-row { display:grid; grid-template-columns: 54px 1fr auto; gap:10px; align-items:center; }
+    .bar-track { width:100%; height:12px; border-radius:999px; background: var(--bg-soft); overflow:hidden; }
+    .bar-fill { height:100%; border-radius:999px; background: linear-gradient(90deg, var(--primary), var(--primary-dark)); }
+    .kpis { display:grid; gap:12px; grid-template-columns: repeat(2, 1fr); }
+    .mini-card strong { font-size:1.15rem; display:block; }
+    .mini-card span { color: var(--muted); font-size:.86rem; display:block; margin-top:4px; }
+    .view { display:none; }
+    .view.active { display:block; }
+    .form-card, .list-card, .panel-card { padding: 16px; }
+    .form-grid { display:grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .form-grid-3 { display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    label { display:block; font-size:.9rem; font-weight:700; }
+    input, select, textarea {
+      width:100%; margin-top:6px; border:1px solid var(--border); background: color-mix(in srgb, var(--card) 85%, var(--bg-soft));
+      border-radius:14px; padding:14px 12px; min-height:48px; color:var(--text);
+    }
+    textarea { min-height: 92px; resize: vertical; }
+    .money-words { display:block; margin-top:6px; color:var(--muted); font-size:.8rem; font-weight:500; min-height:18px; }
+    .form-actions, .inline-actions, .toolbar-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top: 14px; }
+    .btn { border:none; border-radius:14px; padding:13px 16px; font-weight:800; cursor:pointer; }
+    .btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color:#fff; }
+    .btn-secondary { background: var(--bg-soft); color: var(--text); }
+    .btn-danger { background: var(--danger-bg); color: var(--danger); }
+    .btn-success { background: var(--success-bg); color: var(--success); }
+    .btn-warning { background: var(--warning-bg); color: var(--warning); }
+    .hint, .empty, .msg { color:var(--muted); font-size:.92rem; }
+    .msg.error { color: var(--danger); font-weight: 800; }
+    .msg.success { color: var(--success); font-weight:800; }
+    .record-list { display:grid; gap:12px; }
+    .record-item { padding:14px; border:1px solid var(--border); border-radius:16px; background: color-mix(in srgb, var(--card) 92%, var(--bg-soft)); }
+    .record-head { display:flex; gap:10px; justify-content:space-between; align-items:flex-start; }
+    .record-head strong { font-size:1rem; }
+    .record-meta { color:var(--muted); display:flex; flex-wrap:wrap; gap:8px 12px; margin-top:8px; font-size:.87rem; }
+    .record-actions { display:flex; gap:8px; margin-top:12px; flex-wrap: wrap; }
+    .pill { display:inline-flex; align-items:center; padding:5px 10px; border-radius:999px; font-size:.78rem; font-weight:800; }
+    .pill.success { background: var(--success-bg); color:var(--success); }
+    .pill.warning { background: var(--warning-bg); color:var(--warning); }
+    .pill.danger { background: var(--danger-bg); color:var(--danger); }
+    .pill.info { background: var(--purple-bg); color:var(--purple); }
+    .bottom-nav {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+      padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--card) 92%, transparent);
+      backdrop-filter: blur(12px); border-top: 1px solid var(--border);
+    }
+    .nav-btn { border:none; background:transparent; border-radius:16px; padding:10px 6px; color:var(--muted); font-weight:800; display:grid; justify-items:center; gap:4px; cursor:pointer; }
+    .nav-btn.active { background: color-mix(in srgb, var(--primary) 16%, var(--card)); color: var(--primary-dark); }
+    .nav-btn span:first-child { font-size:1.2rem; line-height:1; }
+    .split { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .danger-note { background: var(--danger-bg); color:var(--danger); border-radius:14px; padding:12px; margin-bottom:14px; font-weight:800; }
+    .toolbar-card { display:flex; flex-wrap: wrap; gap:12px; align-items:center; justify-content:space-between; padding:16px; margin-bottom: 16px; }
+    .toolbar-card .hint { margin: 0; }
+    .modal {
+      position: fixed; inset: 0; z-index: 100; display:none; align-items:center; justify-content:center; padding:16px;
+      background: rgba(11, 17, 24, .54);
+    }
+    .modal.active { display:flex; }
+    .modal-box { width:min(560px, 100%); padding:18px; }
+    .modal-box.wide { width:min(760px, 100%); }
+    .modal-box h3 { margin:0 0 8px; }
+    .modal-box p { margin:0 0 10px; color:var(--muted); }
+    .detail-list { display:grid; gap:10px; margin-top:14px; max-height:min(58vh, 520px); overflow:auto; padding-right:4px; }
+    .detail-summary { padding:14px; border-radius:16px; background: var(--bg-soft); margin-top:12px; font-weight:800; }
+    .report-preview {
+      margin-top:16px; padding:16px; border:1px dashed var(--border); border-radius:16px; background: color-mix(in srgb, var(--card) 92%, var(--bg-soft));
+    }
+    .report-preview h4 { margin:0 0 10px; }
+    @media print {
+      body * { visibility: hidden; }
+      .print-area, .print-area * { visibility: visible; }
+      .print-area { position: absolute; inset: 0; padding: 24px; background: #fff; color:#000; }
+    }
+    @media (max-width: 980px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .content-grid, .split, .kpis, .form-grid-3 { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .container { padding: 12px; }
+      .hero-card, .card, .form-card, .list-card, .stat-card, .chart-card, .mini-card, .panel-card { border-radius: 16px; }
+      .stats-grid, .form-grid { grid-template-columns: 1fr; }
+      .record-head { flex-direction: column; }
+      .record-actions .btn, .form-actions .btn, .toolbar-actions .btn { flex:1; }
+      .brand h1 { font-size: 1rem; }
+      .brand p { font-size: .78rem; }
+      .stat-card strong { font-size: 1.28rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <img src="./icons/icon-192.png" alt="SF" />
+        <div>
+          <h1>SF</h1>
+          <p>Control diario de tu negocio</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="settingsBtn" class="icon-btn" title="Configuración">⚙️</button>
+        <button id="installBtn" class="install-btn hidden">Instalar</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <section id="inicioView" class="view active">
+        <div class="hero-card">
+          <h2>Inicio</h2>
+          <p id="todayText"></p>
+          <div id="cajaBanner" class="status-banner closed">Caja cerrada. Abrí caja para empezar a operar.</div>
+        </div>
+
+        <div class="stats-grid">
+          <button id="detailSalesDayBtn" class="card stat-card stat-button stat-sales-day" type="button"><span>Ventas del día</span><strong id="statSalesDay">$ 0</strong><small id="statSalesDayWords"></small></button>
+          <button id="detailExpensesDayBtn" class="card stat-card stat-button stat-expenses-day" type="button"><span>Gastos del día</span><strong id="statExpensesDay">$ 0</strong><small>Movimientos del día</small></button>
+          <button id="detailCashBtn" class="card stat-card stat-button stat-cash" type="button"><span>Dinero en caja</span><strong id="statCash">$ 0</strong><small id="statCashBreakdown">Efectivo $0 · Cheques $0 · Transferencias $0 · Tarjeta débito $0 · Tarjeta crédito $0</small></button>
+          <button id="detailSalesMonthBtn" class="card stat-card stat-button stat-month" type="button"><span>Ventas mensuales</span><strong id="statSalesMonth">$ 0</strong><small>Mes actual</small></button>
+        </div>
+
+        <div class="content-grid">
+          <div class="card chart-card">
+            <div class="section-title"><h3>Ventas semanales</h3><span id="statSalesWeek" class="pill info">$ 0</span></div>
+            <div id="weekChart" class="bars"></div>
+          </div>
+          <div class="kpis">
+            <div class="card mini-card"><strong id="statCashEfectivo">$ 0</strong><span>Caja en efectivo</span></div>
+            <div class="card mini-card"><strong id="statCashCheque">$ 0</strong><span>Caja en cheques</span></div>
+            <div class="card mini-card"><strong id="statCashTransfer">$ 0</strong><span>Caja en transferencias</span></div>
+            <div class="card mini-card"><strong id="statCashDebitCard">$ 0</strong><span>Caja tarjeta débito</span></div>
+            <div class="card mini-card"><strong id="statCashCreditCard">$ 0</strong><span>Caja tarjeta crédito</span></div>
+            <div class="card mini-card"><strong id="statExtraIncomeDay">$ 0</strong><span>Ingresos de dinero del día</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="cajaView" class="view">
+        <div class="section-title"><h3>Caja</h3></div>
+        <div id="cajaWarning" class="danger-note hidden">No podés cargar ventas ni gastos hasta abrir caja.</div>
+        <div class="split">
+          <form id="openCajaForm" class="form-card">
+            <input type="hidden" name="id" />
+            <h3>Abrir / editar caja</h3>
+            <div class="form-grid">
+              <label>Fecha
+                <input type="date" name="date" required />
+              </label>
+              <label>Efectivo inicial
+                <input type="text" name="cash" data-money="true" required />
+                <small class="money-words" data-money-text-for="cash"></small>
+              </label>
+              <label>Cheques iniciales
+                <input type="text" name="checks" data-money="true" value="0" />
+                <small class="money-words" data-money-text-for="checks"></small>
+              </label>
+              <label>Transferencias iniciales
+                <input type="text" name="transfers" data-money="true" value="0" />
+                <small class="money-words" data-money-text-for="transfers"></small>
+              </label>
+            </div>
+            <label>Nota
+              <textarea name="note" placeholder="Opcional"></textarea>
+            </label>
+            <div id="openCajaMsg" class="msg"></div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Guardar caja</button>
+              <button type="button" id="cancelCajaEdit" class="btn btn-secondary hidden">Cancelar edición</button>
+            </div>
+          </form>
+
+          <form id="closeCajaForm" class="form-card">
+            <h3>Cerrar caja</h3>
+            <div class="form-grid">
+              <label>Fecha
+                <input type="date" name="date" required />
+              </label>
+              <label>Saldo final caja
+                <input type="text" id="closeCajaTotal" disabled />
+              </label>
+            </div>
+            <label>Nota cierre
+              <textarea name="note" placeholder="Opcional"></textarea>
+            </label>
+            <div id="closeCajaMsg" class="msg"></div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-danger">Cerrar caja</button>
+            </div>
+          </form>
+        </div>
+
+        <form id="cashMovementForm" class="form-card" style="margin-top:16px;">
+          <input type="hidden" name="id" />
+          <h3>Ingresar dinero</h3>
+          <div class="form-grid-3">
+            <label>Fecha
+              <input type="date" name="date" required />
+            </label>
+            <label>Monto
+              <input type="text" name="amount" data-money="true" required />
+              <small class="money-words" data-money-text-for="amount"></small>
+            </label>
+            <label>Se agrega a
+              <select name="target" required>
+                <option value="efectivo">Efectivo</option>
+                <option value="cheque">Cheque</option>
+                <option value="transferencia">Transferencia</option>
+              </select>
+            </label>
+            <label>Origen
+              <select name="sourceType" required>
+                <option value="cuenta_corriente">Cuenta corriente</option>
+                <option value="otros">Otros</option>
+              </select>
+            </label>
+            <label>Referencia / nombre
+              <input type="text" name="sourceName" placeholder="Cliente, banco u origen" />
+            </label>
+          </div>
+          <label>Detalle
+            <textarea name="details" placeholder="Detalle opcional"></textarea>
+          </label>
+          <div id="cashMovementMsg" class="msg"></div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-success">Guardar ingreso</button>
+            <button type="button" id="cancelCashMovementEdit" class="btn btn-secondary hidden">Cancelar edición</button>
+          </div>
+        </form>
+
+        <div class="list-card" style="margin-top:16px;">
+          <div class="section-title"><h3>Historial de caja</h3></div>
+          <div id="cashSessionsList" class="record-list"></div>
+        </div>
+
+        <div class="list-card" style="margin-top:16px;">
+          <div class="section-title"><h3>Ingresos de dinero</h3></div>
+          <div id="cashMovementsList" class="record-list"></div>
+        </div>
+      </section>
+
+      <section id="ventasView" class="view">
+        <div class="toolbar-card card">
+          <div>
+            <strong>Ventas</strong>
+            <p class="hint">Cargá ventas y generá reportes semanales o mensuales para imprimir o guardar en PDF.</p>
+          </div>
+          <div class="toolbar-actions">
+            <button id="weeklyReportBtn" class="btn btn-secondary" type="button">Reporte semanal</button>
+            <button id="monthlyReportBtn" class="btn btn-secondary" type="button">Reporte mensual</button>
+          </div>
+        </div>
+
+        <form id="saleForm" class="form-card">
+          <input type="hidden" name="id" />
+          <div class="form-grid">
+            <label>Fecha
+              <input type="date" name="date" required />
+            </label>
+            <label>Monto
+              <input type="text" name="amount" data-money="true" required />
+              <small class="money-words" data-money-text-for="amount"></small>
+            </label>
+            <label>Comprobante
+              <select name="documentType" required>
+                <option value="Remito X">Remito X</option>
+                <option value="Factura A">Factura A</option>
+                <option value="Factura B">Factura B</option>
+              </select>
+            </label>
+            <label>Número comprobante
+              <input type="text" name="documentNumber" placeholder="Opcional" />
+            </label>
+            <label>Medio de cobro
+              <select name="paymentMethod" id="salePaymentMethod" required>
+                <option value="efectivo">Efectivo</option>
+                <option value="cheque">Cheque</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="tarjeta_debito">Tarjeta de débito</option>
+                <option value="tarjeta_credito">Tarjeta de crédito</option>
+                <option value="cuenta_corriente">Cuenta corriente</option>
+              </select>
+            </label>
+            <label id="saleBankWrap" class="hidden">Banco / referencia
+              <input type="text" name="bankInfo" placeholder="Banco, cheque, transferencia o tarjeta" />
+            </label>
+          </div>
+          <div id="saleCustomerWrap" class="form-grid hidden">
+            <label>Nombre del cliente
+              <input type="text" name="customerFirstName" />
+            </label>
+            <label>Apellido del cliente
+              <input type="text" name="customerLastName" />
+            </label>
+          </div>
+          <label>Detalle
+            <textarea name="details" placeholder="Detalle de la venta"></textarea>
+          </label>
+          <div id="saleMsg" class="msg"></div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Guardar venta</button>
+            <button type="button" id="cancelSaleEdit" class="btn btn-secondary hidden">Cancelar edición</button>
+          </div>
+        </form>
+
+        <div class="list-card" style="margin-top:16px;">
+          <div class="section-title"><h3>Listado de ventas</h3></div>
+          <div class="toolbar-actions">
+            <button id="salesTodayBtn" class="btn btn-secondary" type="button">Hoy</button>
+            <label>Elegir día
+              <input type="date" id="salesFilterDate" />
+            </label>
+            <button id="salesAllBtn" class="btn btn-secondary" type="button">Ver todas</button>
+          </div>
+          <p id="salesFilterSummary" class="hint"></p>
+          <div id="salesList" class="record-list"></div>
+        </div>
+      </section>
+
+      <section id="gastosView" class="view">
+        <div class="section-title"><h3>Gastos</h3></div>
+        <form id="expenseForm" class="form-card">
+          <input type="hidden" name="id" />
+          <div class="form-grid">
+            <label>Fecha
+              <input type="date" name="date" required />
+            </label>
+            <label>Monto
+              <input type="text" name="amount" data-money="true" required />
+              <small class="money-words" data-money-text-for="amount"></small>
+            </label>
+            <label>Categoría
+              <select name="category" required>
+                <option value="Alquiler">Alquiler</option>
+                <option value="Insumos negocio">Insumos negocio</option>
+                <option value="Sueldo">Sueldo</option>
+                <option value="Fletes">Fletes</option>
+                <option value="Otros">Otros</option>
+              </select>
+            </label>
+          </div>
+          <label>Detalle
+            <textarea name="details" placeholder="Detalle del gasto"></textarea>
+          </label>
+          <div id="expenseMsg" class="msg"></div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Guardar gasto</button>
+            <button type="button" id="cancelExpenseEdit" class="btn btn-secondary hidden">Cancelar edición</button>
+          </div>
+        </form>
+
+        <div class="list-card" style="margin-top:16px;">
+          <div class="section-title"><h3>Listado de gastos</h3></div>
+          <div id="expensesList" class="record-list"></div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-view="inicio"><span>⌂</span><span>Inicio</span></button>
+      <button class="nav-btn" data-view="caja"><span>💼</span><span>Caja</span></button>
+      <button class="nav-btn" data-view="ventas"><span>🧾</span><span>Ventas</span></button>
+      <button class="nav-btn" data-view="gastos"><span>💸</span><span>Gastos</span></button>
+    </nav>
+  </div>
+
+  <div id="settingsModal" class="modal">
+    <div class="modal-box">
+      <h3>Configuración</h3>
+      <p>Elegí el tema, descargá un backup o limpiá todo el sistema con confirmación.</p>
+      <div class="form-grid">
+        <label>Tema
+          <select id="themeSelect">
+            <option value="light">Claro</option>
+            <option value="dark">Oscuro</option>
+          </select>
+        </label>
+      </div>
+      <div class="form-actions">
+        <button id="backupBtn" class="btn btn-secondary" type="button">Guardar backup</button>
+        <button id="clearSystemBtn" class="btn btn-danger" type="button">Limpiar todo</button>
+        <button id="closeSettingsBtn" class="btn btn-primary" type="button">Cerrar</button>
+      </div>
+      <div id="settingsMsg" class="msg"></div>
+    </div>
+  </div>
+
+  <div id="reportModal" class="modal">
+    <div class="modal-box">
+      <h3>Reporte de ventas</h3>
+      <p>Podés imprimirlo o usar “Guardar como PDF” desde el navegador.</p>
+      <div id="reportPreview" class="report-preview"></div>
+      <div class="form-actions">
+        <button id="printReportBtn" class="btn btn-primary" type="button">Imprimir / PDF</button>
+        <button id="closeReportBtn" class="btn btn-secondary" type="button">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="detailModal" class="modal">
+    <div class="modal-box wide">
+      <h3 id="detailTitle">Detalle</h3>
+      <div id="detailBody"></div>
+      <div class="form-actions">
+        <button id="closeDetailBtn" class="btn btn-primary" type="button">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./app.js?v=sf-final-20260406-detalles-inicio"></script>
+</body>
+</html>
