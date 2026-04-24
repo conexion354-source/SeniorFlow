@@ -45,6 +45,75 @@
     .duration-300 { animation-duration: 300ms; }
     .duration-500 { animation-duration: 500ms; }
 
+    /* Ajuste visual SeniorFlow: evita que la barra de acciones de Ofertas se pise. */
+    .sf-offer-toolbar-fixed {
+      display: flex !important;
+      flex-wrap: wrap !important;
+      align-items: stretch !important;
+      gap: 0.75rem !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      overflow: visible !important;
+    }
+    .sf-offer-toolbar-fixed > input,
+    .sf-offer-toolbar-fixed > textarea,
+    .sf-offer-toolbar-fixed > select {
+      flex: 1 1 260px !important;
+      min-width: min(100%, 240px) !important;
+      max-width: 100% !important;
+    }
+    .sf-offer-toolbar-fixed > button {
+      flex: 0 1 auto !important;
+      min-width: auto !important;
+      max-width: 100% !important;
+      white-space: nowrap !important;
+      justify-content: center !important;
+      padding-left: 1rem !important;
+      padding-right: 1rem !important;
+      gap: 0.55rem !important;
+    }
+    @media (max-width: 1280px) {
+      .sf-offer-toolbar-fixed > button {
+        font-size: 0.92rem !important;
+        padding-left: 0.9rem !important;
+        padding-right: 0.9rem !important;
+      }
+    }
+    @media (max-width: 760px) {
+      .sf-offer-toolbar-fixed {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      }
+      .sf-offer-toolbar-fixed > input,
+      .sf-offer-toolbar-fixed > textarea,
+      .sf-offer-toolbar-fixed > select {
+        grid-column: 1 / -1 !important;
+        width: 100% !important;
+      }
+      .sf-offer-toolbar-fixed > button {
+        width: 100% !important;
+        min-height: 3rem !important;
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+      }
+      .sf-offer-toolbar-fixed > button[data-sf-action="guardar"] {
+        grid-column: 1 / -1 !important;
+      }
+      .sf-offer-toolbar-fixed > button[data-sf-icon-only="true"] {
+        min-width: 3.25rem !important;
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+      }
+    }
+    @media (max-width: 430px) {
+      .sf-offer-toolbar-fixed {
+        grid-template-columns: 1fr !important;
+      }
+      .sf-offer-toolbar-fixed > button[data-sf-action="guardar"] {
+        grid-column: auto !important;
+      }
+    }
+
     @keyframes sfFadeIn {
       from { opacity: 0; }
       to { opacity: 1; }
@@ -116,9 +185,88 @@
   <div id="root"></div>
   <script type="module" src="./app.js?v=seniorflow-react-20260424-82"></script>
   <script>
+    (() => {
+      const ACCIONES_OFERTA = {
+        'LIMPIAR SELECCIÓN': { corto: 'LIMPIAR', movil: 'LIMPIAR', accion: 'limpiar' },
+        'CANCELAR': { corto: 'CANCELAR', movil: 'CANCELAR', accion: 'cancelar' },
+        'GUARDAR OFERTA': { corto: 'GUARDAR', movil: 'GUARDAR', accion: 'guardar' },
+        'PREVISUALIZAR': { corto: 'VISTA', movil: '', accion: 'vista', iconoMovil: true },
+        'COMPARTIR IMAGEN': { corto: 'COMPARTIR', movil: '', accion: 'compartir', iconoMovil: true }
+      };
+      const normalizar = (texto) => (texto || '').replace(/\s+/g, ' ').trim().toUpperCase();
+      const obtenerAccion = (boton) => {
+        const texto = normalizar(boton.dataset.sfTextoOriginal || boton.textContent);
+        return Object.keys(ACCIONES_OFERTA).find((clave) => texto.includes(clave));
+      };
+      const tieneIcono = (boton) => Boolean(boton.querySelector('svg'));
+      const aplicarTextoBoton = (boton, config) => {
+        const texto = window.innerWidth <= 760 && config.iconoMovil && tieneIcono(boton) ? config.movil : config.corto;
+        boton.dataset.sfAction = config.accion;
+        boton.dataset.sfIconOnly = texto ? 'false' : 'true';
+        boton.setAttribute('title', boton.dataset.sfTextoOriginal || config.corto);
+        boton.setAttribute('aria-label', boton.dataset.sfTextoOriginal || config.corto);
+
+        const nodosTexto = Array.from(boton.childNodes).filter((nodo) => nodo.nodeType === Node.TEXT_NODE);
+        if (nodosTexto.length) {
+          nodosTexto.forEach((nodo, indice) => {
+            nodo.textContent = indice === nodosTexto.length - 1 && texto ? ` ${texto}` : '';
+          });
+          if (!texto) boton.classList.add('px-3');
+          return;
+        }
+
+        const spanExistente = boton.querySelector('[data-sf-label="true"]');
+        if (spanExistente) {
+          spanExistente.textContent = texto;
+          spanExistente.style.display = texto ? '' : 'none';
+          return;
+        }
+
+        if (texto) {
+          const span = document.createElement('span');
+          span.dataset.sfLabel = 'true';
+          span.textContent = texto;
+          boton.appendChild(span);
+        }
+      };
+      const ajustarBarraOfertas = () => {
+        const botones = Array.from(document.querySelectorAll('button'));
+        const botonesOferta = botones.filter((boton) => obtenerAccion(boton));
+        const grupos = new Map();
+
+        botonesOferta.forEach((boton) => {
+          const clave = obtenerAccion(boton);
+          if (!boton.dataset.sfTextoOriginal) boton.dataset.sfTextoOriginal = normalizar(boton.textContent);
+          const config = ACCIONES_OFERTA[clave];
+          aplicarTextoBoton(boton, config);
+
+          const padre = boton.parentElement;
+          if (!padre) return;
+          const lista = grupos.get(padre) || [];
+          lista.push(boton);
+          grupos.set(padre, lista);
+        });
+
+        grupos.forEach((lista, padre) => {
+          const acciones = new Set(lista.map((boton) => boton.dataset.sfAction));
+          if (acciones.size >= 3 && (acciones.has('guardar') || acciones.has('compartir') || acciones.has('vista'))) {
+            padre.classList.add('sf-offer-toolbar-fixed');
+          }
+        });
+      };
+
+      const ejecutar = () => requestAnimationFrame(ajustarBarraOfertas);
+      window.addEventListener('resize', ejecutar, { passive: true });
+      window.addEventListener('load', ejecutar);
+      const observer = new MutationObserver(ejecutar);
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+      ejecutar();
+    })();
+  </script>
+  <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=seniorflow-react-20260424-82').catch((error) => {
+        navigator.serviceWorker.register('./sw.js?v=seniorflow-react-20260424-83').catch((error) => {
           console.error('SW register error', error);
         });
       });
