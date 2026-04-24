@@ -114,6 +114,126 @@
       }
     }
 
+    /* Plantilla Pro para ofertas: se aplica solo al flyer generado, no al resto del sistema. */
+    .sf-premium-offer-sheet {
+      position: relative !important;
+      isolation: isolate !important;
+      width: min(92vw, 680px) !important;
+      min-height: min(163.5vw, 1208px) !important;
+      aspect-ratio: 9 / 16 !important;
+      margin: 0 auto !important;
+      padding: clamp(22px, 4.5vw, 44px) clamp(20px, 4vw, 42px) !important;
+      overflow: hidden !important;
+      border-radius: 28px !important;
+      border: 1px solid rgba(148, 163, 184, 0.28) !important;
+      background:
+        radial-gradient(circle at 52% 33%, rgba(139, 92, 246, 0.13), transparent 31%),
+        radial-gradient(circle at 76% 48%, rgba(14, 165, 233, 0.12), transparent 32%),
+        linear-gradient(180deg, #ffffff 0%, #f8fbff 57%, #eef4ff 100%) !important;
+      box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12) !important;
+      color: #0f172a !important;
+    }
+    .sf-premium-offer-sheet::before {
+      content: '' !important;
+      position: absolute !important;
+      top: 16px !important;
+      left: 18px !important;
+      right: 18px !important;
+      height: 10px !important;
+      border-radius: 999px !important;
+      background: linear-gradient(90deg, #7c3aed, #3b82f6, #06b6d4) !important;
+      box-shadow: 0 6px 16px rgba(59, 130, 246, 0.18) !important;
+      z-index: 2 !important;
+    }
+    .sf-premium-offer-sheet * {
+      box-sizing: border-box !important;
+    }
+    .sf-premium-offer-sheet h1,
+    .sf-premium-offer-sheet h2,
+    .sf-premium-offer-sheet h3,
+    .sf-premium-offer-sheet [class*="font-bold"] {
+      letter-spacing: -0.025em;
+    }
+    .sf-premium-offer-sheet img {
+      max-width: 100% !important;
+    }
+    .sf-premium-offer-sheet [data-sf-premium-product-zone="true"] {
+      position: relative !important;
+      overflow: hidden !important;
+      border-radius: 26px !important;
+      border: 1px solid rgba(148, 163, 184, 0.22) !important;
+      background:
+        radial-gradient(circle at 47% 42%, rgba(255,255,255,0.98) 0%, rgba(241,245,249,0.85) 34%, rgba(226,232,240,0.54) 68%, rgba(248,250,252,0.94) 100%),
+        linear-gradient(135deg, rgba(255,255,255,0.98), rgba(239,246,255,0.98)) !important;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.92),
+        0 18px 45px rgba(15, 23, 42, 0.10) !important;
+    }
+    .sf-premium-offer-sheet [data-sf-premium-product-zone="true"]::before {
+      content: '' !important;
+      position: absolute !important;
+      inset: 9% 10% 22% 10% !important;
+      border-radius: 999px !important;
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.18), rgba(14, 165, 233, 0.10) 48%, transparent 72%) !important;
+      z-index: -1 !important;
+    }
+    .sf-premium-offer-sheet [data-sf-premium-product-zone="true"]::after {
+      content: '' !important;
+      position: absolute !important;
+      left: 18% !important;
+      right: 18% !important;
+      bottom: 10% !important;
+      height: 28px !important;
+      border-radius: 999px !important;
+      background: rgba(15, 23, 42, 0.12) !important;
+      filter: blur(18px) !important;
+      z-index: -1 !important;
+    }
+    .sf-premium-offer-sheet img[data-sf-premium-product="true"] {
+      position: relative !important;
+      z-index: 1 !important;
+      object-fit: contain !important;
+      mix-blend-mode: multiply !important;
+      filter: contrast(1.04) saturate(1.04) drop-shadow(0 20px 22px rgba(15, 23, 42, 0.20)) !important;
+      transform: translateZ(0) !important;
+    }
+    .sf-premium-offer-sheet [data-sf-premium-price="true"] {
+      border-radius: 20px !important;
+      border: 2px solid rgba(124, 58, 237, 0.48) !important;
+      background: linear-gradient(135deg, rgba(250, 245, 255, 0.98), rgba(238, 242, 255, 0.98)) !important;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.85), 0 12px 25px rgba(124, 58, 237, 0.10) !important;
+      color: #6d28d9 !important;
+    }
+    .sf-premium-offer-sheet [data-sf-premium-price="true"] * {
+      color: #6d28d9 !important;
+    }
+    .sf-premium-offer-sheet [data-sf-premium-contact="true"] {
+      border-radius: 18px !important;
+      border: 1px solid rgba(148, 163, 184, 0.20) !important;
+      background: rgba(255, 255, 255, 0.82) !important;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07) !important;
+      backdrop-filter: blur(10px) !important;
+    }
+    .sf-premium-offer-sheet [data-sf-premium-title="true"] {
+      color: #0f172a !important;
+      font-weight: 900 !important;
+      text-wrap: balance !important;
+    }
+    .sf-premium-offer-sheet [data-sf-premium-subtitle="true"] {
+      color: #6d28d9 !important;
+      font-weight: 800 !important;
+    }
+    .sf-premium-offer-sheet [data-sf-premium-specs="true"] {
+      color: #64748b !important;
+      font-weight: 700 !important;
+    }
+    @media (max-width: 760px) {
+      .sf-premium-offer-sheet {
+        width: min(96vw, 520px) !important;
+        border-radius: 22px !important;
+      }
+    }
+
     @keyframes sfFadeIn {
       from { opacity: 0; }
       to { opacity: 1; }
@@ -264,9 +384,83 @@
     })();
   </script>
   <script>
+    (() => {
+      const normalizar = (texto) => (texto || '').replace(/\s+/g, ' ').trim().toUpperCase();
+      const esHojaOferta = (elemento) => {
+        const texto = normalizar(elemento.textContent || '');
+        return texto.includes('OFERTAS ESPECIALES') && (texto.includes('PRECIO OFERTA') || texto.includes('VIGENCIA'));
+      };
+      const elegirCandidatoHoja = () => {
+        const candidatos = Array.from(document.querySelectorAll('.print-a4-sheet, .print-modal-pages > *, [class*="print-a4"]'));
+        return candidatos.filter(esHojaOferta);
+      };
+      const contienePrecio = (texto = '') => /\$\s*\d/.test(texto.replace(/\s+/g, ' '));
+      const marcarTextoPorContenido = (hoja, patrones, atributo) => {
+        const nodos = Array.from(hoja.querySelectorAll('h1,h2,h3,p,span,div,strong'));
+        nodos.forEach((nodo) => {
+          const texto = normalizar(nodo.textContent || '');
+          if (!texto || texto.length > 220) return;
+          if (patrones.some((patron) => texto.includes(patron))) nodo.dataset[atributo] = 'true';
+        });
+      };
+      const marcarPrecio = (hoja) => {
+        const nodos = Array.from(hoja.querySelectorAll('div,section,article,p,span,strong'));
+        const precio = nodos.find((nodo) => contienePrecio(nodo.textContent || '') && normalizar(nodo.textContent || '').length < 80);
+        if (!precio) return;
+        const contenedor = precio.closest('div') || precio;
+        contenedor.dataset.sfPremiumPrice = 'true';
+      };
+      const marcarImagenesProducto = (hoja) => {
+        const imagenes = Array.from(hoja.querySelectorAll('img')).filter((img) => {
+          const rect = img.getBoundingClientRect();
+          const grandePorVista = rect.width >= 120 || rect.height >= 120;
+          const grandePorArchivo = (img.naturalWidth || 0) >= 220 || (img.naturalHeight || 0) >= 220;
+          return grandePorVista || grandePorArchivo;
+        });
+        imagenes.slice(0, 3).forEach((img) => {
+          img.dataset.sfPremiumProduct = 'true';
+          const padre = img.parentElement;
+          if (padre) {
+            padre.dataset.sfPremiumProductZone = 'true';
+            padre.style.position = padre.style.position || 'relative';
+            padre.style.zIndex = padre.style.zIndex || '1';
+          }
+        });
+      };
+      const marcarFooterContacto = (hoja) => {
+        const nodos = Array.from(hoja.querySelectorAll('div,section,footer,p'));
+        const contacto = nodos.find((nodo) => {
+          const texto = normalizar(nodo.textContent || '');
+          return texto.includes('WHATSAPP') || texto.includes('CORREO') || texto.includes('WEB:');
+        });
+        if (contacto) (contacto.closest('div') || contacto).dataset.sfPremiumContact = 'true';
+      };
+      const aplicarPlantillaPremium = () => {
+        elegirCandidatoHoja().forEach((hoja) => {
+          if (hoja.dataset.sfPremiumApplied === 'true') return;
+          hoja.dataset.sfPremiumApplied = 'true';
+          hoja.classList.add('sf-premium-offer-sheet');
+
+          marcarImagenesProducto(hoja);
+          marcarPrecio(hoja);
+          marcarFooterContacto(hoja);
+          marcarTextoPorContenido(hoja, ['ALUMBRADO', 'PÚBLICO', 'PUBLICO', 'LED', 'LÁMPARA', 'LAMPARA'], 'sfPremiumTitle');
+          marcarTextoPorContenido(hoja, ['LUZ FRÍA', 'LUZ FRIA', 'LMS', 'BAEL', '6500K'], 'sfPremiumSubtitle');
+          marcarTextoPorContenido(hoja, ['LÚMENES', 'LUMENES', 'IP65', 'ALIMENTACIÓN', 'ALIMENTACION', 'HS'], 'sfPremiumSpecs');
+        });
+      };
+      const ejecutar = () => requestAnimationFrame(aplicarPlantillaPremium);
+      window.addEventListener('load', ejecutar);
+      window.addEventListener('resize', ejecutar, { passive: true });
+      const observer = new MutationObserver(ejecutar);
+      observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+      ejecutar();
+    })();
+  </script>
+  <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=seniorflow-react-20260424-83').catch((error) => {
+        navigator.serviceWorker.register('./sw.js?v=seniorflow-react-20260424-84').catch((error) => {
           console.error('SW register error', error);
         });
       });
