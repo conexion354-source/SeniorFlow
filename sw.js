@@ -1,7 +1,7 @@
-const CACHE_NAME = 'seniorflow-react-20260424-82';
+const CACHE_NAME = 'seniorflow-react-20260424-85';
 const ASSETS = [
   './',
-  './?v=seniorflow-react-20260424-82',
+  './?v=seniorflow-react-20260424-85',
   './index.html',
   './app.js?v=seniorflow-react-20260424-82',
   './firebase-config.js',
