@@ -14,8 +14,14 @@
   <link rel="icon" type="image/png" href="./icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
+  
   <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- LIBRERÍAS AGREGADAS PARA EL GENERADOR DE OFERTAS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
   <script>
     tailwind.config = {
       theme: {
@@ -36,431 +42,575 @@
     .scrollbar-hide::-webkit-scrollbar { display: none; }
     .pb-safe { padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
 
-    .animate-in { animation-duration: 220ms; animation-fill-mode: both; }
-    .fade-in { animation-name: sfFadeIn; }
-    .zoom-in-95 { animation-name: sfZoomIn95; }
-    .slide-in-from-top-2 { animation-name: sfSlideInTop; }
-    .slide-in-from-bottom-4 { animation-name: sfSlideInBottom; }
-    .duration-200 { animation-duration: 200ms; }
-    .duration-300 { animation-duration: 300ms; }
-    .duration-500 { animation-duration: 500ms; }
-
-    /* Ajuste visual SeniorFlow: evita que la barra de acciones de Ofertas se pise. */
-    .sf-offer-toolbar-fixed {
-      display: flex !important;
-      flex-wrap: wrap !important;
-      align-items: stretch !important;
-      gap: 0.75rem !important;
-      width: 100% !important;
-      max-width: 100% !important;
-      overflow: visible !important;
-    }
-    .sf-offer-toolbar-fixed > input,
-    .sf-offer-toolbar-fixed > textarea,
-    .sf-offer-toolbar-fixed > select {
-      flex: 1 1 260px !important;
-      min-width: min(100%, 240px) !important;
-      max-width: 100% !important;
-    }
-    .sf-offer-toolbar-fixed > button {
-      flex: 0 1 auto !important;
-      min-width: auto !important;
-      max-width: 100% !important;
-      white-space: nowrap !important;
-      justify-content: center !important;
-      padding-left: 1rem !important;
-      padding-right: 1rem !important;
-      gap: 0.55rem !important;
-    }
-    @media (max-width: 1280px) {
-      .sf-offer-toolbar-fixed > button {
-        font-size: 0.92rem !important;
-        padding-left: 0.9rem !important;
-        padding-right: 0.9rem !important;
-      }
-    }
-    @media (max-width: 760px) {
-      .sf-offer-toolbar-fixed {
-        display: grid !important;
-        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-      }
-      .sf-offer-toolbar-fixed > input,
-      .sf-offer-toolbar-fixed > textarea,
-      .sf-offer-toolbar-fixed > select {
-        grid-column: 1 / -1 !important;
-        width: 100% !important;
-      }
-      .sf-offer-toolbar-fixed > button {
-        width: 100% !important;
-        min-height: 3rem !important;
-        padding-left: 0.75rem !important;
-        padding-right: 0.75rem !important;
-      }
-      .sf-offer-toolbar-fixed > button[data-sf-action="guardar"] {
-        grid-column: 1 / -1 !important;
-      }
-      .sf-offer-toolbar-fixed > button[data-sf-icon-only="true"] {
-        min-width: 3.25rem !important;
-        padding-left: 0.75rem !important;
-        padding-right: 0.75rem !important;
-      }
-    }
-    @media (max-width: 430px) {
-      .sf-offer-toolbar-fixed {
-        grid-template-columns: 1fr !important;
-      }
-      .sf-offer-toolbar-fixed > button[data-sf-action="guardar"] {
-        grid-column: auto !important;
-      }
-    }
-
-    /* Plantilla Pro para ofertas: se aplica solo al flyer generado, no al resto del sistema. */
-    .sf-premium-offer-sheet {
-      position: relative !important;
-      isolation: isolate !important;
-      width: min(92vw, 680px) !important;
-      min-height: min(163.5vw, 1208px) !important;
-      aspect-ratio: 9 / 16 !important;
-      margin: 0 auto !important;
-      padding: clamp(22px, 4.5vw, 44px) clamp(20px, 4vw, 42px) !important;
-      overflow: hidden !important;
-      border-radius: 28px !important;
-      border: 1px solid rgba(148, 163, 184, 0.28) !important;
-      background:
-        radial-gradient(circle at 52% 33%, rgba(139, 92, 246, 0.13), transparent 31%),
-        radial-gradient(circle at 76% 48%, rgba(14, 165, 233, 0.12), transparent 32%),
-        linear-gradient(180deg, #ffffff 0%, #f8fbff 57%, #eef4ff 100%) !important;
-      box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12) !important;
-      color: #0f172a !important;
-    }
-    .sf-premium-offer-sheet::before {
-      content: '' !important;
-      position: absolute !important;
-      top: 16px !important;
-      left: 18px !important;
-      right: 18px !important;
-      height: 10px !important;
-      border-radius: 999px !important;
-      background: linear-gradient(90deg, #7c3aed, #3b82f6, #06b6d4) !important;
-      box-shadow: 0 6px 16px rgba(59, 130, 246, 0.18) !important;
-      z-index: 2 !important;
-    }
-    .sf-premium-offer-sheet * {
-      box-sizing: border-box !important;
-    }
-    .sf-premium-offer-sheet h1,
-    .sf-premium-offer-sheet h2,
-    .sf-premium-offer-sheet h3,
-    .sf-premium-offer-sheet [class*="font-bold"] {
-      letter-spacing: -0.025em;
-    }
-    .sf-premium-offer-sheet img {
-      max-width: 100% !important;
-    }
-    .sf-premium-offer-sheet [data-sf-premium-product-zone="true"] {
-      position: relative !important;
-      overflow: hidden !important;
-      border-radius: 26px !important;
-      border: 1px solid rgba(148, 163, 184, 0.22) !important;
-      background:
-        radial-gradient(circle at 47% 42%, rgba(255,255,255,0.98) 0%, rgba(241,245,249,0.85) 34%, rgba(226,232,240,0.54) 68%, rgba(248,250,252,0.94) 100%),
-        linear-gradient(135deg, rgba(255,255,255,0.98), rgba(239,246,255,0.98)) !important;
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.92),
-        0 18px 45px rgba(15, 23, 42, 0.10) !important;
-    }
-    .sf-premium-offer-sheet [data-sf-premium-product-zone="true"]::before {
-      content: '' !important;
-      position: absolute !important;
-      inset: 9% 10% 22% 10% !important;
-      border-radius: 999px !important;
-      background: radial-gradient(circle, rgba(139, 92, 246, 0.18), rgba(14, 165, 233, 0.10) 48%, transparent 72%) !important;
-      z-index: -1 !important;
-    }
-    .sf-premium-offer-sheet [data-sf-premium-product-zone="true"]::after {
-      content: '' !important;
-      position: absolute !important;
-      left: 18% !important;
-      right: 18% !important;
-      bottom: 10% !important;
-      height: 28px !important;
-      border-radius: 999px !important;
-      background: rgba(15, 23, 42, 0.12) !important;
-      filter: blur(18px) !important;
-      z-index: -1 !important;
-    }
-    .sf-premium-offer-sheet img[data-sf-premium-product="true"] {
-      position: relative !important;
-      z-index: 1 !important;
-      object-fit: contain !important;
-      mix-blend-mode: multiply !important;
-      filter: contrast(1.04) saturate(1.04) drop-shadow(0 20px 22px rgba(15, 23, 42, 0.20)) !important;
-      transform: translateZ(0) !important;
-    }
-    .sf-premium-offer-sheet [data-sf-premium-price="true"] {
-      border-radius: 20px !important;
-      border: 2px solid rgba(124, 58, 237, 0.48) !important;
-      background: linear-gradient(135deg, rgba(250, 245, 255, 0.98), rgba(238, 242, 255, 0.98)) !important;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.85), 0 12px 25px rgba(124, 58, 237, 0.10) !important;
-      color: #6d28d9 !important;
-    }
-    .sf-premium-offer-sheet [data-sf-premium-price="true"] * {
-      color: #6d28d9 !important;
-    }
-    .sf-premium-offer-sheet [data-sf-premium-contact="true"] {
-      border-radius: 18px !important;
-      border: 1px solid rgba(148, 163, 184, 0.20) !important;
-      background: rgba(255, 255, 255, 0.82) !important;
-      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07) !important;
-      backdrop-filter: blur(10px) !important;
-    }
-    .sf-premium-offer-sheet [data-sf-premium-title="true"] {
-      color: #0f172a !important;
-      font-weight: 900 !important;
-      text-wrap: balance !important;
-    }
-    .sf-premium-offer-sheet [data-sf-premium-subtitle="true"] {
-      color: #6d28d9 !important;
-      font-weight: 800 !important;
-    }
-    .sf-premium-offer-sheet [data-sf-premium-specs="true"] {
-      color: #64748b !important;
-      font-weight: 700 !important;
-    }
-    @media (max-width: 760px) {
-      .sf-premium-offer-sheet {
-        width: min(96vw, 520px) !important;
-        border-radius: 22px !important;
-      }
-    }
-
-    @keyframes sfFadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    @keyframes sfZoomIn95 {
-      from { opacity: 0; transform: scale(.95); }
-      to { opacity: 1; transform: scale(1); }
-    }
-    @keyframes sfSlideInTop {
-      from { opacity: 0; transform: translateY(-8px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes sfSlideInBottom {
-      from { opacity: 0; transform: translateY(16px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    @media print {
-      @page { size: A4 portrait; margin: 0; }
-      html, body {
-        width: 210mm;
-        margin: 0 !important;
-        padding: 0 !important;
-        background: #fff !important;
-      }
-      body {
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
-      .print-modal-root {
-        position: static !important;
-        inset: auto !important;
-        display: block !important;
-        overflow: visible !important;
-        height: auto !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        background: #fff !important;
-      }
-      .print-modal-pages {
-        width: 210mm !important;
-        max-width: 210mm !important;
-        display: block !important;
-        margin: 0 auto !important;
-      }
-      .print-modal-pages > * {
-        margin: 0 !important;
-      }
-      .print-a4-sheet {
-        display: block !important;
-        width: 210mm !important;
-        max-width: 210mm !important;
-        min-height: 297mm !important;
-        box-sizing: border-box !important;
-        margin: 0 auto !important;
-        padding: 8mm 10mm !important;
-        break-after: page;
-        page-break-after: always;
-      }
-      .print-a4-sheet:last-child {
-        break-after: auto;
-        page-break-after: auto;
-      }
-      .print-no-break { break-inside: avoid-page; page-break-inside: avoid; }
+    /* ESTILO AGREGADO PARA EL GENERADOR */
+    .pattern-dots {
+      background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+      background-size: 20px 20px;
     }
   </style>
 </head>
 <body>
+  <!-- AQUÍ CARGA TU APP DE REACT PRINCIPAL -->
   <div id="root"></div>
-  <script type="module" src="./app.js?v=seniorflow-react-20260424-82"></script>
-  <script>
-    (() => {
-      const ACCIONES_OFERTA = {
-        'LIMPIAR SELECCIÓN': { corto: 'LIMPIAR', movil: 'LIMPIAR', accion: 'limpiar' },
-        'CANCELAR': { corto: 'CANCELAR', movil: 'CANCELAR', accion: 'cancelar' },
-        'GUARDAR OFERTA': { corto: 'GUARDAR', movil: 'GUARDAR', accion: 'guardar' },
-        'PREVISUALIZAR': { corto: 'VISTA', movil: '', accion: 'vista', iconoMovil: true },
-        'COMPARTIR IMAGEN': { corto: 'COMPARTIR', movil: '', accion: 'compartir', iconoMovil: true }
-      };
-      const normalizar = (texto) => (texto || '').replace(/\s+/g, ' ').trim().toUpperCase();
-      const obtenerAccion = (boton) => {
-        const texto = normalizar(boton.dataset.sfTextoOriginal || boton.textContent);
-        return Object.keys(ACCIONES_OFERTA).find((clave) => texto.includes(clave));
-      };
-      const tieneIcono = (boton) => Boolean(boton.querySelector('svg'));
-      const aplicarTextoBoton = (boton, config) => {
-        const texto = window.innerWidth <= 760 && config.iconoMovil && tieneIcono(boton) ? config.movil : config.corto;
-        boton.dataset.sfAction = config.accion;
-        boton.dataset.sfIconOnly = texto ? 'false' : 'true';
-        boton.setAttribute('title', boton.dataset.sfTextoOriginal || config.corto);
-        boton.setAttribute('aria-label', boton.dataset.sfTextoOriginal || config.corto);
 
-        const nodosTexto = Array.from(boton.childNodes).filter((nodo) => nodo.nodeType === Node.TEXT_NODE);
-        if (nodosTexto.length) {
-          nodosTexto.forEach((nodo, indice) => {
-            nodo.textContent = indice === nodosTexto.length - 1 && texto ? ` ${texto}` : '';
+  <!-- ========================================================= -->
+  <!-- INICIO: SISTEMA INTEGRADO DE GENERADOR DE OFERTAS 4K      -->
+  <!-- ========================================================= -->
+  
+  <!-- Botón Flotante -->
+  <button onclick="document.getElementById('ofertas-modal').classList.remove('hidden')" class="fixed bottom-24 right-6 z-[9999] bg-gradient-to-tr from-indigo-600 to-purple-600 text-white p-4 rounded-full shadow-2xl hover:shadow-indigo-500/50 flex items-center justify-center transition-all hover:scale-110 border-2 border-white" aria-label="Abrir Generador de Ofertas">
+    <i data-lucide="instagram" class="w-6 h-6"></i>
+  </button>
+
+  <!-- Ventana Modal Oculta por Defecto -->
+  <div id="ofertas-modal" class="hidden fixed inset-0 z-[10000] bg-slate-950 bg-opacity-80 backdrop-blur-md flex items-center justify-center p-2 md:p-6 transition-all">
+    <div class="bg-gray-50 w-full max-w-7xl h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-200 relative">
+      
+      <!-- Cabecera del Modal -->
+      <div class="flex justify-between items-center p-5 border-b border-gray-200 bg-white shrink-0 z-20">
+        <h2 class="text-xl font-extrabold text-gray-900">Creador de Ofertas</h2>
+        <div class="flex items-center gap-3">
+          <button id="btnToggleHistory" class="text-sm font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-xl transition-colors flex items-center gap-2">
+            <i data-lucide="bookmark" class="w-4 h-4"></i>
+            <span id="txtToggleHistory">Ver Guardadas</span>
+          </button>
+          <button onclick="document.getElementById('ofertas-modal').classList.add('hidden')" class="text-gray-500 hover:text-white hover:bg-red-500 bg-gray-100 p-2.5 rounded-full transition-colors">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- ================= VISTA HISTORIAL (Oculta por defecto) ================= -->
+      <div id="historyView" class="hidden absolute inset-0 top-[76px] bg-gray-50 flex-1 overflow-y-auto p-4 md:p-8 z-10 custom-scrollbar">
+        <h3 class="text-2xl font-extrabold text-gray-800 mb-6 flex items-center gap-2">
+          <i data-lucide="history" class="w-6 h-6 text-indigo-600"></i>
+          Tus Ofertas Guardadas
+        </h3>
+        <p class="text-gray-500 mb-8">Selecciona una oferta anterior para recargarla en el editor.</p>
+        <div id="historyGrid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <!-- Las tarjetas de historial se renderizan aquí -->
+        </div>
+      </div>
+
+      <!-- ================= VISTA EDITOR (Principal) ================= -->
+      <div id="editorView" class="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar z-0 block">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          
+          <!-- Panel de Controles -->
+          <div class="lg:col-span-5 space-y-6">
+            
+            <!-- SECCIÓN NUEVA: CONEXIÓN A FIREBASE -->
+            <div class="bg-indigo-50 p-6 rounded-2xl shadow-sm border border-indigo-100">
+              <h2 class="text-lg font-bold text-indigo-900 mb-3 flex items-center gap-2">
+                <i data-lucide="database" class="w-5 h-5 text-indigo-600"></i>
+                Tu Inventario (Firebase)
+              </h2>
+              <div class="relative">
+                <select id="inventorySelect" class="w-full px-4 py-3 bg-white border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-medium text-gray-700 shadow-sm">
+                  <option value="">Cargando inventario...</option>
+                </select>
+                <i data-lucide="chevron-down" class="absolute right-4 top-3.5 w-5 h-5 text-gray-400 pointer-events-none"></i>
+              </div>
+            </div>
+
+            <!-- Datos Editables -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+              <h2 class="text-lg font-bold text-gray-800 mb-4">Datos de la Oferta</h2>
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm font-bold text-gray-700 mb-1">Nombre del Producto</label>
+                  <input type="text" id="inputName" value="Taladro Percutor 20V" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all font-medium" />
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Precio Normal ($)</label>
+                    <input type="number" id="inputOriginalPrice" value="85000" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-bold text-green-700 mb-1">Precio Oferta ($)</label>
+                    <input type="number" id="inputOfferPrice" value="65999" class="w-full px-4 py-2.5 bg-green-50 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none font-bold text-green-800" />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-bold text-gray-700 mb-1">Descripción Breve</label>
+                  <textarea id="inputDescription" rows="2" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none resize-none">Batería de larga duración. Herramienta profesional.</textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- Ajustes Visuales -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+              <h2 class="text-lg font-bold text-gray-800 mb-4">Diseño Visual</h2>
+              <div class="space-y-5">
+                <div>
+                  <label class="block text-sm font-bold text-gray-700 mb-2">Foto Principal</label>
+                  <label class="cursor-pointer flex justify-center items-center gap-2 px-4 py-4 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl hover:bg-indigo-50 hover:border-indigo-300 transition-colors">
+                    <i data-lucide="image-plus" class="w-6 h-6 text-indigo-500"></i>
+                    <span class="text-sm font-bold text-gray-600">Cambiar Foto del Producto</span>
+                    <input type="file" id="inputFile" accept="image/*" class="hidden" />
+                  </label>
+                </div>
+
+                <div>
+                  <label class="block text-sm font-bold text-gray-700 mb-2">Color del Fondo</label>
+                  <div class="flex gap-4" id="colorPicker">
+                    <button data-color="blue" class="w-12 h-12 rounded-full bg-blue-600 ring-4 ring-offset-2 ring-gray-300 scale-110 shadow-lg transition-transform border border-transparent"></button>
+                    <button data-color="red" class="w-12 h-12 rounded-full bg-red-600 hover:scale-105 shadow-md transition-transform border border-transparent"></button>
+                    <button data-color="purple" class="w-12 h-12 rounded-full bg-purple-600 hover:scale-105 shadow-md transition-transform border border-transparent"></button>
+                    <button data-color="dark" class="w-12 h-12 rounded-full bg-slate-900 hover:scale-105 shadow-md transition-transform border border-transparent"></button>
+                    <button data-color="white" class="w-12 h-12 rounded-full bg-white hover:scale-105 shadow-md transition-transform border border-gray-300"></button>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                  <!-- Efecto Mágico Toggle -->
+                  <div class="flex flex-col p-4 bg-blue-50 rounded-xl border border-blue-200 justify-between">
+                    <div class="mb-3">
+                      <p class="text-sm font-extrabold text-blue-900 leading-tight">Fusión Blanca</p>
+                      <p class="text-[10px] font-medium text-blue-700 mt-1">Oculta fondos de JPGs</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer mt-auto">
+                      <input type="checkbox" id="inputMultiply" checked class="sr-only peer" />
+                      <div class="w-12 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+
+                  <!-- Etiqueta Flash Toggle -->
+                  <div class="flex flex-col p-4 bg-red-50 rounded-xl border border-red-200 justify-between">
+                    <div class="mb-3">
+                      <p class="text-sm font-extrabold text-red-900 leading-tight">Etiqueta Flash</p>
+                      <p class="text-[10px] font-medium text-red-700 mt-1">Mostrar "Oferta Flash"</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer mt-auto">
+                      <input type="checkbox" id="inputFlash" checked class="sr-only peer" />
+                      <div class="w-12 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+                    </label>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- Área de Previsualización: MODO ESTADO / STORY -->
+          <div class="lg:col-span-7 flex flex-col items-center justify-center bg-gray-200 rounded-3xl p-6 md:p-8 relative pattern-dots border border-gray-300">
+            
+            <div class="w-full flex justify-end mb-6 max-w-[360px]">
+              <!-- Botón Descargar Simplificado -->
+              <button id="btnDownload" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 w-full justify-center px-4 py-3 rounded-xl shadow-md text-white font-bold transition-colors">
+                <i data-lucide="download" class="w-5 h-5"></i> Descargar Imagen
+              </button>
+            </div>
+
+            <!-- CONTENEDOR A EXPORTAR (Formato 9:16 Vertical) -->
+            <div id="offer-template" class="relative w-[360px] h-[640px] bg-blue-600 rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300 group border-transparent border-2">
+              
+              <!-- Decoración abstracta de fondo -->
+              <div class="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
+                <div id="bg-glow-1" class="absolute -top-20 -right-20 w-80 h-80 bg-white opacity-10 rounded-full blur-3xl"></div>
+                <div id="bg-glow-2" class="absolute bottom-40 -left-20 w-64 h-64 bg-black opacity-20 rounded-full blur-3xl"></div>
+              </div>
+
+              <!-- Header Superior -->
+              <div class="relative z-20 flex justify-between items-start p-6">
+                <div class="bg-white/90 backdrop-blur-md border border-white/50 px-3 py-2 rounded-xl shadow-sm flex items-center justify-center max-w-[150px] h-12 overflow-hidden">
+                  <img src="./logo.png" alt="Logo Empresa" class="h-full w-full object-contain" />
+                </div>
+                
+                <div id="discount-badge" class="bg-yellow-400 text-yellow-950 w-16 h-16 rounded-full flex flex-col items-center justify-center shadow-2xl transform rotate-12 border-4 border-yellow-300">
+                  <span class="text-[10px] font-bold tracking-tighter -mb-1 uppercase">dto</span>
+                  <span id="displayDiscount" class="text-2xl font-black leading-none tracking-tighter">-22%</span>
+                </div>
+              </div>
+
+              <!-- Imagen Central Masiva -->
+              <div class="relative z-10 flex-1 flex items-center justify-center p-6 -mt-8">
+                <div class="absolute w-56 h-56 bg-white opacity-30 rounded-full blur-2xl"></div>
+                
+                <img 
+                  id="displayImage"
+                  src="https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&w=800&q=80" 
+                  crossOrigin="anonymous" 
+                  class="w-full h-full object-contain relative z-20 drop-shadow-2xl mix-blend-multiply transform transition-transform group-hover:scale-105 duration-700"
+                />
+              </div>
+
+              <!-- Tarjeta de Información Inferior -->
+              <div class="relative z-20 bg-white m-4 p-5 rounded-[1.5rem] shadow-2xl flex flex-col border border-gray-100">
+                <div class="mb-4">
+                  <!-- Etiqueta Flash (Toggleable) -->
+                  <div id="flash-badge" class="bg-red-100 text-red-600 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded w-max mb-2">
+                    ¡OFERTA FLASH!
+                  </div>
+                  <h3 id="displayName" class="text-xl font-black text-gray-900 leading-tight line-clamp-2">
+                    Taladro Percutor 20V
+                  </h3>
+                  <p id="displayDescription" class="text-gray-500 text-xs mt-1.5 leading-snug line-clamp-2 font-medium">
+                    Batería de larga duración. Herramienta profesional.
+                  </p>
+                </div>
+
+                <div class="bg-gray-50 rounded-xl p-3 border border-gray-100 flex items-center justify-between mb-3">
+                  <div>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase">Antes</p>
+                    <p id="displayOriginalPrice" class="text-sm font-bold text-gray-400 line-through">
+                      $ 85.000
+                    </p>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-[10px] font-bold text-gray-500 uppercase">Ahora</p>
+                    <div id="displayOfferPrice" class="text-2xl font-black text-blue-600 tracking-tight">
+                      $ 65.999
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Call To Action -->
+                <div id="cta-button" class="w-full bg-blue-600 text-white text-center py-3 rounded-xl font-extrabold text-xs uppercase tracking-widest shadow-md">
+                  ¡Respondé a esta historia!
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- SCRIPT LOGICA (FIREBASE + HISTORIAL + DESCARGA)           -->
+  <!-- ========================================================= -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyCm35oVEiiFZr8bNgJZJXQp_6JJqMFSSD4",
+        authDomain: "mundoledcontrol.firebaseapp.com",
+        projectId: "mundoledcontrol",
+        storageBucket: "mundoledcontrol.firebasestorage.app",
+        messagingSenderId: "1058675840412",
+        appId: "1:1058675840412:web:f5f739886abbd7b4fa2459",
+        measurementId: "G-6TYTKKN90Y"
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+
+      // Variables y DOM
+      const elements = {
+        inventorySelect: document.getElementById('inventorySelect'),
+        name: document.getElementById('inputName'),
+        originalPrice: document.getElementById('inputOriginalPrice'),
+        offerPrice: document.getElementById('inputOfferPrice'),
+        description: document.getElementById('inputDescription'),
+        file: document.getElementById('inputFile'),
+        multiply: document.getElementById('inputMultiply'),
+        flashToggle: document.getElementById('inputFlash'),
+        btnDownload: document.getElementById('btnDownload'),
+        
+        displayName: document.getElementById('displayName'),
+        displayOriginalPrice: document.getElementById('displayOriginalPrice'),
+        displayOfferPrice: document.getElementById('displayOfferPrice'),
+        displayDescription: document.getElementById('displayDescription'),
+        displayDiscount: document.getElementById('displayDiscount'),
+        discountBadge: document.getElementById('discountBadge'),
+        displayImage: document.getElementById('displayImage'),
+        flashBadge: document.getElementById('flash-badge'),
+        
+        mainContainer: document.getElementById('offer-template'),
+        ctaButton: document.getElementById('cta-button'),
+
+        // View Toggles
+        btnToggleHistory: document.getElementById('btnToggleHistory'),
+        txtToggleHistory: document.getElementById('txtToggleHistory'),
+        editorView: document.getElementById('editorView'),
+        historyView: document.getElementById('historyView'),
+        historyGrid: document.getElementById('historyGrid')
+      };
+
+      // Configuración de Colores incluyendo el BLANCO
+      const colors = {
+        blue: { bg: 'bg-blue-600 border-transparent', text: 'text-blue-600', cta: 'bg-blue-700 text-white' },
+        red: { bg: 'bg-red-600 border-transparent', text: 'text-red-600', cta: 'bg-red-700 text-white' },
+        purple: { bg: 'bg-purple-600 border-transparent', text: 'text-purple-600', cta: 'bg-purple-700 text-white' },
+        dark: { bg: 'bg-slate-900 border-transparent', text: 'text-slate-900', cta: 'bg-indigo-600 text-white' },
+        white: { bg: 'bg-white border-gray-200', text: 'text-gray-900', cta: 'bg-gray-900 text-white' }
+      };
+
+      let currentColor = 'blue';
+
+      // ==========================================
+      // SISTEMA DE HISTORIAL (LocalStorage)
+      // ==========================================
+      let savedHistory = [];
+      try {
+        const stored = localStorage.getItem('seniorflow_ofertas_v1');
+        if (stored) savedHistory = JSON.parse(stored);
+      } catch (e) { console.error("Error cargando historial", e); }
+
+      function saveToHistory() {
+        const offerData = {
+          id: Date.now(),
+          date: new Date().toLocaleDateString(),
+          name: elements.name.value,
+          originalPrice: elements.originalPrice.value,
+          offerPrice: elements.offerPrice.value,
+          description: elements.description.value,
+          color: currentColor,
+          multiply: elements.multiply.checked,
+          flash: elements.flashToggle.checked,
+          image: elements.displayImage.src
+        };
+        
+        savedHistory.unshift(offerData);
+        // Limitar a las últimas 15 para evitar sobrecargar la memoria del navegador
+        if(savedHistory.length > 15) savedHistory.pop();
+        
+        try {
+          localStorage.setItem('seniorflow_ofertas_v1', JSON.stringify(savedHistory));
+          renderHistory();
+        } catch(e) { console.error("Memoria llena, no se guardó el historial", e); }
+      }
+
+      function renderHistory() {
+        elements.historyGrid.innerHTML = '';
+        if(savedHistory.length === 0) {
+          elements.historyGrid.innerHTML = '<div class="col-span-full text-center py-10 bg-white rounded-xl border border-gray-200"><p class="text-gray-500 font-medium">No hay ofertas guardadas aún. ¡Crea una y descárgala!</p></div>';
+          return;
+        }
+
+        savedHistory.forEach(offer => {
+          const card = document.createElement('div');
+          card.className = 'bg-white p-4 rounded-2xl shadow-sm border border-gray-200 flex flex-col gap-3 hover:shadow-md transition-shadow';
+          card.innerHTML = `
+            <div class="h-32 bg-gray-50 rounded-xl p-2 flex items-center justify-center border border-gray-100 relative overflow-hidden">
+              <img src="${offer.image}" class="max-h-full max-w-full object-contain ${offer.multiply ? 'mix-blend-multiply' : ''}">
+              <div class="absolute top-2 right-2 w-4 h-4 rounded-full shadow-sm ${colors[offer.color].bg.split(' ')[0]} border border-gray-200"></div>
+            </div>
+            <div>
+              <h4 class="font-extrabold text-gray-800 line-clamp-1 text-sm">${offer.name}</h4>
+              <p class="text-xs font-bold text-green-600 mt-1">$ ${offer.offerPrice}</p>
+              <p class="text-[10px] text-gray-400 mt-0.5">${offer.date}</p>
+            </div>
+            <div class="flex gap-2 mt-auto pt-2 border-t border-gray-100">
+               <button onclick="window.loadOfferFromHistory(${offer.id})" class="flex-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 py-2 rounded-lg font-bold text-xs transition-colors">Cargar Datos</button>
+               <button onclick="window.deleteOfferFromHistory(${offer.id})" class="text-red-500 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors" title="Eliminar"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            </div>
+          `;
+          elements.historyGrid.appendChild(card);
+        });
+        lucide.createIcons();
+      }
+
+      // Hacer funciones globales para los botones del historial
+      window.loadOfferFromHistory = (id) => {
+        const offer = savedHistory.find(o => o.id === id);
+        if(!offer) return;
+        
+        elements.name.value = offer.name;
+        elements.originalPrice.value = offer.originalPrice;
+        elements.offerPrice.value = offer.offerPrice;
+        elements.description.value = offer.description;
+        elements.multiply.checked = offer.multiply;
+        elements.flashToggle.checked = offer.flash;
+        elements.displayImage.src = offer.image;
+        
+        // Simular click en el botón de color para cargar el tema
+        const colorBtn = document.querySelector(`button[data-color="${offer.color}"]`);
+        if(colorBtn) colorBtn.click();
+        
+        updatePreview();
+        elements.btnToggleHistory.click(); // Volver al editor
+      };
+
+      window.deleteOfferFromHistory = (id) => {
+        savedHistory = savedHistory.filter(o => o.id !== id);
+        try { localStorage.setItem('seniorflow_ofertas_v1', JSON.stringify(savedHistory)); } catch(e){}
+        renderHistory();
+      };
+
+      // Toggle entre Editor e Historial
+      elements.btnToggleHistory.addEventListener('click', () => {
+        if(elements.historyView.classList.contains('hidden')) {
+          elements.editorView.classList.replace('block', 'hidden');
+          elements.historyView.classList.replace('hidden', 'block');
+          elements.txtToggleHistory.textContent = "Volver al Editor";
+          elements.btnToggleHistory.innerHTML = `<i data-lucide="edit-3" class="w-4 h-4"></i><span id="txtToggleHistory">Volver al Editor</span>`;
+          renderHistory(); // Renderizamos al abrir
+        } else {
+          elements.historyView.classList.replace('block', 'hidden');
+          elements.editorView.classList.replace('hidden', 'block');
+          elements.txtToggleHistory.textContent = "Ver Guardadas";
+          elements.btnToggleHistory.innerHTML = `<i data-lucide="bookmark" class="w-4 h-4"></i><span id="txtToggleHistory">Ver Guardadas</span>`;
+        }
+        lucide.createIcons();
+      });
+
+      // ==========================================
+      // FUNCION: CARGAR INVENTARIO DESDE FIREBASE
+      // ==========================================
+      async function cargarInventario() {
+        try {
+          const querySnapshot = await getDocs(collection(db, "productos"));
+          elements.inventorySelect.innerHTML = '<option value="">-- Selecciona un Producto --</option>';
+          if (querySnapshot.empty) {
+            elements.inventorySelect.innerHTML = '<option value="">No se encontraron productos.</option>';
+            return;
+          }
+          querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            const nombre = data.nombre || data.name || data.titulo || "Producto Sin Nombre";
+            const option = document.createElement("option");
+            option.value = JSON.stringify(data);
+            option.text = nombre;
+            elements.inventorySelect.appendChild(option);
           });
-          if (!texto) boton.classList.add('px-3');
-          return;
+        } catch (error) {
+          console.error("Error Firebase:", error);
+          elements.inventorySelect.innerHTML = '<option value="">Aviso: No se pudo conectar a Firebase.</option>';
         }
+      }
 
-        const spanExistente = boton.querySelector('[data-sf-label="true"]');
-        if (spanExistente) {
-          spanExistente.textContent = texto;
-          spanExistente.style.display = texto ? '' : 'none';
-          return;
-        }
+      cargarInventario();
 
-        if (texto) {
-          const span = document.createElement('span');
-          span.dataset.sfLabel = 'true';
-          span.textContent = texto;
-          boton.appendChild(span);
-        }
-      };
-      const ajustarBarraOfertas = () => {
-        const botones = Array.from(document.querySelectorAll('button'));
-        const botonesOferta = botones.filter((boton) => obtenerAccion(boton));
-        const grupos = new Map();
+      elements.inventorySelect.addEventListener('change', (e) => {
+        if(!e.target.value) return;
+        const data = JSON.parse(e.target.value);
+        elements.name.value = data.nombre || data.name || data.titulo || "";
+        elements.originalPrice.value = data.precioLista || data.precio || data.price || data.originalPrice || 0;
+        elements.offerPrice.value = Math.round((elements.originalPrice.value) * 0.85); 
+        elements.description.value = data.descripcion || data.description || "Excelente oportunidad de compra.";
+        
+        const imgUrl = data.imagen || data.image || data.url || data.fotoUrl;
+        if(imgUrl) elements.displayImage.src = imgUrl;
 
-        botonesOferta.forEach((boton) => {
-          const clave = obtenerAccion(boton);
-          if (!boton.dataset.sfTextoOriginal) boton.dataset.sfTextoOriginal = normalizar(boton.textContent);
-          const config = ACCIONES_OFERTA[clave];
-          aplicarTextoBoton(boton, config);
+        updatePreview();
+      });
 
-          const padre = boton.parentElement;
-          if (!padre) return;
-          const lista = grupos.get(padre) || [];
-          lista.push(boton);
-          grupos.set(padre, lista);
-        });
-
-        grupos.forEach((lista, padre) => {
-          const acciones = new Set(lista.map((boton) => boton.dataset.sfAction));
-          if (acciones.size >= 3 && (acciones.has('guardar') || acciones.has('compartir') || acciones.has('vista'))) {
-            padre.classList.add('sf-offer-toolbar-fixed');
-          }
-        });
+      // ==========================================
+      // LOGICA DE INTERFAZ Y ACTUALIZACION
+      // ==========================================
+      const formatMoney = (value) => {
+        return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(value || 0);
       };
 
-      const ejecutar = () => requestAnimationFrame(ajustarBarraOfertas);
-      window.addEventListener('resize', ejecutar, { passive: true });
-      window.addEventListener('load', ejecutar);
-      const observer = new MutationObserver(ejecutar);
-      observer.observe(document.documentElement, { childList: true, subtree: true });
-      ejecutar();
-    })();
+      const updatePreview = () => {
+        elements.displayName.textContent = elements.name.value;
+        elements.displayDescription.textContent = elements.description.value;
+        
+        const origPrice = parseFloat(elements.originalPrice.value) || 0;
+        const offPrice = parseFloat(elements.offerPrice.value) || 0;
+        
+        elements.displayOriginalPrice.textContent = formatMoney(origPrice);
+        elements.displayOfferPrice.textContent = formatMoney(offPrice);
+
+        if (origPrice > offPrice && offPrice > 0) {
+          const discount = Math.round(((origPrice - offPrice) / origPrice) * 100);
+          elements.displayDiscount.textContent = `-${discount}%`;
+          elements.discountBadge.style.display = 'flex';
+        } else {
+          elements.discountBadge.style.display = 'none';
+        }
+
+        // Fusión
+        if(elements.multiply.checked) {
+          elements.displayImage.classList.add('mix-blend-multiply');
+        } else {
+          elements.displayImage.classList.remove('mix-blend-multiply');
+        }
+
+        // Etiqueta Flash
+        elements.flashBadge.style.display = elements.flashToggle.checked ? 'block' : 'none';
+      };
+
+      elements.file.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => { elements.displayImage.src = event.target.result; };
+          reader.readAsDataURL(file);
+        }
+      });
+
+      document.querySelectorAll('#colorPicker button').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('#colorPicker button').forEach(b => {
+            b.classList.remove('scale-110', 'ring-4', 'ring-offset-2', 'ring-gray-300');
+            b.classList.add('hover:scale-105');
+          });
+          
+          const selectedBtn = e.target;
+          selectedBtn.classList.add('scale-110', 'ring-4', 'ring-offset-2', 'ring-gray-300');
+          selectedBtn.classList.remove('hover:scale-105');
+
+          currentColor = selectedBtn.dataset.color;
+          const theme = colors[currentColor];
+          
+          // Actualizar clases de contenedor, precio y botón de CTA
+          elements.mainContainer.className = `relative w-[360px] h-[640px] ${theme.bg} rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300 group`;
+          elements.displayOfferPrice.className = `text-2xl font-black ${theme.text} tracking-tight`;
+          elements.ctaButton.className = `w-full ${theme.cta} text-center py-3 rounded-xl font-extrabold text-xs uppercase tracking-widest shadow-md`;
+        });
+      });
+
+      ['name', 'originalPrice', 'offerPrice', 'description', 'multiply', 'flashToggle'].forEach(id => {
+        elements[id].addEventListener('change', updatePreview);
+        elements[id].addEventListener('input', updatePreview);
+      });
+
+      // ==========================================
+      // FUNCION: DESCARGA EN ALTA RESOLUCIÓN (4K)
+      // ==========================================
+      elements.btnDownload.addEventListener('click', () => {
+        const node = document.getElementById('offer-template');
+        const btn = elements.btnDownload;
+        
+        btn.innerHTML = `<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Generando...`;
+        lucide.createIcons();
+
+        // Guardar en el historial antes de descargar
+        saveToHistory();
+
+        // Exportar a 4K
+        htmlToImage.toJpeg(node, { 
+            quality: 0.98, 
+            backgroundColor: '#ffffff',
+            pixelRatio: 6 
+        })
+        .then(function (dataUrl) {
+          const link = document.createElement('a');
+          const fileName = elements.name.value.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+          link.download = `estado-whatsapp-${fileName || 'producto'}.jpg`;
+          link.href = dataUrl;
+          link.click();
+        })
+        .catch(function (error) {
+          console.error('Error:', error);
+          alert('Hubo un error al descargar la imagen de tan alta resolución.');
+        })
+        .finally(function() {
+          btn.innerHTML = `<i data-lucide="download" class="w-5 h-5"></i> Descargar Imagen`;
+          lucide.createIcons();
+        });
+      });
+
+      // Init UI
+      updatePreview();
+      renderHistory(); // Pre-cargar memoria en el DOM
+    });
   </script>
-  <script>
-    (() => {
-      const normalizar = (texto) => (texto || '').replace(/\s+/g, ' ').trim().toUpperCase();
-      const esHojaOferta = (elemento) => {
-        const texto = normalizar(elemento.textContent || '');
-        return texto.includes('OFERTAS ESPECIALES') && (texto.includes('PRECIO OFERTA') || texto.includes('VIGENCIA'));
-      };
-      const elegirCandidatoHoja = () => {
-        const candidatos = Array.from(document.querySelectorAll('.print-a4-sheet, .print-modal-pages > *, [class*="print-a4"]'));
-        return candidatos.filter(esHojaOferta);
-      };
-      const contienePrecio = (texto = '') => /\$\s*\d/.test(texto.replace(/\s+/g, ' '));
-      const marcarTextoPorContenido = (hoja, patrones, atributo) => {
-        const nodos = Array.from(hoja.querySelectorAll('h1,h2,h3,p,span,div,strong'));
-        nodos.forEach((nodo) => {
-          const texto = normalizar(nodo.textContent || '');
-          if (!texto || texto.length > 220) return;
-          if (patrones.some((patron) => texto.includes(patron))) nodo.dataset[atributo] = 'true';
-        });
-      };
-      const marcarPrecio = (hoja) => {
-        const nodos = Array.from(hoja.querySelectorAll('div,section,article,p,span,strong'));
-        const precio = nodos.find((nodo) => contienePrecio(nodo.textContent || '') && normalizar(nodo.textContent || '').length < 80);
-        if (!precio) return;
-        const contenedor = precio.closest('div') || precio;
-        contenedor.dataset.sfPremiumPrice = 'true';
-      };
-      const marcarImagenesProducto = (hoja) => {
-        const imagenes = Array.from(hoja.querySelectorAll('img')).filter((img) => {
-          const rect = img.getBoundingClientRect();
-          const grandePorVista = rect.width >= 120 || rect.height >= 120;
-          const grandePorArchivo = (img.naturalWidth || 0) >= 220 || (img.naturalHeight || 0) >= 220;
-          return grandePorVista || grandePorArchivo;
-        });
-        imagenes.slice(0, 3).forEach((img) => {
-          img.dataset.sfPremiumProduct = 'true';
-          const padre = img.parentElement;
-          if (padre) {
-            padre.dataset.sfPremiumProductZone = 'true';
-            padre.style.position = padre.style.position || 'relative';
-            padre.style.zIndex = padre.style.zIndex || '1';
-          }
-        });
-      };
-      const marcarFooterContacto = (hoja) => {
-        const nodos = Array.from(hoja.querySelectorAll('div,section,footer,p'));
-        const contacto = nodos.find((nodo) => {
-          const texto = normalizar(nodo.textContent || '');
-          return texto.includes('WHATSAPP') || texto.includes('CORREO') || texto.includes('WEB:');
-        });
-        if (contacto) (contacto.closest('div') || contacto).dataset.sfPremiumContact = 'true';
-      };
-      const aplicarPlantillaPremium = () => {
-        elegirCandidatoHoja().forEach((hoja) => {
-          if (hoja.dataset.sfPremiumApplied === 'true') return;
-          hoja.dataset.sfPremiumApplied = 'true';
-          hoja.classList.add('sf-premium-offer-sheet');
 
-          marcarImagenesProducto(hoja);
-          marcarPrecio(hoja);
-          marcarFooterContacto(hoja);
-          marcarTextoPorContenido(hoja, ['ALUMBRADO', 'PÚBLICO', 'PUBLICO', 'LED', 'LÁMPARA', 'LAMPARA'], 'sfPremiumTitle');
-          marcarTextoPorContenido(hoja, ['LUZ FRÍA', 'LUZ FRIA', 'LMS', 'BAEL', '6500K'], 'sfPremiumSubtitle');
-          marcarTextoPorContenido(hoja, ['LÚMENES', 'LUMENES', 'IP65', 'ALIMENTACIÓN', 'ALIMENTACION', 'HS'], 'sfPremiumSpecs');
-        });
-      };
-      const ejecutar = () => requestAnimationFrame(aplicarPlantillaPremium);
-      window.addEventListener('load', ejecutar);
-      window.addEventListener('resize', ejecutar, { passive: true });
-      const observer = new MutationObserver(ejecutar);
-      observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
-      ejecutar();
-    })();
-  </script>
+  <!-- SCRIPTS ORIGINALES DE TU APLICACIÓN -->
+  <script type="module" src="./app.js?v=seniorflow-react-20260424-82"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=seniorflow-react-20260424-84').catch((error) => {
+        navigator.serviceWorker.register('./sw.js?v=seniorflow-react-20260424-82').catch((error) => {
           console.error('SW register error', error);
         });
       });
@@ -468,3 +618,4 @@
   </script>
 </body>
 </html>
+
