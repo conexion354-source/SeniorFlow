@@ -1,0 +1,1557 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="SeniorFlow - control diario de ventas, gastos, caja y cuentas corrientes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>SeniorFlow</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <link rel="icon" type="image/png" href="./icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- LIBRERÍAS AGREGADAS PARA EL GENERADOR DE OFERTAS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    const OFFER_COMPANY_FALLBACK = {
+      web: 'www.mundoledchaco.com',
+      whatsapp: '3735506858',
+      correo: 'info@mundoledchaco.com'
+    };
+
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Manrope', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body { margin: 0; font-family: Manrope, system-ui, sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .pb-safe { padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
+
+    /* ESTILO AGREGADO PARA EL GENERADOR */
+    .pattern-dots {
+      background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+    .line-clamp-1,
+    .line-clamp-2,
+    .line-clamp-3,
+    .line-clamp-7 {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .line-clamp-1 { -webkit-line-clamp: 1; }
+    .line-clamp-2 { -webkit-line-clamp: 2; }
+    .line-clamp-3 { -webkit-line-clamp: 3; }
+    .line-clamp-7 { -webkit-line-clamp: 7; }
+
+    @media print {
+      @page {
+        size: A4;
+        margin: 15mm;
+      }
+
+      html, body {
+        background: #fff !important;
+        overflow: visible !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      #root {
+        overflow: visible !important;
+      }
+
+      .print-modal-root {
+        position: static !important;
+        inset: auto !important;
+        height: auto !important;
+        min-height: auto !important;
+        overflow: visible !important;
+        display: block !important;
+        padding: 0 !important;
+        background: #fff !important;
+      }
+
+      .print-modal-pages {
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+      }
+
+      .print-a4-sheet {
+        width: calc(210mm - 30mm) !important;
+        max-width: calc(210mm - 30mm) !important;
+        min-height: calc(297mm - 30mm) !important;
+        margin: 0 auto 10mm !important;
+        box-shadow: none !important;
+        page-break-after: always !important;
+        break-after: page !important;
+      }
+
+      .print-a4-sheet:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
+      }
+
+      .print-no-break {
+        page-break-inside: avoid !important;
+        break-inside: avoid-page !important;
+      }
+    }
+  </style>
+  <!-- SeniorFlow fixes 22: recordatorios, logos izquierda, carga historica sin doble impacto -->
+</head>
+<body>
+  <!-- AQUÍ CARGA TU APP DE REACT PRINCIPAL -->
+  <div id="root"></div>
+
+  <!-- ========================================================= -->
+  <!-- INICIO: SISTEMA INTEGRADO DE GENERADOR DE OFERTAS 4K      -->
+  <!-- ========================================================= -->
+  
+  <!-- Botón Flotante -->
+  <button id="openOfferModalButton" class="hidden fixed bottom-24 right-6 z-[9999] bg-gradient-to-tr from-indigo-600 to-purple-600 text-white px-5 py-4 rounded-full shadow-2xl hover:shadow-indigo-500/50 items-center justify-center gap-2 transition-all hover:scale-105 border-2 border-white" aria-label="Crear Ofertas">
+    <i data-lucide="tag" class="w-5 h-5"></i>
+    <span class="text-sm font-black tracking-wide">Crear Ofertas</span>
+  </button>
+
+  <!-- Ventana Modal Oculta por Defecto -->
+  <div id="ofertas-modal" class="hidden fixed inset-0 z-[10000] bg-slate-950 bg-opacity-80 backdrop-blur-md flex items-center justify-center p-2 md:p-6 transition-all">
+    <div class="bg-gray-50 w-full max-w-7xl h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-200 relative">
+      
+      <!-- Cabecera del Modal -->
+      <div class="flex justify-between items-center p-5 border-b border-gray-200 bg-white shrink-0 z-20">
+        <h2 class="text-xl font-extrabold text-gray-900">Creador de Ofertas</h2>
+        <div class="flex items-center gap-3">
+          <button id="btnToggleHistory" class="text-sm font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-xl transition-colors flex items-center gap-2">
+            <i data-lucide="bookmark" class="w-4 h-4"></i>
+            <span id="txtToggleHistory">Ver Guardadas</span>
+          </button>
+          <button id="closeOfferModalButton" class="text-gray-500 hover:text-white hover:bg-red-500 bg-gray-100 p-2.5 rounded-full transition-colors" aria-label="Cerrar Generador de Ofertas">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- ================= VISTA HISTORIAL (Oculta por defecto) ================= -->
+      <div id="historyView" class="hidden absolute inset-0 top-[76px] bg-gray-50 flex-1 overflow-y-auto p-4 md:p-8 z-10 custom-scrollbar">
+        <h3 class="text-2xl font-extrabold text-gray-800 mb-6 flex items-center gap-2">
+          <i data-lucide="history" class="w-6 h-6 text-indigo-600"></i>
+          Tus Ofertas Guardadas
+        </h3>
+        <p class="text-gray-500 mb-8">Selecciona una oferta anterior para recargarla en el editor.</p>
+        <div id="historyGrid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <!-- Las tarjetas de historial se renderizan aquí -->
+        </div>
+      </div>
+
+      <!-- ================= VISTA EDITOR (Principal) ================= -->
+      <div id="editorView" class="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar z-0 block">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          
+          <!-- Panel de Controles -->
+          <div class="lg:col-span-5 space-y-6">
+            
+            <!-- Buscador de productos -->
+            <div class="bg-indigo-50 p-6 rounded-2xl shadow-sm border border-indigo-100">
+              <h2 class="text-lg font-bold text-indigo-900 mb-3 flex items-center gap-2">
+                <i data-lucide="database" class="w-5 h-5 text-indigo-600"></i>
+                Buscar productos
+              </h2>
+              <button id="openInventoryModalButton" type="button" class="w-full px-4 py-3 bg-white border border-indigo-200 rounded-xl hover:bg-indigo-50 focus:ring-2 focus:ring-indigo-500 outline-none font-black text-indigo-700 shadow-sm flex items-center justify-center gap-2 transition-colors">
+                <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                Agregar producto
+              </button>
+              <p id="inventoryStatus" class="text-xs font-bold text-indigo-700 mt-3">Cargando inventario...</p>
+            </div>
+
+            <!-- Datos Editables -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+              <h2 class="text-lg font-bold text-gray-800 mb-4">Datos de la Oferta</h2>
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm font-bold text-gray-700 mb-1">Nombre del Producto</label>
+                  <input type="text" id="inputName" value="Taladro Percutor 20V" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all font-medium" />
+                </div>
+                <label class="flex items-center justify-between gap-3 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 cursor-pointer">
+                  <div>
+                    <p class="text-sm font-extrabold text-yellow-900 leading-tight">Aplicar descuento</p>
+                    <p class="text-[10px] font-bold text-yellow-700 mt-0.5">Muestra el círculo amarillo y calcula el precio.</p>
+                  </div>
+                  <span class="relative inline-flex items-center shrink-0">
+                    <input type="checkbox" id="inputDiscountEnabled" checked class="sr-only peer" />
+                    <span class="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-yellow-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></span>
+                  </span>
+                </label>
+                <label class="flex items-center justify-between gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 cursor-pointer">
+                  <div>
+                    <p class="text-sm font-extrabold text-green-900 leading-tight">Mostrar precio</p>
+                    <p class="text-[10px] font-bold text-green-700 mt-0.5">Si lo apagás, queda solo foto, nombre y detalles.</p>
+                  </div>
+                  <span class="relative inline-flex items-center shrink-0">
+                    <input type="checkbox" id="inputShowPrice" checked class="sr-only peer" />
+                    <span class="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-green-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></span>
+                  </span>
+                </label>
+                <div id="priceFields" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Precio Normal ($)</label>
+                    <input type="number" id="inputOriginalPrice" value="85000" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  </div>
+                  <div id="discountField">
+                    <label class="block text-sm font-bold text-yellow-700 mb-1">Descuento (%)</label>
+                    <input type="number" id="inputDiscount" value="15" min="0" max="100" class="w-full px-4 py-2.5 bg-yellow-50 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none font-bold text-yellow-900" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-bold text-green-700 mb-1">Precio Oferta ($)</label>
+                    <input type="number" id="inputOfferPrice" value="65999" class="w-full px-4 py-2.5 bg-green-50 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none font-bold text-green-800" />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-bold text-gray-700 mb-1">Descripción Breve</label>
+                  <textarea id="inputDescription" rows="2" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none resize-none">Batería de larga duración. Herramienta profesional.</textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- Ajustes Visuales -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+              <div class="space-y-5">
+                <div>
+                  <label class="block text-sm font-bold text-gray-700 mb-2">Foto Principal</label>
+                  <label class="cursor-pointer flex justify-center items-center gap-2 px-4 py-4 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl hover:bg-indigo-50 hover:border-indigo-300 transition-colors">
+                    <i data-lucide="image-plus" class="w-6 h-6 text-indigo-500"></i>
+                    <span class="text-sm font-bold text-gray-600">Cambiar Foto del Producto</span>
+                    <input type="file" id="inputFile" accept="image/*" class="hidden" />
+                  </label>
+                </div>
+
+                <div>
+                  <label class="block text-sm font-bold text-gray-700 mb-2">Plantilla del Diseño</label>
+                  <div id="templatePicker" class="grid grid-cols-2 gap-2">
+                    <button type="button" data-template="classic" class="px-3 py-2 rounded-lg border border-indigo-300 bg-indigo-50 text-indigo-700 text-xs font-black uppercase tracking-wider shadow-sm transition-colors">Clásico</button>
+                    <button type="button" data-template="clean" class="px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 text-xs font-black uppercase tracking-wider hover:bg-gray-50 transition-colors">Limpio</button>
+                    <button type="button" data-template="focus" class="px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 text-xs font-black uppercase tracking-wider hover:bg-gray-50 transition-colors">Producto</button>
+                    <button type="button" data-template="card" class="px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 text-xs font-black uppercase tracking-wider hover:bg-gray-50 transition-colors">Ficha</button>
+                  </div>
+                </div>
+
+                <div>
+                  <!-- Etiqueta Flash Toggle -->
+                  <div class="flex items-center justify-between gap-4 p-4 bg-red-50 rounded-xl border border-red-200">
+                    <div class="mb-3">
+                      <p class="text-sm font-extrabold text-red-900 leading-tight">Etiqueta Flash</p>
+                      <p class="text-[10px] font-medium text-red-700 mt-1">Mostrar "Oferta Flash"</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input type="checkbox" id="inputFlash" checked class="sr-only peer" />
+                      <div class="w-12 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <!-- Etiqueta Nuevo Ingreso Toggle -->
+                  <div class="flex items-center justify-between gap-4 p-4 bg-yellow-50 rounded-xl border border-yellow-200">
+                    <div class="mb-3">
+                      <p class="text-sm font-extrabold text-yellow-900 leading-tight">Etiqueta Nuevo ingreso</p>
+                      <p class="text-[10px] font-medium text-yellow-700 mt-1">Mostrar "Nuevo ingreso"</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input type="checkbox" id="inputNewArrival" class="sr-only peer" />
+                      <div class="w-12 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <!-- Logo de Marca Toggle -->
+                  <div class="flex items-center justify-between gap-4 p-4 bg-amber-50 rounded-xl border border-amber-200">
+                    <div class="mb-3">
+                      <p class="text-sm font-extrabold text-amber-900 leading-tight">Logo marca</p>
+                      <p id="brandLogoHint" class="text-[10px] font-medium text-amber-700 mt-1">Mostrará el logo de marca del producto.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input type="checkbox" id="inputBrandLogo" class="sr-only peer" />
+                      <div class="w-12 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-disabled:opacity-50 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                    </label>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- Área de Previsualización: MODO ESTADO / STORY -->
+          <div class="lg:col-span-7 flex flex-col items-center justify-center bg-gray-200 rounded-3xl p-6 md:p-8 relative pattern-dots border border-gray-300">
+            
+            <div class="w-full grid grid-cols-2 gap-2 mb-4 max-w-[300px]">
+              <button id="btnSaveOffer" class="flex items-center gap-1.5 bg-white hover:bg-indigo-50 border border-indigo-200 w-full justify-center px-3 py-2 rounded-lg shadow-sm text-indigo-700 text-xs font-bold transition-colors">
+                <i data-lucide="save" class="w-4 h-4"></i> Guardar
+              </button>
+              <button id="btnDownload" class="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 w-full justify-center px-3 py-2 rounded-lg shadow-md text-white text-xs font-bold transition-colors">
+                <i data-lucide="download" class="w-4 h-4"></i> Descargar
+              </button>
+            </div>
+
+            <!-- CONTENEDOR A EXPORTAR (Formato 9:16 Vertical) -->
+            <div id="offer-template" class="relative w-[360px] h-[640px] bg-gradient-to-b from-blue-600 via-blue-600 to-blue-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300 group border-transparent border-2">
+              
+              <!-- Fondo premium -->
+              <div id="offerBackgroundDecor" class="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
+                <div id="offerBgGradient" class="absolute inset-0 bg-[linear-gradient(145deg,rgba(255,255,255,0.22),transparent_42%,rgba(0,0,0,0.20))]"></div>
+                <div id="offerBgTopGlow" class="absolute inset-x-0 top-0 h-28 bg-white/10"></div>
+                <div id="offerBgDivider" class="absolute inset-x-6 top-24 h-px bg-white/20"></div>
+              </div>
+
+              <!-- Header Superior: logo centrado -->
+              <div class="relative z-20 flex justify-center items-start px-6 pt-5 pb-3 shrink-0">
+                <div id="offerLogoShell" class="flex items-center justify-center w-[220px] h-12 px-0 rounded-none bg-transparent shadow-none overflow-visible">
+                  <img id="offerLogo" src="./logo-ofertas-mundoled.png" alt="Logo Empresa" class="max-h-12 max-w-full object-contain" />
+                  <span id="offerLogoFallback" class="hidden text-sm font-black tracking-wide text-slate-800">SeniorFlow</span>
+                </div>
+              </div>
+
+              <!-- Imagen principal adaptable -->
+              <div id="imageSlot" class="absolute z-10 left-5 right-5 top-[102px] h-[252px]">
+                <div id="imageFrame" class="relative z-20 w-full h-full min-h-[252px] max-h-[252px] flex items-center justify-center overflow-hidden rounded-[1.6rem] bg-white/95 shadow-2xl border border-white/70">
+                  <img 
+                    id="displayImage"
+                    src="https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&w=800&q=80" 
+                    crossOrigin="anonymous" 
+                    class="block w-full h-full min-h-[252px] max-h-[252px] object-cover rounded-[1.6rem]"
+                  />
+                </div>
+                <div id="discount-badge" class="absolute top-3 right-7 z-30 bg-yellow-300 text-yellow-950 w-16 h-16 rounded-2xl flex flex-col items-center justify-center shadow-2xl transform rotate-6 border-2 border-yellow-100">
+                  <span class="text-[9px] font-black tracking-widest -mb-0.5 uppercase">dto</span>
+                  <span id="displayDiscount" class="text-2xl font-black leading-none tracking-tight">-22%</span>
+                </div>
+                <div id="brand-logo-badge" class="absolute top-3 left-7 z-30 hidden items-center justify-center w-16 h-16 rounded-none bg-transparent border-0 shadow-none p-0 pointer-events-none">
+                  <img id="brandLogoImage" src="" alt="Logo marca" crossOrigin="anonymous" class="w-full h-full object-contain" />
+                </div>
+                <div id="flash-badge" class="absolute left-8 bottom-6 z-30 inline-flex items-center whitespace-nowrap bg-red-600 text-white text-[9px] leading-none font-black uppercase tracking-widest px-3 py-2 rounded-md shadow-lg border border-white/40">
+                  ¡OFERTA FLASH!
+                </div>
+                <div id="new-arrival-badge" class="absolute right-8 bottom-6 z-30 inline-flex items-center whitespace-nowrap bg-yellow-400 text-white text-[9px] leading-none font-black uppercase tracking-widest px-3 py-2 rounded-md shadow-lg border border-white/40">
+                  ¡NUEVO INGRESO!
+                </div>
+              </div>
+
+              <!-- Tarjeta de Información Inferior -->
+              <div id="infoCard" class="absolute z-20 left-4 right-4 top-[372px] bottom-[86px] bg-white p-4 rounded-[1.4rem] shadow-2xl flex flex-col border border-gray-100 overflow-hidden">
+                <div class="mb-2 flex-1 min-h-0">
+                  <h3 id="displayName" class="text-xl font-black text-gray-950 leading-tight line-clamp-2">
+                    Taladro Percutor 20V
+                  </h3>
+                  <p id="displayDescription" class="text-gray-500 text-xs mt-1 leading-snug line-clamp-2 font-semibold">
+                    Batería de larga duración. Herramienta profesional.
+                  </p>
+                </div>
+
+                <div id="pricePanel" class="bg-gray-50 rounded-2xl p-3 border border-gray-100 flex items-center justify-between mt-auto">
+                  <div id="originalPricePreview">
+                    <p class="text-[10px] font-bold text-gray-400 uppercase">Antes</p>
+                    <p id="displayOriginalPrice" class="text-xs font-bold text-gray-400 line-through">
+                      $ 85.000
+                    </p>
+                  </div>
+                  <div id="priceNowBlock" class="text-right">
+                    <p id="displayPriceLabel" class="text-[10px] font-bold text-gray-500 uppercase">Ahora</p>
+                    <div id="displayOfferPrice" class="text-2xl font-black text-blue-600 tracking-tight">
+                      $ 65.999
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div id="businessFooter" class="absolute z-20 left-5 right-5 bottom-4 px-3 py-2 rounded-xl bg-white/90 text-slate-800 shadow-sm flex flex-col gap-0.5 text-[7.5px] font-bold leading-tight">
+                <span id="footerWeb" class="truncate"></span>
+                <span id="footerWhatsapp" class="truncate"></span>
+                <span id="footerEmail" class="truncate"></span>
+              </div>
+
+	          </div>
+	        </div>
+	      </div>
+
+	      <!-- Selector de inventario -->
+      <div id="inventoryModal" class="hidden fixed inset-0 z-[10030] bg-slate-950/70 backdrop-blur-sm p-4 md:p-8">
+        <div class="bg-white w-full max-w-5xl mx-auto h-full rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
+          <div class="relative p-5 pr-20 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <h3 class="text-xl font-black text-gray-900">Agregar producto</h3>
+              <p class="text-sm font-bold text-gray-500">Busca en tu inventario y selecciona un producto para la oferta.</p>
+            </div>
+            <button id="closeInventoryModalButton" type="button" class="absolute top-4 right-4 z-20 text-gray-500 hover:text-white hover:bg-red-500 bg-gray-100 p-2.5 rounded-full transition-colors shadow-sm" aria-label="Cerrar inventario">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+	          </div>
+	          <div class="p-5 border-b border-gray-100">
+	            <div class="relative">
+	              <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"></i>
+	              <input id="inventorySearchInput" type="search" placeholder="Buscar por producto, código, marca o categoría..." class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-gray-800" />
+	            </div>
+	          </div>
+	          <div id="inventoryList" class="flex-1 overflow-y-auto custom-scrollbar divide-y divide-gray-100"></div>
+	        </div>
+	      </div>
+	    </div>
+	  </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- SCRIPT LOGICA (FIREBASE + HISTORIAL + DESCARGA)           -->
+  <!-- ========================================================= -->
+  <script type="module">
+    import { getApps, initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+    import { getFirestore, collection, doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyCm35oVEiiFZr8bNgJZJXQp_6JJqMFSSD4",
+        authDomain: "mundoledcontrol.firebaseapp.com",
+        projectId: "mundoledcontrol",
+        storageBucket: "mundoledcontrol.firebasestorage.app",
+        messagingSenderId: "1058675840412",
+        appId: "1:1058675840412:web:f5f739886abbd7b4fa2459",
+        measurementId: "G-6TYTKKN90Y"
+      };
+
+      const app = getApps()[0] || initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+
+      const byId = (id) => document.getElementById(id);
+
+      // Referencias del modulo de ofertas
+      const elements = {
+        modal: byId('ofertas-modal'),
+        openModalButton: byId('openOfferModalButton'),
+        closeModalButton: byId('closeOfferModalButton'),
+        openInventoryModalButton: byId('openInventoryModalButton'),
+        closeInventoryModalButton: byId('closeInventoryModalButton'),
+        inventoryModal: byId('inventoryModal'),
+        inventorySearchInput: byId('inventorySearchInput'),
+        inventoryList: byId('inventoryList'),
+        inventoryStatus: byId('inventoryStatus'),
+        name: byId('inputName'),
+        showPrice: byId('inputShowPrice'),
+        priceFields: byId('priceFields'),
+        originalPrice: byId('inputOriginalPrice'),
+        discountEnabled: byId('inputDiscountEnabled'),
+        discountField: byId('discountField'),
+        discount: byId('inputDiscount'),
+        offerPrice: byId('inputOfferPrice'),
+        description: byId('inputDescription'),
+        file: byId('inputFile'),
+        flashToggle: byId('inputFlash'),
+        newArrivalToggle: byId('inputNewArrival'),
+        brandLogoToggle: byId('inputBrandLogo'),
+        btnSaveOffer: byId('btnSaveOffer'),
+        btnDownload: byId('btnDownload'),
+        
+        displayName: byId('displayName'),
+        infoCard: byId('infoCard'),
+        originalPricePreview: byId('originalPricePreview'),
+        displayOriginalPrice: byId('displayOriginalPrice'),
+        displayOfferPrice: byId('displayOfferPrice'),
+        displayDescription: byId('displayDescription'),
+        displayDiscount: byId('displayDiscount'),
+        discountBadge: byId('discount-badge'),
+        pricePanel: byId('pricePanel'),
+        priceNowBlock: byId('priceNowBlock'),
+        displayPriceLabel: byId('displayPriceLabel'),
+        displayImage: byId('displayImage'),
+        flashBadge: byId('flash-badge'),
+        newArrivalBadge: byId('new-arrival-badge'),
+        brandLogoBadge: byId('brand-logo-badge'),
+        brandLogoImage: byId('brandLogoImage'),
+        brandLogoHint: byId('brandLogoHint'),
+        
+        mainContainer: byId('offer-template'),
+        logo: byId('offerLogo'),
+        logoFallback: byId('offerLogoFallback'),
+        footerWeb: byId('footerWeb'),
+        footerWhatsapp: byId('footerWhatsapp'),
+        footerEmail: byId('footerEmail'),
+        businessFooter: byId('businessFooter'),
+        templatePicker: byId('templatePicker'),
+        offerBackgroundDecor: byId('offerBackgroundDecor'),
+        offerBgGradient: byId('offerBgGradient'),
+        offerBgTopGlow: byId('offerBgTopGlow'),
+        offerBgDivider: byId('offerBgDivider'),
+        offerLogoShell: byId('offerLogoShell'),
+        imageSlot: byId('imageSlot'),
+        imageFrame: byId('imageFrame'),
+
+        btnToggleHistory: byId('btnToggleHistory'),
+        editorView: byId('editorView'),
+        historyView: byId('historyView'),
+        historyGrid: byId('historyGrid')
+      };
+
+      const OFFER_LOGO_CLASSIC = './logo-ofertas-mundoled.png';
+      const OFFER_LOGO_NON_CLASSIC = './logo-ofertas-mundoled-white.png';
+
+      let currentTemplate = 'classic';
+      let inventoryProducts = [];
+      let syncingPrices = false;
+      let editingOfferId = null;
+      let companyLogoFromConfig = '';
+      let currentBrandLogo = '';
+      const templateLabels = {
+        classic: 'Clásico',
+        clean: 'Limpio',
+        focus: 'Producto',
+        card: 'Ficha'
+      };
+      const templateLayouts = {
+        classic: {
+          imageTop: 102,
+          imageHeight: 252,
+          infoTop: 372,
+          infoBottomWithPrice: 86,
+          infoBottomNoPrice: 86,
+          logoWidth: 220,
+          logoHeight: 48,
+          logoRadius: 0,
+          imageRadius: 26,
+          discountTop: 12,
+          discountRight: 28,
+          brandTop: 12,
+          brandLeft: 28,
+          flashLeft: 32,
+          flashBottom: 24,
+          newArrivalRight: 32,
+          newArrivalBottom: 24,
+          footerBottom: 16,
+          footerPadY: 8,
+          footerPadX: 12,
+          imageFit: 'contain',
+          imagePosition: 'center bottom',
+          frameBg: 'rgba(255,255,255,0.95)',
+          frameBorder: 'rgba(255,255,255,0.7)',
+          infoBg: '#ffffff',
+          infoBorder: '#f3f4f6',
+          footerBg: 'rgba(255,255,255,0.9)',
+          gradient: 'linear-gradient(145deg,rgba(255,255,255,0.22),transparent 42%,rgba(0,0,0,0.20))',
+          topGlow: 'linear-gradient(180deg,rgba(255,255,255,0.10),rgba(255,255,255,0))',
+          dividerTop: 96,
+          showDivider: true
+        },
+        clean: {
+          imageTop: 96,
+          imageHeight: 260,
+          infoTop: 374,
+          infoBottomWithPrice: 84,
+          infoBottomNoPrice: 84,
+          logoWidth: 220,
+          logoHeight: 48,
+          logoRadius: 0,
+          imageRadius: 28,
+          discountTop: 10,
+          discountRight: 20,
+          brandTop: 10,
+          brandLeft: 20,
+          flashLeft: 24,
+          flashBottom: 16,
+          newArrivalRight: 24,
+          newArrivalBottom: 16,
+          footerBottom: 14,
+          footerPadY: 8,
+          footerPadX: 12,
+          imageFit: 'contain',
+          imagePosition: 'center bottom',
+          frameBg: 'rgba(255,255,255,0.97)',
+          frameBorder: 'rgba(255,255,255,0.9)',
+          infoBg: 'rgba(255,255,255,0.97)',
+          infoBorder: '#e5e7eb',
+          footerBg: 'rgba(255,255,255,0.94)',
+          gradient: 'linear-gradient(160deg,rgba(255,255,255,0.35),rgba(255,255,255,0.04) 55%,rgba(15,23,42,0.24))',
+          topGlow: 'linear-gradient(180deg,rgba(255,255,255,0.14),rgba(255,255,255,0))',
+          dividerTop: 98,
+          showDivider: false
+        },
+        focus: {
+          imageTop: 88,
+          imageHeight: 280,
+          infoTop: 382,
+          infoBottomWithPrice: 84,
+          infoBottomNoPrice: 78,
+          logoWidth: 230,
+          logoHeight: 50,
+          logoRadius: 0,
+          imageRadius: 30,
+          discountTop: 12,
+          discountRight: 16,
+          brandTop: 12,
+          brandLeft: 16,
+          flashLeft: 20,
+          flashBottom: 14,
+          newArrivalRight: 20,
+          newArrivalBottom: 14,
+          footerBottom: 14,
+          footerPadY: 8,
+          footerPadX: 12,
+          imageFit: 'contain',
+          imagePosition: 'center bottom',
+          frameBg: 'rgba(255,255,255,0.96)',
+          frameBorder: 'rgba(255,255,255,0.82)',
+          infoBg: '#ffffff',
+          infoBorder: '#f3f4f6',
+          footerBg: 'rgba(255,255,255,0.92)',
+          gradient: 'linear-gradient(155deg,rgba(255,255,255,0.20),transparent 38%,rgba(2,6,23,0.30))',
+          topGlow: 'linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0))',
+          dividerTop: 94,
+          showDivider: true
+        },
+        card: {
+          imageTop: 104,
+          imageHeight: 236,
+          infoTop: 350,
+          infoBottomWithPrice: 82,
+          infoBottomNoPrice: 72,
+          logoWidth: 220,
+          logoHeight: 48,
+          logoRadius: 0,
+          imageRadius: 22,
+          discountTop: 10,
+          discountRight: 18,
+          brandTop: 10,
+          brandLeft: 18,
+          flashLeft: 20,
+          flashBottom: 12,
+          newArrivalRight: 20,
+          newArrivalBottom: 12,
+          footerBottom: 12,
+          footerPadY: 8,
+          footerPadX: 12,
+          imageFit: 'contain',
+          imagePosition: 'center bottom',
+          frameBg: 'rgba(255,255,255,0.94)',
+          frameBorder: 'rgba(255,255,255,0.72)',
+          infoBg: 'rgba(255,255,255,0.98)',
+          infoBorder: '#e5e7eb',
+          footerBg: 'rgba(255,255,255,0.95)',
+          gradient: 'linear-gradient(180deg,rgba(255,255,255,0.16),rgba(0,0,0,0.26))',
+          topGlow: 'linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0))',
+          dividerTop: 98,
+          showDivider: true
+        }
+      };
+      const templateVisuals = {
+        classic: {
+          containerBg: '',
+          containerBorder: '',
+          containerShadow: '',
+          decorImage: '',
+          decorSize: '',
+          decorOpacity: '',
+          logoBg: 'transparent',
+          logoBorder: 'transparent',
+          logoShadow: 'none',
+          infoBg: '#ffffff',
+          infoBorder: '#f3f4f6',
+          infoShadow: '0 18px 30px rgba(15,23,42,0.12)',
+          titleColor: '#030712',
+          descColor: '#6b7280',
+          priceBg: '#f9fafb',
+          priceBorder: '#f3f4f6',
+          priceLabelColor: '#6b7280',
+          originalPriceColor: '#9ca3af',
+          offerPriceColor: '',
+          flashBg: '#dc2626',
+          flashColor: '#ffffff',
+          newArrivalBg: '#facc15',
+          newArrivalColor: '#ffffff',
+          discountBg: '#fde047',
+          discountColor: '#451a03',
+          footerBg: 'rgba(255,255,255,0.9)',
+          footerColor: '#1e293b'
+        },
+        clean: {
+          containerBg: 'linear-gradient(180deg,#f8fbff 0%,#eef3fa 100%)',
+          containerBorder: '#d4deeb',
+          containerShadow: '0 26px 44px rgba(15,23,42,0.15)',
+          decorImage: 'radial-gradient(circle at 1px 1px, rgba(100,116,139,0.25) 1px, transparent 0)',
+          decorSize: '16px 16px',
+          decorOpacity: '0.25',
+          logoBg: 'transparent',
+          logoBorder: 'transparent',
+          logoShadow: 'none',
+          infoBg: 'rgba(255,255,255,0.98)',
+          infoBorder: '#dbe7f4',
+          infoShadow: '0 14px 24px rgba(15,23,42,0.08)',
+          titleColor: '#0f172a',
+          descColor: '#475569',
+          priceBg: '#f8fafc',
+          priceBorder: '#dbe7f4',
+          priceLabelColor: '#64748b',
+          originalPriceColor: '#94a3b8',
+          offerPriceColor: '#0f172a',
+          flashBg: '#0ea5e9',
+          flashColor: '#ffffff',
+          newArrivalBg: '#16a34a',
+          newArrivalColor: '#ffffff',
+          discountBg: '#fef08a',
+          discountColor: '#854d0e',
+          footerBg: 'rgba(255,255,255,0.98)',
+          footerColor: '#334155'
+        },
+        focus: {
+          containerBg: 'linear-gradient(180deg,#0b1220 0%,#111827 60%,#0b1220 100%)',
+          containerBorder: '#1f2937',
+          containerShadow: '0 30px 55px rgba(2,6,23,0.55)',
+          decorImage: 'radial-gradient(circle at 20% 20%, rgba(59,130,246,0.28), transparent 38%), radial-gradient(circle at 80% 78%, rgba(56,189,248,0.22), transparent 36%)',
+          decorSize: '100% 100%',
+          decorOpacity: '1',
+          logoBg: 'transparent',
+          logoBorder: 'transparent',
+          logoShadow: 'none',
+          infoBg: 'rgba(15,23,42,0.78)',
+          infoBorder: 'rgba(148,163,184,0.35)',
+          infoShadow: '0 20px 34px rgba(2,6,23,0.5)',
+          titleColor: '#f8fafc',
+          descColor: '#cbd5e1',
+          priceBg: 'rgba(15,23,42,0.62)',
+          priceBorder: 'rgba(148,163,184,0.35)',
+          priceLabelColor: '#cbd5e1',
+          originalPriceColor: '#94a3b8',
+          offerPriceColor: '#ffffff',
+          flashBg: '#ef4444',
+          flashColor: '#ffffff',
+          newArrivalBg: '#22c55e',
+          newArrivalColor: '#ffffff',
+          discountBg: '#facc15',
+          discountColor: '#431407',
+          footerBg: 'rgba(15,23,42,0.78)',
+          footerColor: '#e2e8f0'
+        },
+        card: {
+          containerBg: 'linear-gradient(180deg,#fff7ed 0%,#ffedd5 60%,#fed7aa 100%)',
+          containerBorder: '#fdba74',
+          containerShadow: '0 24px 42px rgba(154,52,18,0.2)',
+          decorImage: 'linear-gradient(135deg, rgba(251,146,60,0.14) 0%, rgba(251,191,36,0.04) 46%, rgba(255,255,255,0.18) 100%)',
+          decorSize: '100% 100%',
+          decorOpacity: '1',
+          logoBg: 'transparent',
+          logoBorder: 'transparent',
+          logoShadow: 'none',
+          infoBg: 'rgba(255,253,247,0.98)',
+          infoBorder: '#fdba74',
+          infoShadow: '0 16px 26px rgba(154,52,18,0.14)',
+          titleColor: '#7c2d12',
+          descColor: '#9a3412',
+          priceBg: '#fff1df',
+          priceBorder: '#fdba74',
+          priceLabelColor: '#9a3412',
+          originalPriceColor: '#b45309',
+          offerPriceColor: '#9a3412',
+          flashBg: '#dc2626',
+          flashColor: '#ffffff',
+          newArrivalBg: '#f59e0b',
+          newArrivalColor: '#ffffff',
+          discountBg: '#fb923c',
+          discountColor: '#ffffff',
+          footerBg: 'rgba(255,253,247,0.96)',
+          footerColor: '#7c2d12'
+        }
+      };
+
+      // ==========================================
+      // SISTEMA DE HISTORIAL (LocalStorage)
+      // ==========================================
+      let savedHistory = [];
+      try {
+        const stored = localStorage.getItem('seniorflow_ofertas_v1');
+        if (stored) savedHistory = JSON.parse(stored);
+      } catch (e) { console.error("Error cargando historial", e); }
+
+      const renderSaveButtonIdle = () => {
+        elements.btnSaveOffer.innerHTML = editingOfferId
+          ? `<i data-lucide="check-square" class="w-4 h-4"></i> Actualizar`
+          : `<i data-lucide="save" class="w-4 h-4"></i> Guardar`;
+        lucide.createIcons();
+      };
+
+      const setTemplateButtonState = () => {
+        if (!elements.templatePicker) return;
+        elements.templatePicker.querySelectorAll('button[data-template]').forEach((button) => {
+          const isActive = button.dataset.template === currentTemplate;
+          button.classList.toggle('border-indigo-300', isActive);
+          button.classList.toggle('bg-indigo-50', isActive);
+          button.classList.toggle('text-indigo-700', isActive);
+          button.classList.toggle('shadow-sm', isActive);
+          button.classList.toggle('border-gray-200', !isActive);
+          button.classList.toggle('bg-white', !isActive);
+          button.classList.toggle('text-gray-700', !isActive);
+          button.classList.toggle('hover:bg-gray-50', !isActive);
+        });
+      };
+
+      const getLogoForCurrentTemplate = () => {
+        if (currentTemplate === 'classic') return OFFER_LOGO_NON_CLASSIC; // Clásico
+        if (currentTemplate === 'focus') return OFFER_LOGO_NON_CLASSIC; // Producto
+        if (currentTemplate === 'clean' || currentTemplate === 'card') return OFFER_LOGO_CLASSIC; // Limpio y Ficha
+        return OFFER_LOGO_NON_CLASSIC;
+      };
+
+      const applyTemplateLayout = (showPrice) => {
+        const layout = templateLayouts[currentTemplate] || templateLayouts.classic;
+        const visual = templateVisuals[currentTemplate] || templateVisuals.classic;
+        const imageHeight = `${layout.imageHeight}px`;
+        const imageTop = `${layout.imageTop}px`;
+        const imageRadius = `${layout.imageRadius}px`;
+
+        if (visual.containerBg) elements.mainContainer.style.background = visual.containerBg;
+        else elements.mainContainer.style.background = '';
+        elements.mainContainer.style.borderColor = visual.containerBorder || '';
+        elements.mainContainer.style.boxShadow = visual.containerShadow || '';
+
+        elements.offerBackgroundDecor.style.backgroundImage = visual.decorImage || '';
+        elements.offerBackgroundDecor.style.backgroundSize = visual.decorSize || '';
+        elements.offerBackgroundDecor.style.opacity = visual.decorOpacity || '';
+
+        elements.offerLogoShell.style.width = `${layout.logoWidth}px`;
+        elements.offerLogoShell.style.height = `${layout.logoHeight}px`;
+        elements.offerLogoShell.style.borderRadius = `${layout.logoRadius}px`;
+        elements.offerLogoShell.style.background = visual.logoBg;
+        elements.offerLogoShell.style.border = visual.logoBorder && visual.logoBorder !== 'transparent'
+          ? `1px solid ${visual.logoBorder}`
+          : 'none';
+        elements.offerLogoShell.style.boxShadow = visual.logoShadow;
+        elements.logo.dataset.fallbackApplied = '';
+        elements.logo.src = getLogoForCurrentTemplate();
+        elements.logo.classList.remove('hidden');
+        elements.logoFallback.classList.add('hidden');
+
+        elements.offerBgGradient.style.background = layout.gradient;
+        elements.offerBgTopGlow.style.background = layout.topGlow;
+        elements.offerBgDivider.style.top = `${layout.dividerTop}px`;
+        elements.offerBgDivider.style.display = layout.showDivider ? 'block' : 'none';
+
+        elements.imageSlot.style.top = imageTop;
+        elements.imageSlot.style.height = imageHeight;
+        elements.imageFrame.style.minHeight = imageHeight;
+        elements.imageFrame.style.maxHeight = imageHeight;
+        elements.imageFrame.style.borderRadius = imageRadius;
+        elements.imageFrame.style.background = layout.frameBg;
+        elements.imageFrame.style.borderColor = layout.frameBorder;
+        elements.displayImage.style.minHeight = imageHeight;
+        elements.displayImage.style.maxHeight = imageHeight;
+        elements.displayImage.style.borderRadius = imageRadius;
+        elements.displayImage.style.objectFit = layout.imageFit;
+        elements.displayImage.style.objectPosition = layout.imagePosition;
+
+        elements.discountBadge.style.top = `${layout.discountTop}px`;
+        elements.discountBadge.style.right = `${layout.discountRight}px`;
+        elements.brandLogoBadge.style.top = `${layout.brandTop ?? 10}px`;
+        elements.brandLogoBadge.style.left = `${layout.brandLeft ?? 18}px`;
+        elements.flashBadge.style.left = `${layout.flashLeft}px`;
+        elements.flashBadge.style.bottom = `${layout.flashBottom}px`;
+        elements.newArrivalBadge.style.right = `${layout.newArrivalRight}px`;
+        elements.newArrivalBadge.style.bottom = `${layout.newArrivalBottom}px`;
+
+        elements.infoCard.style.top = `${layout.infoTop}px`;
+        elements.infoCard.style.bottom = showPrice
+          ? `${layout.infoBottomWithPrice}px`
+          : `${layout.infoBottomNoPrice}px`;
+        elements.infoCard.style.background = visual.infoBg || layout.infoBg;
+        elements.infoCard.style.borderColor = visual.infoBorder || layout.infoBorder;
+        elements.infoCard.style.boxShadow = visual.infoShadow;
+
+        elements.businessFooter.style.bottom = `${layout.footerBottom}px`;
+        elements.businessFooter.style.padding = `${layout.footerPadY}px ${layout.footerPadX}px`;
+        elements.businessFooter.style.background = visual.footerBg || layout.footerBg;
+        elements.businessFooter.style.color = visual.footerColor;
+
+        elements.displayName.style.color = visual.titleColor;
+        elements.displayDescription.style.color = visual.descColor;
+        elements.pricePanel.style.background = visual.priceBg;
+        elements.pricePanel.style.borderColor = visual.priceBorder;
+        elements.displayPriceLabel.style.color = visual.priceLabelColor;
+        elements.displayOriginalPrice.style.color = visual.originalPriceColor;
+        elements.displayOfferPrice.style.color = visual.offerPriceColor || '';
+        elements.flashBadge.style.background = visual.flashBg;
+        elements.flashBadge.style.color = visual.flashColor;
+        elements.newArrivalBadge.style.background = visual.newArrivalBg;
+        elements.newArrivalBadge.style.color = visual.newArrivalColor;
+        elements.discountBadge.style.background = visual.discountBg;
+        elements.discountBadge.style.color = visual.discountColor;
+      };
+
+      const applyTemplate = (templateKey = 'classic') => {
+        currentTemplate = templateLayouts[templateKey] ? templateKey : 'classic';
+        setTemplateButtonState();
+      };
+
+      const getCurrentOfferData = (id = Date.now()) => ({
+        id,
+        date: new Date().toLocaleDateString(),
+        name: elements.name.value,
+        showPrice: elements.showPrice.checked,
+        originalPrice: elements.originalPrice.value,
+        discountEnabled: elements.discountEnabled.checked,
+        discount: elements.discount.value,
+        offerPrice: elements.offerPrice.value,
+        description: elements.description.value,
+        template: currentTemplate,
+        flash: elements.flashToggle.checked,
+        newArrival: elements.newArrivalToggle.checked,
+        brandLogoEnabled: elements.brandLogoToggle.checked,
+        brandLogo: currentBrandLogo,
+        image: elements.displayImage.src
+      });
+
+      function saveToHistory() {
+        const offerData = getCurrentOfferData(editingOfferId || Date.now());
+        const existingIndex = editingOfferId ? savedHistory.findIndex((offer) => offer.id === editingOfferId) : -1;
+
+        if (existingIndex >= 0) {
+          savedHistory[existingIndex] = { ...savedHistory[existingIndex], ...offerData };
+        } else {
+          savedHistory.unshift(offerData);
+        }
+
+        if(savedHistory.length > 15) savedHistory.pop();
+        
+        try {
+          localStorage.setItem('seniorflow_ofertas_v1', JSON.stringify(savedHistory));
+          renderHistory();
+        } catch(e) { console.error("Memoria llena, no se guardó el historial", e); }
+
+        return existingIndex >= 0 ? 'updated' : 'created';
+      }
+
+      function renderHistory() {
+        elements.historyGrid.innerHTML = '';
+        if(savedHistory.length === 0) {
+          elements.historyGrid.innerHTML = '<div class="col-span-full text-center py-10 bg-white rounded-xl border border-gray-200"><p class="text-gray-500 font-medium">No hay ofertas guardadas aún. ¡Crea una y descárgala!</p></div>';
+          return;
+        }
+
+        savedHistory.forEach(offer => {
+          const card = document.createElement('div');
+          card.className = 'bg-white p-4 rounded-2xl shadow-sm border border-gray-200 flex flex-col gap-3 hover:shadow-md transition-shadow';
+          card.innerHTML = `
+            <div class="h-32 bg-gray-50 rounded-xl p-2 flex items-center justify-center border border-gray-100 relative overflow-hidden">
+              <img src="${offer.image}" class="max-h-full max-w-full object-contain">
+            </div>
+            <div>
+              <h4 class="font-extrabold text-gray-800 line-clamp-1 text-sm">${offer.name}</h4>
+              <p class="text-xs font-bold text-green-600 mt-1">$ ${offer.offerPrice}</p>
+              <p class="text-[10px] font-bold text-indigo-500 mt-0.5 uppercase tracking-wide">Plantilla: ${templateLabels[offer.template] || 'Clásico'}</p>
+              <p class="text-[10px] text-gray-400 mt-0.5">${offer.date}</p>
+            </div>
+            <div class="grid grid-cols-[1fr_1fr_auto] gap-2 mt-auto pt-2 border-t border-gray-100">
+               <button type="button" data-action="edit-offer" data-offer-id="${offer.id}" class="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 py-2 rounded-lg font-bold text-xs transition-colors flex items-center justify-center gap-1"><i data-lucide="pencil" class="w-3.5 h-3.5"></i>Editar</button>
+               <button type="button" data-action="duplicate-offer" data-offer-id="${offer.id}" class="bg-slate-50 text-slate-700 hover:bg-slate-100 py-2 rounded-lg font-bold text-xs transition-colors flex items-center justify-center gap-1"><i data-lucide="copy" class="w-3.5 h-3.5"></i>Duplicar</button>
+               <button type="button" data-action="delete-offer" data-offer-id="${offer.id}" class="text-red-500 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors" title="Eliminar"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            </div>
+          `;
+          elements.historyGrid.appendChild(card);
+        });
+        lucide.createIcons();
+      }
+
+      const openOfferModal = () => {
+        elements.modal.classList.remove('hidden');
+        // Refrescamos en segundo plano para que siempre aparezcan productos nuevos.
+        void cargarInventario();
+      };
+      const closeOfferModal = () => elements.modal.classList.add('hidden');
+      const openInventoryModal = async () => {
+        elements.inventoryModal.classList.remove('hidden');
+        elements.inventorySearchInput.value = '';
+        elements.inventoryStatus.textContent = 'Actualizando inventario...';
+        elements.inventoryList.innerHTML = '<div class="p-4 text-xs font-bold text-gray-500">Actualizando inventario...</div>';
+        await cargarInventario();
+        elements.inventorySearchInput.focus();
+      };
+      const closeInventoryModal = () => elements.inventoryModal.classList.add('hidden');
+
+      const updateOfferButtonVisibility = () => {
+        const root = byId('root');
+        const isLoginScreen = Boolean(root?.querySelector('input[placeholder="Ingresa tu usuario"]'));
+        const isAuthenticatedScreen = Boolean(root?.querySelector('header')) && !isLoginScreen;
+        const currentView = (document.body?.dataset?.currentView || '').toLowerCase();
+        const shouldHideInCurrentView = ['ajustes', 'usuarios', 'configuracion'].includes(currentView);
+        const isPrintPreviewOpen = Boolean(root?.querySelector('.print-modal-root'));
+        const isAnyModalOpen = Boolean(root?.querySelector('.fixed.inset-0'));
+        const shouldShowButton = isAuthenticatedScreen && !shouldHideInCurrentView && !isPrintPreviewOpen && !isAnyModalOpen;
+        elements.openModalButton.classList.toggle('hidden', !shouldShowButton);
+        elements.openModalButton.classList.toggle('flex', shouldShowButton);
+        if (!shouldShowButton) closeOfferModal();
+      };
+
+      const rootObserver = new MutationObserver(updateOfferButtonVisibility);
+      rootObserver.observe(byId('root'), { childList: true, subtree: true });
+      const bodyObserver = new MutationObserver(updateOfferButtonVisibility);
+      bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['data-current-view'] });
+
+      const renderHistoryToggleButton = (showingHistory) => {
+        elements.btnToggleHistory.innerHTML = showingHistory
+          ? `<i data-lucide="edit-3" class="w-4 h-4"></i><span>Volver al Editor</span>`
+          : `<i data-lucide="bookmark" class="w-4 h-4"></i><span>Ver Guardadas</span>`;
+        lucide.createIcons();
+      };
+
+      const setHistoryVisible = (showingHistory) => {
+        elements.editorView.classList.toggle('hidden', showingHistory);
+        elements.editorView.classList.toggle('block', !showingHistory);
+        elements.historyView.classList.toggle('hidden', !showingHistory);
+        elements.historyView.classList.toggle('block', showingHistory);
+        renderHistoryToggleButton(showingHistory);
+        if (showingHistory) renderHistory();
+      };
+
+      const loadOfferFromHistory = (id, mode = 'edit') => {
+        const offer = savedHistory.find(o => o.id === id);
+        if(!offer) return;
+        
+        elements.name.value = offer.name;
+        elements.showPrice.checked = offer.showPrice !== false;
+        elements.originalPrice.value = offer.originalPrice;
+        elements.discountEnabled.checked = offer.discountEnabled !== false;
+        elements.discount.value = offer.discount || calcularDescuentoDesdePrecio(offer.originalPrice, offer.offerPrice);
+        elements.offerPrice.value = offer.offerPrice;
+        elements.description.value = offer.description;
+        elements.flashToggle.checked = offer.flash;
+        elements.newArrivalToggle.checked = Boolean(offer.newArrival);
+        setBrandLogoForOffer(offer.brandLogo || '');
+        const hasBrandToggleValue = Object.prototype.hasOwnProperty.call(offer, 'brandLogoEnabled');
+        elements.brandLogoToggle.checked = hasBrandToggleValue
+          ? Boolean(offer.brandLogoEnabled) && Boolean(currentBrandLogo)
+          : Boolean(offer.brandLogo);
+        elements.displayImage.src = offer.image;
+        applyTemplate(offer.template || 'classic');
+        
+        editingOfferId = mode === 'edit' ? id : null;
+        renderSaveButtonIdle();
+        updateDiscountControls();
+        updatePreview();
+        setHistoryVisible(false);
+      };
+
+      const deleteOfferFromHistory = (id) => {
+        savedHistory = savedHistory.filter(o => o.id !== id);
+        if (editingOfferId === id) {
+          editingOfferId = null;
+          renderSaveButtonIdle();
+        }
+        try { localStorage.setItem('seniorflow_ofertas_v1', JSON.stringify(savedHistory)); } catch(e){}
+        renderHistory();
+      };
+
+      elements.openModalButton.addEventListener('click', openOfferModal);
+      elements.closeModalButton.addEventListener('click', closeOfferModal);
+      elements.openInventoryModalButton.addEventListener('click', openInventoryModal);
+      elements.closeInventoryModalButton.addEventListener('click', closeInventoryModal);
+
+      elements.modal.addEventListener('click', (event) => {
+        if (event.target === elements.modal) closeOfferModal();
+      });
+      elements.inventoryModal.addEventListener('click', (event) => {
+        if (event.target === elements.inventoryModal) closeInventoryModal();
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !elements.inventoryModal.classList.contains('hidden')) {
+          closeInventoryModal();
+          return;
+        }
+        if (event.key === 'Escape' && !elements.modal.classList.contains('hidden')) {
+          closeOfferModal();
+        }
+      });
+
+      elements.btnToggleHistory.addEventListener('click', () => {
+        setHistoryVisible(elements.historyView.classList.contains('hidden'));
+      });
+
+      elements.historyGrid.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-action]');
+        if (!button) return;
+
+        const id = Number(button.dataset.offerId);
+        if (button.dataset.action === 'edit-offer') loadOfferFromHistory(id, 'edit');
+        if (button.dataset.action === 'duplicate-offer') loadOfferFromHistory(id, 'duplicate');
+        if (button.dataset.action === 'delete-offer') deleteOfferFromHistory(id);
+      });
+
+      elements.templatePicker.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-template]');
+        if (!button) return;
+        applyTemplate(button.dataset.template);
+        updatePreview();
+      });
+
+      elements.inventorySearchInput.addEventListener('input', renderInventoryList);
+
+      // ==========================================
+      // FUNCION: CARGAR INVENTARIO DESDE FIREBASE
+      // ==========================================
+      async function asegurarSesionFirebase() {
+        if (auth.currentUser) return;
+        await signInAnonymously(auth);
+      }
+
+      const normalizeText = (value = '') => value.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      const getProductTitle = (data = {}) => {
+        return (data.descripcion || data.nombre || data.name || data.titulo || data.codigo || 'Producto sin nombre').toString().trim();
+      };
+      const getProductPrice = (data = {}) => {
+        return Number(String(data.precioLista ?? data.precio ?? data.price ?? data.originalPrice ?? 0).replace(',', '.')) || 0;
+      };
+      const getProductImage = (data = {}) => data.imagen || data.image || data.url || data.fotoUrl || '';
+      const getProductBrandLogo = (data = {}) => data.logoMarca || data.logo_marca || data.brandLogo || '';
+
+      const setBrandLogoForOffer = (logoValue = '') => {
+        currentBrandLogo = (logoValue || '').toString().trim();
+        const hasBrandLogo = Boolean(currentBrandLogo);
+        elements.brandLogoToggle.disabled = !hasBrandLogo;
+        if (!hasBrandLogo) elements.brandLogoToggle.checked = false;
+        elements.brandLogoHint.textContent = hasBrandLogo
+          ? 'Mostrará el logo de marca del producto.'
+          : 'Este producto no tiene logo de marca cargado.';
+      };
+
+      function applyProductToOffer(product = {}) {
+        const title = getProductTitle(product);
+        const price = getProductPrice(product);
+
+        elements.name.value = title;
+        elements.originalPrice.value = price || '';
+        elements.discount.value = elements.discount.value || 15;
+        const discount = elements.discountEnabled.checked ? (Number(elements.discount.value) || 0) : 0;
+        elements.offerPrice.value = price ? Math.round(price * (1 - discount / 100)) : '';
+        elements.description.value = product.detalles || product.descripcion || product.description || title;
+
+        const imgUrl = getProductImage(product);
+        if (imgUrl) elements.displayImage.src = imgUrl;
+        setBrandLogoForOffer(getProductBrandLogo(product));
+        if (currentBrandLogo) elements.brandLogoToggle.checked = true;
+
+        updatePreview();
+        closeInventoryModal();
+      }
+
+      function renderInventoryList() {
+        const query = normalizeText(elements.inventorySearchInput.value);
+        const filtered = inventoryProducts
+          .filter((product) => {
+            if (!query) return true;
+            const haystack = [
+              getProductTitle(product),
+              product.codigo,
+              product.marca,
+              product.categoria,
+              product.detalles
+            ].map((value) => normalizeText(value || '')).join(' ');
+            return haystack.includes(query);
+          })
+          .slice(0, 80);
+
+        if (!inventoryProducts.length) {
+          elements.inventoryList.innerHTML = '<div class="p-8 text-center font-bold text-gray-500">No hay productos cargados en inventario.</div>';
+          return;
+        }
+
+        if (!filtered.length) {
+          elements.inventoryList.innerHTML = '<div class="p-8 text-center font-bold text-gray-500">No hay productos para esa búsqueda.</div>';
+          return;
+        }
+
+        elements.inventoryList.innerHTML = filtered.map((product) => {
+          const title = getProductTitle(product);
+          const price = getProductPrice(product);
+          const image = getProductImage(product);
+          const meta = [product.codigo, product.marca, product.categoria].filter(Boolean).join(' · ');
+          return `
+            <button type="button" data-product-id="${product.id}" class="w-full p-4 text-left hover:bg-indigo-50 transition-colors flex items-center gap-4">
+              <div class="w-16 h-16 rounded-xl border border-gray-200 bg-white overflow-hidden flex items-center justify-center shrink-0">
+                ${image ? `<img src="${image}" alt="${title}" loading="lazy" class="w-full h-full object-contain">` : `<i data-lucide="image" class="w-6 h-6 text-gray-300"></i>`}
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="font-black text-gray-900 truncate">${title}</p>
+                <p class="text-xs font-bold text-gray-500 truncate mt-0.5">${meta || 'Sin código adicional'}</p>
+              </div>
+              <div class="text-right shrink-0">
+                <p class="text-[10px] font-black text-gray-400 uppercase">Precio</p>
+                <p class="font-black text-indigo-700">${formatMoney(price)}</p>
+              </div>
+            </button>
+          `;
+        }).join('');
+        lucide.createIcons();
+      }
+
+      async function cargarInventario() {
+        try {
+          await asegurarSesionFirebase();
+          const querySnapshot = await getDocs(collection(db, "productos"));
+          inventoryProducts = [];
+          if (querySnapshot.empty) {
+            elements.inventoryStatus.textContent = 'No se encontraron productos.';
+            renderInventoryList();
+            return;
+          }
+          querySnapshot.forEach((doc) => {
+            inventoryProducts.push({ id: doc.id, ...doc.data() });
+          });
+          inventoryProducts.sort((a, b) => getProductTitle(a).localeCompare(getProductTitle(b), 'es'));
+          elements.inventoryStatus.textContent = `${inventoryProducts.length} productos disponibles.`;
+          renderInventoryList();
+        } catch (error) {
+          console.warn("No se pudo cargar el inventario para ofertas:", error);
+          elements.inventoryStatus.textContent = 'No se pudo cargar inventario. Puedes completar la oferta manualmente.';
+          inventoryProducts = [];
+          renderInventoryList();
+        }
+      }
+
+      async function cargarConfiguracionEmpresa() {
+        try {
+          await asegurarSesionFirebase();
+          const snap = await getDoc(doc(db, 'sistema', 'configuracion'));
+          const data = snap.exists() ? snap.data() : {};
+          const logo = (data.logo || '').toString().trim();
+          const nombre = (data.nombre || '').toString().trim();
+          const web = (data.web || '').toString().trim() || OFFER_COMPANY_FALLBACK.web;
+          const whatsapp = (data.whatsapp || '').toString().trim() || OFFER_COMPANY_FALLBACK.whatsapp;
+          const correo = (data.correo || '').toString().trim() || OFFER_COMPANY_FALLBACK.correo;
+
+          if (logo) {
+            companyLogoFromConfig = logo;
+          } else if (nombre) {
+            elements.logoFallback.textContent = nombre;
+          }
+
+          elements.footerWeb.textContent = web ? `Web: ${web}` : '';
+          elements.footerWhatsapp.textContent = whatsapp ? `WhatsApp: ${whatsapp}` : '';
+          elements.footerEmail.textContent = correo ? `Correo: ${correo}` : '';
+          updatePreview();
+        } catch (error) {
+          console.warn('No se pudo cargar el logo de empresa:', error);
+        }
+      }
+
+      cargarInventario();
+      cargarConfiguracionEmpresa();
+
+      elements.inventoryList.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-product-id]');
+        if (!button) return;
+        const product = inventoryProducts.find((item) => item.id === button.dataset.productId);
+        if (product) applyProductToOffer(product);
+      });
+
+      // ==========================================
+      // LOGICA DE INTERFAZ Y ACTUALIZACION
+      // ==========================================
+      const formatMoney = (value) => {
+        return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(value || 0);
+      };
+
+      const clampDiscount = (value) => Math.min(100, Math.max(0, Number(value) || 0));
+      const calcularDescuentoDesdePrecio = (original, oferta) => {
+        const origPrice = Number(original) || 0;
+        const offPrice = Number(oferta) || 0;
+        if (!origPrice || !offPrice || offPrice >= origPrice) return 0;
+        return Math.round(((origPrice - offPrice) / origPrice) * 100);
+      };
+
+      const updateDiscountControls = () => {
+        const enabled = elements.discountEnabled.checked;
+        elements.discountField.classList.toggle('hidden', !enabled);
+        elements.discount.disabled = !enabled;
+        elements.originalPricePreview.style.display = enabled ? 'block' : 'none';
+      };
+
+      const syncOfferPriceFromDiscount = () => {
+        if (syncingPrices) return;
+        if (!elements.discountEnabled.checked) {
+          updatePreview();
+          return;
+        }
+        syncingPrices = true;
+        const origPrice = Number(elements.originalPrice.value) || 0;
+        const discount = clampDiscount(elements.discount.value);
+        elements.discount.value = discount;
+        elements.offerPrice.value = origPrice ? Math.round(origPrice * (1 - discount / 100)) : '';
+        syncingPrices = false;
+        updatePreview();
+      };
+
+      const syncDiscountFromOfferPrice = () => {
+        if (syncingPrices) return;
+        if (!elements.discountEnabled.checked) {
+          updatePreview();
+          return;
+        }
+        syncingPrices = true;
+        elements.discount.value = calcularDescuentoDesdePrecio(elements.originalPrice.value, elements.offerPrice.value);
+        syncingPrices = false;
+        updatePreview();
+      };
+
+      const updatePreview = () => {
+        elements.displayName.textContent = elements.name.value;
+        elements.displayDescription.textContent = elements.description.value;
+        
+        const origPrice = parseFloat(elements.originalPrice.value) || 0;
+        const offPrice = parseFloat(elements.offerPrice.value) || 0;
+        const discount = clampDiscount(elements.discount.value);
+        const discountEnabled = elements.discountEnabled.checked;
+        const showPrice = elements.showPrice.checked;
+        
+        elements.displayOriginalPrice.textContent = formatMoney(origPrice);
+        elements.displayOfferPrice.textContent = formatMoney(offPrice);
+        elements.originalPricePreview.style.display = discountEnabled ? 'block' : 'none';
+        elements.displayPriceLabel.textContent = discountEnabled ? 'Ahora' : 'Precio';
+        elements.pricePanel.className = discountEnabled
+          ? 'bg-gray-50 rounded-2xl p-3 border border-gray-100 flex items-center justify-between mt-auto'
+          : 'bg-gray-50 rounded-2xl p-3 border border-gray-100 flex items-center justify-center text-center mt-auto';
+        elements.priceNowBlock.className = discountEnabled ? 'text-right' : 'text-center';
+        elements.priceFields.classList.toggle('hidden', !showPrice);
+        elements.pricePanel.classList.toggle('hidden', !showPrice);
+        elements.infoCard.className = 'absolute z-20 left-4 right-4 bg-white p-3 rounded-[1.4rem] shadow-2xl flex flex-col border border-gray-100 overflow-hidden';
+        elements.displayName.className = showPrice
+          ? 'text-[16px] font-black text-gray-950 leading-tight line-clamp-2'
+          : 'text-[18px] font-black text-gray-950 leading-tight line-clamp-3';
+        elements.displayDescription.className = showPrice
+          ? 'text-gray-500 text-[9px] mt-1 leading-[1.15] line-clamp-2 font-semibold'
+          : 'text-gray-500 text-[11px] mt-2 leading-[1.25] line-clamp-7 font-semibold';
+        applyTemplateLayout(showPrice);
+
+        if (showPrice && discountEnabled && discount > 0 && offPrice > 0) {
+          elements.displayDiscount.textContent = `-${discount}%`;
+          elements.discountBadge.style.display = 'flex';
+        } else {
+          elements.discountBadge.style.display = 'none';
+        }
+
+        const showBrandLogo = elements.brandLogoToggle.checked && Boolean(currentBrandLogo);
+        if (showBrandLogo) {
+          elements.brandLogoImage.src = currentBrandLogo;
+          elements.brandLogoBadge.style.display = 'flex';
+        } else {
+          elements.brandLogoBadge.style.display = 'none';
+        }
+
+        // Etiqueta Flash
+        elements.flashBadge.style.display = elements.flashToggle.checked ? 'block' : 'none';
+        elements.newArrivalBadge.style.display = elements.newArrivalToggle.checked ? 'block' : 'none';
+      };
+
+      elements.file.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => { elements.displayImage.src = event.target.result; };
+          reader.readAsDataURL(file);
+        }
+      });
+
+      elements.discountEnabled.addEventListener('change', () => {
+        updateDiscountControls();
+        if (elements.discountEnabled.checked) syncOfferPriceFromDiscount();
+        else updatePreview();
+      });
+      elements.showPrice.addEventListener('change', updatePreview);
+      elements.originalPrice.addEventListener('input', () => {
+        if (elements.discountEnabled.checked) syncOfferPriceFromDiscount();
+        else updatePreview();
+      });
+      elements.discount.addEventListener('input', syncOfferPriceFromDiscount);
+      elements.offerPrice.addEventListener('input', syncDiscountFromOfferPrice);
+
+      ['name', 'description', 'flashToggle', 'newArrivalToggle', 'brandLogoToggle'].forEach(id => {
+        elements[id].addEventListener('change', updatePreview);
+        elements[id].addEventListener('input', updatePreview);
+      });
+
+      elements.btnSaveOffer.addEventListener('click', () => {
+        const result = saveToHistory();
+        elements.btnSaveOffer.innerHTML = result === 'updated'
+          ? `<i data-lucide="check" class="w-4 h-4"></i> Actualizada`
+          : `<i data-lucide="check" class="w-4 h-4"></i> Guardada`;
+        lucide.createIcons();
+        window.setTimeout(() => {
+          renderSaveButtonIdle();
+        }, 1400);
+      });
+
+      // ==========================================
+      // FUNCION: DESCARGA EN ALTA RESOLUCIÓN (4K)
+      // ==========================================
+      elements.btnDownload.addEventListener('click', () => {
+        const node = elements.mainContainer;
+        const btn = elements.btnDownload;
+        
+        btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Generando`;
+        lucide.createIcons();
+
+        // Guardar en el historial antes de descargar
+        saveToHistory();
+
+        // Exportar en alta resolución 9:16 para estados de WhatsApp (mayor a Full HD)
+        htmlToImage.toJpeg(node, { 
+            quality: 0.98, 
+            backgroundColor: '#ffffff',
+            pixelRatio: 1,
+            canvasWidth: 2160,
+            canvasHeight: 3840
+        })
+        .then(function (dataUrl) {
+          const link = document.createElement('a');
+          const fileName = elements.name.value.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+          link.download = `estado-whatsapp-${fileName || 'producto'}.jpg`;
+          link.href = dataUrl;
+          link.click();
+        })
+        .catch(function (error) {
+          console.error('Error:', error);
+          alert('Hubo un error al descargar la imagen de tan alta resolución.');
+        })
+        .finally(function() {
+          btn.innerHTML = `<i data-lucide="download" class="w-4 h-4"></i> Descargar`;
+          lucide.createIcons();
+        });
+      });
+
+      // Init UI
+      elements.logo.addEventListener('error', () => {
+        if (!elements.logo.dataset.fallbackApplied) {
+          elements.logo.dataset.fallbackApplied = '1';
+          elements.logo.src = companyLogoFromConfig || OFFER_LOGO_CLASSIC;
+          return;
+        }
+        elements.logo.classList.add('hidden');
+        elements.logoFallback.classList.remove('hidden');
+      });
+      elements.brandLogoImage.addEventListener('error', () => {
+        elements.brandLogoBadge.style.display = 'none';
+      });
+      setBrandLogoForOffer('');
+      applyTemplate('classic');
+      updateDiscountControls();
+      renderSaveButtonIdle();
+      syncOfferPriceFromDiscount();
+      updateOfferButtonVisibility();
+      renderHistory();
+    });
+  </script>
+
+  <!-- SCRIPTS ORIGINALES DE TU APLICACIÓN -->
+  <script>
+    (function () {
+      const CURRENT_BUILD = 'seniorflow-react-20260606-product-images-storage-44';
+      const BUILD_KEY = 'seniorflow-current-build';
+      const isFileProtocol = window.location.protocol === 'file:';
+      if (isFileProtocol) return;
+
+      const storedBuild = localStorage.getItem(BUILD_KEY);
+      if (storedBuild === CURRENT_BUILD) return;
+
+      const limpiarCacheViejo = async () => {
+        try {
+          if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map((registration) => registration.unregister()));
+          }
+          if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((key) => caches.delete(key)));
+          }
+        } catch (error) {
+          console.warn('No se pudo limpiar cache anterior de SeniorFlow', error);
+        } finally {
+          localStorage.setItem(BUILD_KEY, CURRENT_BUILD);
+          const url = new URL(window.location.href);
+          if (url.searchParams.get('build') !== CURRENT_BUILD) {
+            url.searchParams.set('build', CURRENT_BUILD);
+            window.location.replace(url.toString());
+          }
+        }
+      };
+
+      limpiarCacheViejo();
+    })();
+  </script>
+  <script>
+    (function () {
+      const APP_BUNDLE = './app.js?v=seniorflow-react-20260606-product-images-storage-44';
+      const isFileProtocol = window.location.protocol === 'file:';
+
+      if (!isFileProtocol) {
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = APP_BUNDLE;
+        document.body.appendChild(script);
+        return;
+      }
+
+      const root = document.getElementById('root');
+      if (!root) return;
+
+      root.innerHTML = `
+        <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f1f5f9;font-family:Inter,system-ui,-apple-system,sans-serif;">
+          <div style="max-width:620px;width:100%;background:#fff;border:1px solid #dbeafe;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(2,6,23,.08);">
+            <h1 style="margin:0 0 10px;font-size:24px;line-height:1.2;color:#0f172a;font-weight:800;">Abrí SeniorFlow desde servidor local</h1>
+            <p style="margin:0 0 14px;color:#334155;font-size:14px;line-height:1.55;">
+              El navegador bloquea módulos cuando abrís con <strong>file://</strong>, por eso la pantalla queda en blanco.
+            </p>
+            <p style="margin:0 0 18px;color:#475569;font-size:13px;line-height:1.55;">
+              Usá esta URL:
+              <a href="http://localhost:8000/" style="color:#2563eb;font-weight:700;text-decoration:none;">http://localhost:8000/</a>
+            </p>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;">
+              <a href="http://localhost:8000/" style="display:inline-flex;align-items:center;justify-content:center;background:#2563eb;color:#fff;text-decoration:none;font-size:13px;font-weight:800;padding:10px 14px;border-radius:10px;">
+                Abrir en localhost
+              </a>
+              <a href="http://127.0.0.1:8000/" style="display:inline-flex;align-items:center;justify-content:center;background:#e2e8f0;color:#0f172a;text-decoration:none;font-size:13px;font-weight:800;padding:10px 14px;border-radius:10px;">
+                Abrir en 127.0.0.1
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+    })();
+  </script>
+  <script>
+    if (window.location.protocol !== 'file:' && 'serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js?v=seniorflow-react-20260606-product-images-storage-44').catch((error) => {
+          console.error('SW register error', error);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
