@@ -1471,7 +1471,7 @@
   <!-- SCRIPTS ORIGINALES DE TU APLICACIÓN -->
   <script>
     (function () {
-      const CURRENT_BUILD = 'seniorflow-react-20260607-remito-logo-factura-parcial-47';
+      const CURRENT_BUILD = 'seniorflow-react-20260607-blank-guard-49';
       const BUILD_KEY = 'seniorflow-current-build';
       const isFileProtocol = window.location.protocol === 'file:';
       if (isFileProtocol) return;
@@ -1506,13 +1506,39 @@
   </script>
   <script>
     (function () {
-      const APP_BUNDLE = './app.js?v=seniorflow-react-20260607-remito-logo-factura-parcial-47';
+      const APP_BUNDLE = './app.js?v=seniorflow-react-20260607-blank-guard-49';
       const isFileProtocol = window.location.protocol === 'file:';
 
       if (!isFileProtocol) {
+        const root = document.getElementById('root');
+        const mostrarFallbackCarga = (detalle) => {
+          if (!root) return;
+          root.innerHTML = `
+            <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f1f5f9;font-family:Inter,system-ui,-apple-system,sans-serif;">
+              <div style="max-width:680px;width:100%;background:#fff;border:1px solid #fecaca;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(2,6,23,.08);">
+                <h1 style="margin:0 0 10px;font-size:24px;line-height:1.2;color:#991b1b;font-weight:800;">No se pudo cargar el sistema</h1>
+                <p style="margin:0 0 14px;color:#7f1d1d;font-size:14px;line-height:1.55;">
+                  Esto suele pasar cuando GitHub Pages o el navegador tiene una versión vieja cacheada, o cuando falta publicar <strong>app.js</strong>.
+                </p>
+                <div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word;">${String(detalle || 'Error desconocido')}</div>
+                <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;">
+                  <a href="http://localhost:8000/?build=${CURRENT_BUILD}" style="display:inline-flex;align-items:center;justify-content:center;background:#2563eb;color:#fff;text-decoration:none;font-size:13px;font-weight:800;padding:10px 14px;border-radius:10px;">Abrir local</a>
+                  <button onclick="window.location.reload()" style="display:inline-flex;align-items:center;justify-content:center;background:#e2e8f0;color:#0f172a;border:0;cursor:pointer;font-size:13px;font-weight:800;padding:10px 14px;border-radius:10px;">Reintentar</button>
+                </div>
+              </div>
+            </div>
+          `;
+        };
         const script = document.createElement('script');
         script.type = 'module';
         script.src = APP_BUNDLE;
+        script.addEventListener('error', () => mostrarFallbackCarga('El archivo app.js no se pudo cargar.'));
+        window.addEventListener('error', (event) => {
+          const mensaje = event?.error?.message || event?.message || 'Error de carga inesperado.';
+          if (String(mensaje).toLowerCase().includes('chunk') || String(mensaje).toLowerCase().includes('module') || String(mensaje).toLowerCase().includes('script')) {
+            mostrarFallbackCarga(mensaje);
+          }
+        }, { once: true });
         document.body.appendChild(script);
         return;
       }
@@ -1547,7 +1573,7 @@
   <script>
     if (window.location.protocol !== 'file:' && 'serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=seniorflow-react-20260607-remito-logo-factura-parcial-47').catch((error) => {
+        navigator.serviceWorker.register('./sw.js?v=seniorflow-react-20260607-blank-guard-49').catch((error) => {
           console.error('SW register error', error);
         });
       });
