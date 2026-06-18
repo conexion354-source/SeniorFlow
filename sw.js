@@ -1,9 +1,9 @@
-const CACHE_NAME = 'seniorflow-react-20260617-recibo-header-26';
+const CACHE_NAME = 'seniorflow-react-20260618-entrega-parcial-pdf-27';
 const ASSETS = [
   './',
   './index.html',
-  './app.js?v=seniorflow-react-20260617-recibo-header-26',
-  './firebase-config.js?v=seniorflow-react-20260617-recibo-header-26',
+  './app.js?v=seniorflow-react-20260618-entrega-parcial-pdf-27',
+  './firebase-config.js?v=seniorflow-react-20260618-entrega-parcial-pdf-27',
   './manifest.json',
   './oferta-template-base.jpg',
   './logo-empresa-mundoled.png',
@@ -57,7 +57,7 @@ self.addEventListener('fetch', (event) => {
         cache.put(event.request, fresh.clone());
         return fresh;
       } catch {
-      return (await caches.match(event.request)) || (await caches.match('./app.js?v=seniorflow-react-20260617-recibo-header-26'));
+      return (await caches.match(event.request)) || (await caches.match('./app.js?v=seniorflow-react-20260618-entrega-parcial-pdf-27'));
       }
     })());
     return;
