@@ -1,0 +1,2027 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flyer Studio - SeniorFlow</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, sans-serif;
+      background: #020617;
+      color: #e2e8f0;
+    }
+    .canvas-container {
+      margin: 0 auto;
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 25px 70px rgba(15, 23, 42, 0.45);
+    }
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 999px;
+    }
+    .panel-card {
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(10px);
+    }
+    .field-dark {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: #020617;
+      color: #f8fafc;
+      padding: 0.7rem 0.85rem;
+      font-size: 0.92rem;
+      font-weight: 600;
+      outline: none;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+    .field-dark:focus {
+      border-color: rgba(96, 165, 250, 0.75);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+    }
+    .field-dark::placeholder {
+      color: #64748b;
+      font-weight: 500;
+    }
+    .toggle-card {
+      border-radius: 16px;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      padding: 0.7rem 0.78rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      min-height: 48px;
+      background: rgba(2, 6, 23, 0.45);
+    }
+    .switch-input {
+      appearance: none;
+      width: 38px;
+      height: 22px;
+      border-radius: 999px;
+      background: #334155;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.18s ease, box-shadow 0.18s ease;
+      flex-shrink: 0;
+    }
+    .switch-input::after {
+      content: "";
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: #fff;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      box-shadow: 0 1px 4px rgba(15, 23, 42, 0.35);
+      transition: transform 0.18s ease;
+    }
+    .switch-input:checked {
+      background: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+    }
+    .switch-input:checked::after {
+      transform: translateX(16px);
+    }
+    .sidebar-tab {
+      border-radius: 999px;
+      padding: 0.62rem 0.9rem;
+      font-size: 0.72rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #94a3b8;
+      border: 1px solid transparent;
+      transition: 0.18s ease;
+    }
+    .sidebar-tab.active {
+      color: #f8fafc;
+      border-color: rgba(34, 211, 238, 0.32);
+      background: rgba(14, 165, 233, 0.16);
+    }
+    .saved-card {
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(2, 6, 23, 0.55);
+    }
+    .panel-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      text-align: left;
+    }
+    .panel-toggle-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: rgba(2, 6, 23, 0.5);
+      color: #e2e8f0;
+      font-weight: 900;
+      flex-shrink: 0;
+    }
+    .collapsible-panel:not(.is-open) .panel-body {
+      display: none;
+    }
+    .theme-option {
+      border-radius: 16px;
+      min-height: 42px;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      font-size: 0.72rem;
+      font-weight: 900;
+      color: #f8fafc;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      transition: transform 0.18s ease, border-color 0.18s ease;
+    }
+    .theme-option:hover {
+      transform: translateY(-1px);
+    }
+    .theme-option.is-active {
+      border-color: rgba(248, 250, 252, 0.85);
+      box-shadow: 0 0 0 3px rgba(248, 250, 252, 0.12);
+    }
+    .color-field {
+      width: 100%;
+      height: 42px;
+      border-radius: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: #020617;
+      padding: 0.25rem;
+      cursor: pointer;
+    }
+    #toast {
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+  </style>
+</head>
+<body class="h-screen overflow-hidden">
+  <div class="flex h-full overflow-hidden">
+    <aside class="w-[340px] shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col h-full overflow-y-auto">
+      <div class="sticky top-0 z-10 border-b border-slate-800 bg-slate-900/90 backdrop-blur-md px-5 py-5">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-cyan-400 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-950/60">
+            <i class="fas fa-wand-magic-sparkles text-white text-lg"></i>
+          </div>
+          <div>
+            <h1 class="text-xl font-black tracking-tight text-white">Flyer Studio</h1>
+            <p class="text-xs font-medium text-slate-400">Editor visual conectado al inventario</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-5 pt-4">
+        <div class="grid grid-cols-2 rounded-full bg-slate-950/70 p-1 border border-slate-800">
+          <button id="tab-editor" type="button" class="sidebar-tab active">Editor</button>
+          <button id="tab-saved" type="button" class="sidebar-tab">Guardados</button>
+        </div>
+      </div>
+
+      <div id="editor-panel" class="p-5 pb-8 space-y-5">
+        <section class="panel-card collapsible-panel is-open rounded-3xl p-4 space-y-3">
+          <button type="button" class="panel-toggle">
+            <div>
+              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-300">1. Kit de marca</p>
+              <p class="mt-1 text-xs text-slate-400">Logos del repositorio y datos del negocio.</p>
+            </div>
+            <span class="panel-toggle-icon">-</span>
+          </button>
+          <div class="panel-body space-y-3">
+            <button id="logo-upload-trigger" class="hidden w-full rounded-2xl border border-dashed border-slate-600 bg-slate-800 hover:bg-slate-700 px-4 py-3 text-sm font-black text-white transition items-center justify-center gap-2">
+              <i class="fas fa-upload"></i>
+              Subir logo empresa
+            </button>
+            <input id="logo-upload" type="file" class="hidden" accept="image/png,image/jpeg,image/webp" />
+            <div id="brand-logo-status" class="rounded-2xl bg-slate-950/80 border border-slate-800 px-3 py-2 text-xs font-semibold text-slate-400">
+              Logos automáticos: versión color para fondo claro y versión blanca para fondo oscuro.
+            </div>
+            <input id="brand-wa" type="text" class="field-dark" placeholder="WhatsApp del negocio" />
+            <input id="brand-web" type="text" class="field-dark" placeholder="Sitio web o Instagram" />
+            <input id="brand-email" type="text" class="field-dark" placeholder="Correo del negocio" />
+            <button id="btn-apply-brand" class="w-full rounded-2xl bg-blue-600 hover:bg-blue-500 px-4 py-3 text-sm font-black text-white transition shadow-lg shadow-blue-950/50">
+              Fijar marca en el lienzo
+            </button>
+          </div>
+        </section>
+
+        <section class="panel-card collapsible-panel rounded-3xl p-4 space-y-3">
+          <button type="button" class="panel-toggle">
+            <div>
+              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-sky-300">2. Diseño y temas</p>
+              <p class="mt-1 text-xs text-slate-400">Fondos, tipografías, colores y sombra.</p>
+            </div>
+            <span class="panel-toggle-icon">+</span>
+          </button>
+          <div class="panel-body space-y-3">
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" data-theme="clean" class="theme-option is-active bg-gradient-to-br from-slate-50 to-slate-200 text-slate-900">Limpio</button>
+              <button type="button" data-theme="argentina" class="theme-option bg-gradient-to-b from-sky-300 via-white to-sky-300 text-slate-900">Argentina</button>
+              <button type="button" data-theme="cyan" class="theme-option bg-gradient-to-br from-cyan-400 to-blue-700">Cyan</button>
+              <button type="button" data-theme="graphite" class="theme-option bg-gradient-to-br from-slate-900 to-slate-600">Grafito</button>
+              <button type="button" data-theme="emerald" class="theme-option bg-gradient-to-br from-emerald-400 to-teal-800">Verde</button>
+              <button type="button" data-theme="sunset" class="theme-option bg-gradient-to-br from-amber-300 to-rose-500">Cálido</button>
+            </div>
+            <select id="font-family-select" class="field-dark">
+              <option value="Inter">Inter profesional</option>
+              <option value="Arial">Arial limpio</option>
+              <option value="Georgia">Georgia editorial</option>
+              <option value="Trebuchet MS">Trebuchet comercial</option>
+            </select>
+            <div class="grid grid-cols-3 gap-2">
+              <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Título
+                <input id="title-color" type="color" class="color-field mt-1" value="#0f172a" />
+              </label>
+              <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Detalle
+                <input id="description-color" type="color" class="color-field mt-1" value="#475569" />
+              </label>
+              <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Iconos pie
+                <input id="footer-icon-color" type="color" class="color-field mt-1" value="#38bdf8" />
+              </label>
+            </div>
+            <label class="toggle-card">
+              <span class="text-sm font-black text-slate-100">Sombra en textos</span>
+              <input id="toggle-text-shadow" class="switch-input" type="checkbox" />
+            </label>
+          </div>
+        </section>
+
+        <section class="panel-card collapsible-panel is-open rounded-3xl p-4 space-y-3">
+          <button type="button" class="panel-toggle">
+            <div>
+              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-violet-300">3. Producto central</p>
+              <p class="mt-1 text-xs text-slate-400">Inventario, imagen y logo de marca.</p>
+            </div>
+            <span class="panel-toggle-icon">-</span>
+          </button>
+          <div class="panel-body space-y-3">
+            <div class="grid grid-cols-2 gap-2">
+              <button id="btn-open-inventory" class="rounded-2xl bg-indigo-600 hover:bg-indigo-500 px-3 py-3 text-sm font-black text-white transition flex items-center justify-center gap-2">
+                <i class="fas fa-boxes-stacked"></i>
+                Inventario
+              </button>
+              <button id="product-upload-trigger" class="rounded-2xl bg-slate-700 hover:bg-slate-600 px-3 py-3 text-sm font-black text-white transition flex items-center justify-center gap-2">
+                <i class="fas fa-image"></i>
+                Imagen
+              </button>
+            </div>
+            <button id="brand-upload-trigger" class="w-full rounded-2xl bg-slate-800 hover:bg-slate-700 px-3 py-3 text-sm font-black text-white transition flex items-center justify-center gap-2 border border-slate-700">
+              <i class="fas fa-tag"></i>
+              Subir logo de marca
+            </button>
+            <input id="product-upload" type="file" class="hidden" accept="image/png,image/jpeg,image/webp" />
+            <input id="brand-upload" type="file" class="hidden" accept="image/png,image/jpeg,image/webp" />
+            <div id="selected-product-card" class="rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
+              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Producto seleccionado</p>
+              <p id="selected-product-title" class="mt-2 text-sm font-black text-white">Todavía no hay producto cargado</p>
+              <p id="selected-product-meta" class="mt-1 text-xs font-medium text-slate-400">Elegí uno desde tu inventario para traer descripción, precio e imagen.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-card collapsible-panel is-open rounded-3xl p-4 space-y-3">
+          <button type="button" class="panel-toggle">
+            <div>
+              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-300">4. Datos del flyer</p>
+              <p class="mt-1 text-xs text-slate-400">Texto, precio y etiquetas.</p>
+            </div>
+            <span class="panel-toggle-icon">-</span>
+          </button>
+          <div class="panel-body space-y-3">
+            <input id="flyer-title" type="text" class="field-dark" placeholder="Título del producto" />
+            <textarea id="flyer-description" class="field-dark min-h-[104px] resize-none" placeholder="Descripción breve para el flyer"></textarea>
+            <input id="price-normal" type="number" min="0" step="0.01" class="field-dark" placeholder="Precio base" />
+            <div id="discount-controls" class="grid grid-cols-2 gap-2 rounded-2xl border border-amber-400/25 bg-amber-400/8 p-2">
+              <input id="discount-percent" type="number" min="0" max="100" step="0.01" class="field-dark" placeholder="% DTO" />
+              <input id="price-offer" type="number" min="0" step="0.01" class="field-dark" placeholder="Precio final" />
+            </div>
+
+            <div class="grid grid-cols-1 gap-2">
+              <label class="toggle-card">
+                <span class="text-sm font-black text-amber-200">Aplicar descuento</span>
+                <input id="toggle-discount" class="switch-input" type="checkbox" checked />
+              </label>
+              <label class="toggle-card">
+                <span class="text-sm font-black text-emerald-200">Mostrar precios</span>
+                <input id="toggle-price" class="switch-input" type="checkbox" />
+              </label>
+              <label class="toggle-card">
+                <span class="text-sm font-black text-cyan-200">Oferta flash</span>
+                <input id="toggle-flash" class="switch-input" type="checkbox" checked />
+              </label>
+              <label class="toggle-card">
+                <span class="text-sm font-black text-green-200">Nuevo ingreso</span>
+                <input id="toggle-new" class="switch-input" type="checkbox" />
+              </label>
+            </div>
+
+            <button id="btn-apply-product" class="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-500 px-4 py-3 text-sm font-black text-white transition shadow-lg shadow-emerald-950/50">
+              Aplicar datos al lienzo
+            </button>
+          </div>
+        </section>
+
+        <section class="panel-card collapsible-panel rounded-3xl p-4 space-y-3">
+          <button type="button" class="panel-toggle">
+            <div>
+              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-fuchsia-300">5. Elementos rápidos</p>
+              <p class="mt-1 text-xs text-slate-400">Stickers y textos manuales.</p>
+            </div>
+            <span class="panel-toggle-icon">+</span>
+          </button>
+          <div class="panel-body grid grid-cols-2 gap-2">
+            <button id="add-texts" class="rounded-2xl bg-slate-800 hover:bg-slate-700 px-3 py-3 text-xs font-black text-white transition">Título + descripción</button>
+            <button id="add-badge-price" class="rounded-2xl bg-blue-600 hover:bg-blue-500 px-3 py-3 text-xs font-black text-white transition">Sticker precio</button>
+            <button id="add-badge-vip" class="rounded-2xl bg-yellow-500 hover:bg-yellow-400 px-3 py-3 text-xs font-black text-slate-950 transition">Precio VIP</button>
+            <button id="add-badge-new" class="rounded-2xl bg-emerald-600 hover:bg-emerald-500 px-3 py-3 text-xs font-black text-white transition">Nuevo ingreso</button>
+            <button id="add-badge-sale" class="rounded-2xl bg-rose-600 hover:bg-rose-500 px-3 py-3 text-xs font-black text-white transition">Sticker oferta</button>
+            <button id="btn-smart-discount" class="rounded-2xl bg-fuchsia-600 hover:bg-fuchsia-500 px-3 py-3 text-xs font-black text-white transition">Calcular 15% OFF</button>
+          </div>
+        </section>
+      </div>
+
+      <div id="saved-panel" class="hidden p-5 pb-8 space-y-4">
+        <section class="panel-card rounded-3xl p-4 space-y-3">
+          <div>
+            <p class="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-300">Flyers guardados</p>
+            <p class="mt-1 text-xs text-slate-400">Guardados locales de este equipo para reabrir diseños rápido.</p>
+          </div>
+          <button id="btn-save-flyer" class="w-full rounded-2xl bg-cyan-600 hover:bg-cyan-500 px-4 py-3 text-sm font-black text-white transition">
+            Guardar flyer actual
+          </button>
+        </section>
+        <div id="saved-flyers-list" class="space-y-3"></div>
+      </div>
+    </aside>
+
+    <main class="flex-1 min-w-0 bg-slate-950 flex flex-col relative">
+      <div id="toast" class="absolute left-1/2 top-5 z-50 -translate-x-1/2 -translate-y-6 opacity-0 rounded-full border border-slate-700 bg-slate-900/95 px-5 py-3 shadow-2xl">
+        <div class="flex items-center gap-3">
+          <i id="toast-icon" class="fas fa-circle-info text-cyan-300"></i>
+          <span id="toast-msg" class="text-sm font-semibold text-white">Listo</span>
+        </div>
+      </div>
+
+      <header class="h-16 shrink-0 border-b border-slate-800 bg-slate-900/70 backdrop-blur-md px-6 flex items-center justify-end gap-3">
+        <button id="delete-item-btn" class="hidden w-11 h-11 rounded-2xl bg-rose-500/10 text-rose-300 hover:bg-rose-500 hover:text-white transition flex items-center justify-center" title="Eliminar elemento seleccionado">
+          <i class="fas fa-trash"></i>
+        </button>
+        <button id="download-btn" class="w-11 h-11 rounded-2xl bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500 hover:text-slate-950 transition flex items-center justify-center" title="Descargar flyer 4K">
+          <i class="fas fa-download"></i>
+        </button>
+      </header>
+
+      <div class="flex-1 overflow-auto flex items-center justify-center p-8 bg-[radial-gradient(circle_at_1px_1px,_rgba(51,65,85,0.9)_1px,_transparent_0)] bg-[length:20px_20px]">
+        <canvas id="main-canvas" width="540" height="960"></canvas>
+      </div>
+    </main>
+  </div>
+
+  <div id="inventory-modal" class="fixed inset-0 z-40 hidden">
+    <div class="absolute inset-0 bg-slate-950/75 backdrop-blur-sm"></div>
+    <div class="relative h-full w-full flex items-center justify-center p-6">
+      <div class="w-full max-w-5xl max-h-[88vh] overflow-hidden rounded-[32px] border border-slate-700 bg-slate-900 shadow-[0_35px_100px_rgba(2,6,23,0.85)]">
+        <div class="flex items-center justify-between gap-4 border-b border-slate-800 px-6 py-5">
+          <div>
+            <h2 class="text-2xl font-black tracking-tight text-white">Cargar desde inventario</h2>
+            <p class="mt-1 text-sm font-medium text-slate-400">Elegí un producto y traemos imagen, descripción, marca y precio.</p>
+          </div>
+          <button id="btn-close-inventory" class="w-11 h-11 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition flex items-center justify-center">
+            <i class="fas fa-xmark text-lg"></i>
+          </button>
+        </div>
+        <div class="p-6 border-b border-slate-800">
+          <input id="inventory-search" type="text" class="field-dark" placeholder="Buscar por código, descripción, categoría o marca..." />
+        </div>
+        <div id="inventory-grid" class="max-h-[62vh] overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { db } from './firebase-config.js?v=seniorflow-react-20260622-flyer-studio-51';
+    import { collection, doc, getDoc, getDocs } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js';
+
+    const canvas = new fabric.Canvas('main-canvas', {
+      backgroundColor: '#0f172a',
+      preserveObjectStacking: true
+    });
+
+    fabric.Object.prototype.objectCaching = false;
+
+    const els = {
+      logoUpload: document.getElementById('logo-upload'),
+      logoUploadTrigger: document.getElementById('logo-upload-trigger'),
+      brandUpload: document.getElementById('brand-upload'),
+      brandUploadTrigger: document.getElementById('brand-upload-trigger'),
+      productUpload: document.getElementById('product-upload'),
+      productUploadTrigger: document.getElementById('product-upload-trigger'),
+      brandLogoStatus: document.getElementById('brand-logo-status'),
+      brandWa: document.getElementById('brand-wa'),
+      brandWeb: document.getElementById('brand-web'),
+      brandEmail: document.getElementById('brand-email'),
+      btnApplyBrand: document.getElementById('btn-apply-brand'),
+      btnOpenInventory: document.getElementById('btn-open-inventory'),
+      inventoryModal: document.getElementById('inventory-modal'),
+      btnCloseInventory: document.getElementById('btn-close-inventory'),
+      inventorySearch: document.getElementById('inventory-search'),
+      inventoryGrid: document.getElementById('inventory-grid'),
+      flyerTitle: document.getElementById('flyer-title'),
+      flyerDescription: document.getElementById('flyer-description'),
+      priceNormal: document.getElementById('price-normal'),
+      discountPercent: document.getElementById('discount-percent'),
+      priceOffer: document.getElementById('price-offer'),
+      toggleDiscount: document.getElementById('toggle-discount'),
+      togglePrice: document.getElementById('toggle-price'),
+      toggleFlash: document.getElementById('toggle-flash'),
+      toggleNew: document.getElementById('toggle-new'),
+      btnApplyProduct: document.getElementById('btn-apply-product'),
+      selectedProductTitle: document.getElementById('selected-product-title'),
+      selectedProductMeta: document.getElementById('selected-product-meta'),
+      addTexts: document.getElementById('add-texts'),
+      addBadgePrice: document.getElementById('add-badge-price'),
+      addBadgeVip: document.getElementById('add-badge-vip'),
+      addBadgeNew: document.getElementById('add-badge-new'),
+      addBadgeSale: document.getElementById('add-badge-sale'),
+      btnSmartDiscount: document.getElementById('btn-smart-discount'),
+      deleteItemBtn: document.getElementById('delete-item-btn'),
+      downloadBtn: document.getElementById('download-btn'),
+      toast: document.getElementById('toast'),
+      toastMsg: document.getElementById('toast-msg'),
+      toastIcon: document.getElementById('toast-icon'),
+      tabEditor: document.getElementById('tab-editor'),
+      tabSaved: document.getElementById('tab-saved'),
+      editorPanel: document.getElementById('editor-panel'),
+      savedPanel: document.getElementById('saved-panel'),
+      discountControls: document.getElementById('discount-controls'),
+      btnSaveFlyer: document.getElementById('btn-save-flyer'),
+      savedFlyersList: document.getElementById('saved-flyers-list'),
+      fontFamilySelect: document.getElementById('font-family-select'),
+      titleColor: document.getElementById('title-color'),
+      descriptionColor: document.getElementById('description-color'),
+      footerIconColor: document.getElementById('footer-icon-color'),
+      toggleTextShadow: document.getElementById('toggle-text-shadow')
+    };
+
+    let products = [];
+    let filteredProducts = [];
+    let brandLogos = new Map();
+    let selectedProduct = null;
+    const COMPANY_LOGO_LIGHT = './logo-ofertas-mundoled.png';
+    const COMPANY_LOGO_DARK = './logo-ofertas-mundoled-white.png';
+    const SAVED_FLYERS_KEY = 'seniorflow_flyers_guardados_v1';
+
+    let companyLogoSrc = COMPANY_LOGO_LIGHT;
+    let productImageSrc = '';
+    let productBrandLogoSrc = '';
+    let toastTimer = null;
+    let selectedTheme = 'clean';
+    const flyerStyle = {
+      fontFamily: 'Inter',
+      titleColor: '#0f172a',
+      descriptionColor: '#475569',
+      footerIconColor: '#38bdf8',
+      textShadow: false
+    };
+
+    const THEME_MAP = {
+      clean: {
+        shell: ['#ffffff', '#eef2f7'],
+        productBorder: ['#e2e8f0', '#38bdf8', '#2563eb'],
+        productFill: '#ffffff',
+        footer: '#0f172a',
+        logo: COMPANY_LOGO_LIGHT,
+        footerText: '#f8fafc'
+      },
+      argentina: {
+        shell: ['#8bd3ff', '#ffffff', '#8bd3ff'],
+        productBorder: ['#7dd3fc', '#ffffff', '#0ea5e9'],
+        productFill: '#ffffff',
+        footer: '#075985',
+        logo: COMPANY_LOGO_LIGHT,
+        footerText: '#ffffff'
+      },
+      cyan: {
+        shell: ['#ecfeff', '#dbeafe'],
+        productBorder: ['#22d3ee', '#2563eb', '#0f172a'],
+        productFill: '#ffffff',
+        footer: '#082f49',
+        logo: COMPANY_LOGO_LIGHT,
+        footerText: '#f8fafc'
+      },
+      graphite: {
+        shell: ['#111827', '#334155'],
+        productBorder: ['#64748b', '#e2e8f0', '#38bdf8'],
+        productFill: '#f8fafc',
+        footer: '#020617',
+        logo: COMPANY_LOGO_DARK,
+        footerText: '#e2e8f0'
+      },
+      emerald: {
+        shell: ['#ecfdf5', '#ccfbf1'],
+        productBorder: ['#34d399', '#14b8a6', '#0f766e'],
+        productFill: '#ffffff',
+        footer: '#064e3b',
+        logo: COMPANY_LOGO_LIGHT,
+        footerText: '#ffffff'
+      },
+      sunset: {
+        shell: ['#fff7ed', '#ffe4e6'],
+        productBorder: ['#fbbf24', '#fb7185', '#7c2d12'],
+        productFill: '#ffffff',
+        footer: '#431407',
+        logo: COMPANY_LOGO_LIGHT,
+        footerText: '#fff7ed'
+      }
+    };
+
+    const BASE_TYPES = ['studio-shell', 'product-frame-border', 'product-shell', 'footer-shell'];
+    const DYNAMIC_TYPES = [
+      'brand-logo',
+      'brand-footer',
+      'product-image',
+      'product-brand-badge',
+      'product-title',
+      'product-description',
+      'price-panel',
+      'discount-badge',
+      'flash-badge',
+      'new-badge'
+    ];
+
+    const normalizarTexto = (valor = '') => valor.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+    const formatearDinero = (valor = 0) => new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(Number(valor) || 0);
+
+    const mostrarToast = (mensaje, tipo = 'info') => {
+      els.toastMsg.textContent = mensaje;
+      els.toastIcon.className = tipo === 'success'
+        ? 'fas fa-circle-check text-emerald-300'
+        : tipo === 'error'
+          ? 'fas fa-circle-exclamation text-rose-300'
+          : 'fas fa-circle-info text-cyan-300';
+      els.toast.style.opacity = '1';
+      els.toast.style.transform = 'translate(-50%, 0)';
+      clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(() => {
+        els.toast.style.opacity = '0';
+        els.toast.style.transform = 'translate(-50%, -24px)';
+      }, 2600);
+    };
+
+    const getNumeric = (value) => {
+      const parsed = parseFloat(String(value ?? '').replace(',', '.'));
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const computeOfferPrice = () => {
+      const normal = getNumeric(els.priceNormal.value);
+      const discount = Math.min(100, Math.max(0, getNumeric(els.discountPercent.value)));
+      if (!normal) {
+        els.priceOffer.value = '';
+        return 0;
+      }
+      const offer = Math.max(0, Math.round(normal * (1 - (discount / 100))));
+      els.priceOffer.value = String(offer);
+      return offer;
+    };
+
+    const syncDiscountControls = () => {
+      const enabled = Boolean(els.toggleDiscount.checked);
+      els.discountControls.classList.toggle('hidden', !enabled);
+      if (!enabled) {
+        els.priceOffer.value = els.priceNormal.value;
+      }
+    };
+
+    const removeByTypes = (types = []) => {
+      canvas.getObjects()
+        .filter((obj) => types.includes(obj.customType))
+        .forEach((obj) => canvas.remove(obj));
+    };
+
+    const shrinkFontSize = (text = '', max = 34, min = 16) => {
+      const length = (text || '').trim().length;
+      if (length <= 22) return max;
+      if (length <= 40) return Math.max(min, max - 6);
+      if (length <= 62) return Math.max(min, max - 10);
+      return min;
+    };
+
+    const imageOptions = (src = '') => src.startsWith('data:') ? {} : { crossOrigin: 'anonymous' };
+
+    const getActiveTheme = () => THEME_MAP[selectedTheme] || THEME_MAP.clean;
+
+    const makeLinearGradient = (colors = ['#ffffff', '#e2e8f0'], width = 472, height = 880) => {
+      const steps = colors.length > 1 ? colors.length - 1 : 1;
+      return new fabric.Gradient({
+        type: 'linear',
+        gradientUnits: 'pixels',
+        coords: { x1: -width / 2, y1: -height / 2, x2: width / 2, y2: height / 2 },
+        colorStops: colors.map((color, index) => ({
+          offset: index / steps,
+          color
+        }))
+      });
+    };
+
+    const currentTextShadow = () => flyerStyle.textShadow
+      ? new fabric.Shadow({ color: 'rgba(15,23,42,0.22)', blur: 6, offsetY: 3 })
+      : null;
+
+    const loadFabricImage = (src = '') => new Promise((resolve, reject) => {
+      if (!src) {
+        reject(new Error('Sin imagen'));
+        return;
+      }
+      fabric.Image.fromURL(src, (img) => {
+        if (!img) {
+          reject(new Error('No se pudo cargar la imagen'));
+          return;
+        }
+        resolve(img);
+      }, imageOptions(src));
+    });
+
+    const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
+      if (!file) {
+        reject(new Error('Sin archivo'));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => resolve(event.target?.result || '');
+      reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+      reader.readAsDataURL(file);
+    });
+
+    const ensureBaseLayout = () => {
+      removeByTypes(BASE_TYPES);
+      const theme = getActiveTheme();
+
+      const shell = new fabric.Rect({
+        left: 270,
+        top: 480,
+        originX: 'center',
+        originY: 'center',
+        width: 472,
+        height: 880,
+        rx: 34,
+        ry: 34,
+        fill: makeLinearGradient(theme.shell, 472, 880),
+        selectable: false,
+        evented: false,
+        shadow: new fabric.Shadow({
+          color: 'rgba(15, 23, 42, 0.26)',
+          blur: 42,
+          offsetY: 18
+        }),
+        customType: 'studio-shell'
+      });
+
+      const productFrameBorder = new fabric.Rect({
+        left: 270,
+        top: 360,
+        originX: 'center',
+        originY: 'center',
+        width: 402,
+        height: 358,
+        rx: 34,
+        ry: 34,
+        fill: makeLinearGradient(theme.productBorder, 402, 358),
+        selectable: false,
+        evented: false,
+        shadow: new fabric.Shadow({
+          color: 'rgba(15, 23, 42, 0.18)',
+          blur: 22,
+          offsetY: 9
+        }),
+        customType: 'product-frame-border'
+      });
+
+      const productShell = new fabric.Rect({
+        left: 270,
+        top: 360,
+        originX: 'center',
+        originY: 'center',
+        width: 388,
+        height: 344,
+        rx: 28,
+        ry: 28,
+        fill: theme.productFill,
+        selectable: false,
+        evented: false,
+        customType: 'product-shell'
+      });
+
+      const footerShell = new fabric.Rect({
+        left: 270,
+        top: 872,
+        originX: 'center',
+        originY: 'center',
+        width: 472,
+        height: 118,
+        rx: 34,
+        ry: 34,
+        fill: theme.footer,
+        selectable: false,
+        evented: false,
+        customType: 'footer-shell'
+      });
+
+      canvas.add(shell, productFrameBorder, productShell, footerShell);
+      shell.moveTo(0);
+      productFrameBorder.moveTo(1);
+      productShell.moveTo(2);
+      footerShell.moveTo(3);
+    };
+
+    const buildBrandFooterLines = () => ([
+      { icon: 'WEB', text: els.brandWeb.value.trim() },
+      { icon: 'WA', text: els.brandWa.value.trim() },
+      { icon: '@', text: els.brandEmail.value.trim() }
+    ].filter((item) => item.text));
+
+    const renderBrand = async () => {
+      removeByTypes(['brand-logo', 'brand-footer']);
+      const theme = getActiveTheme();
+      companyLogoSrc = theme.logo || COMPANY_LOGO_LIGHT;
+
+      if (companyLogoSrc) {
+        try {
+          const logoImg = await loadFabricImage(companyLogoSrc);
+          const logoScale = Math.min(150 / logoImg.width, 58 / logoImg.height, 1);
+          logoImg.scale(logoScale);
+          logoImg.set({
+            left: 270,
+            top: 104,
+            originX: 'center',
+            originY: 'center',
+            selectable: false,
+            evented: false,
+            customType: 'brand-logo'
+          });
+          canvas.add(logoImg);
+        } catch (error) {
+          mostrarToast('No pude usar el logo del negocio en el lienzo.', 'error');
+        }
+      } else {
+        const fallback = new fabric.Text('TU MARCA', {
+          left: 270,
+          top: 104,
+          originX: 'center',
+          originY: 'center',
+          fontFamily: 'Inter',
+          fontWeight: '900',
+          fontSize: 34,
+          fill: '#0f172a',
+          selectable: false,
+          evented: false,
+          customType: 'brand-logo'
+        });
+        canvas.add(fallback);
+      }
+
+      const footerLines = buildBrandFooterLines();
+      const parts = [];
+      const visibleLines = footerLines.length
+        ? footerLines
+        : [{ icon: 'INFO', text: 'Completá web, WhatsApp y correo en el panel izquierdo.' }];
+      visibleLines.forEach((line, index) => {
+        const y = -28 + (index * 25);
+        parts.push(
+          new fabric.Text(line.icon, {
+            left: -152,
+            top: y,
+            originX: 'center',
+            originY: 'center',
+            fontFamily: flyerStyle.fontFamily,
+            fontWeight: '900',
+            fontSize: 10,
+            fill: flyerStyle.footerIconColor
+          }),
+          new fabric.Text(line.text, {
+            left: -132,
+            top: y,
+            originX: 'left',
+            originY: 'center',
+            fontFamily: flyerStyle.fontFamily,
+            fontWeight: '700',
+            fontSize: 11,
+            fill: theme.footerText
+          })
+        );
+      });
+      const footerGroup = new fabric.Group(parts, {
+        left: 270,
+        top: 872,
+        originX: 'center',
+        originY: 'center',
+        selectable: false,
+        evented: false,
+        customType: 'brand-footer'
+      });
+      canvas.add(footerGroup);
+      canvas.renderAll();
+    };
+
+    const renderProductImage = async () => {
+      removeByTypes(['product-image']);
+      if (!productImageSrc) {
+        const placeholder = new fabric.Textbox('Elegí un producto desde inventario o subí una imagen manual.', {
+          left: 270,
+          top: 360,
+          originX: 'center',
+          originY: 'center',
+          width: 280,
+          textAlign: 'center',
+          fontFamily: 'Inter',
+          fontWeight: '700',
+          fontSize: 18,
+          lineHeight: 1.35,
+          fill: '#94a3b8',
+          selectable: false,
+          evented: false,
+          customType: 'product-image'
+        });
+        canvas.add(placeholder);
+        canvas.renderAll();
+        return;
+      }
+
+      try {
+        const img = await loadFabricImage(productImageSrc);
+        const maxWidth = 300;
+        const maxHeight = 255;
+        const widthRatio = maxWidth / img.width;
+        const heightRatio = maxHeight / img.height;
+        const scale = Math.min(widthRatio, heightRatio, 1.8);
+        img.scale(scale);
+        img.set({
+          left: 270,
+          top: 362,
+          originX: 'center',
+          originY: 'center',
+          selectable: true,
+          evented: true,
+          customType: 'product-image',
+          hasRotatingPoint: false,
+          cornerStyle: 'circle',
+          transparentCorners: false,
+          cornerColor: '#2563eb',
+          borderColor: '#2563eb'
+        });
+        canvas.add(img);
+        canvas.setActiveObject(img);
+        canvas.renderAll();
+      } catch (error) {
+        mostrarToast('No pude cargar la imagen del producto.', 'error');
+      }
+    };
+
+    const renderBrandBadge = async () => {
+      removeByTypes(['product-brand-badge']);
+
+      const brandName = (selectedProduct?.marca || '').trim();
+      if (!productBrandLogoSrc && !brandName) {
+        canvas.renderAll();
+        return;
+      }
+
+      const pill = new fabric.Rect({
+        width: 136,
+        height: 46,
+        rx: 18,
+        ry: 18,
+        fill: '#ffffff',
+        shadow: new fabric.Shadow({
+          color: 'rgba(15,23,42,0.18)',
+          blur: 14,
+          offsetY: 6
+        }),
+        originX: 'center',
+        originY: 'center'
+      });
+
+      const parts = [pill];
+
+      if (productBrandLogoSrc) {
+        try {
+          const logo = await loadFabricImage(productBrandLogoSrc);
+          const maxLogoWidth = 94;
+          const maxLogoHeight = 28;
+          logo.scale(Math.min(maxLogoWidth / logo.width, maxLogoHeight / logo.height, 1.2));
+          logo.set({
+            left: 0,
+            top: 0,
+            originX: 'center',
+            originY: 'center'
+          });
+          parts.push(logo);
+        } catch {
+          if (brandName) {
+            parts.push(new fabric.Textbox(brandName.toUpperCase(), {
+              left: 0,
+              top: 0,
+              originX: 'center',
+              originY: 'center',
+              width: 110,
+              textAlign: 'center',
+              fontFamily: 'Inter',
+              fontWeight: '900',
+              fontSize: shrinkFontSize(brandName, 18, 12),
+              fill: '#0f172a'
+            }));
+          }
+        }
+      } else {
+        parts.push(new fabric.Textbox(brandName.toUpperCase(), {
+          left: 0,
+          top: 0,
+          originX: 'center',
+          originY: 'center',
+          width: 110,
+          textAlign: 'center',
+          fontFamily: 'Inter',
+          fontWeight: '900',
+          fontSize: shrinkFontSize(brandName, 18, 12),
+          fill: '#0f172a'
+        }));
+      }
+
+      const badge = new fabric.Group(parts, {
+        left: 142,
+        top: 226,
+        originX: 'center',
+        originY: 'center',
+        customType: 'product-brand-badge'
+      });
+
+      canvas.add(badge);
+      canvas.renderAll();
+    };
+
+    const renderTitleAndDescription = () => {
+      removeByTypes(['product-title', 'product-description']);
+
+      const titleText = (els.flyerTitle.value || 'TÍTULO DEL PRODUCTO').trim();
+      const descriptionText = (els.flyerDescription.value || '').trim();
+
+      const title = new fabric.Textbox(titleText, {
+        left: 270,
+        top: 600,
+        originX: 'center',
+        originY: 'center',
+        width: 360,
+        textAlign: 'center',
+        fontFamily: flyerStyle.fontFamily,
+        fontWeight: '900',
+        fontSize: shrinkFontSize(titleText, 34, 18),
+        lineHeight: 1.05,
+        fill: flyerStyle.titleColor,
+        shadow: currentTextShadow(),
+        editable: true,
+        customType: 'product-title'
+      });
+
+      const description = new fabric.Textbox(descriptionText || 'Sumá una descripción breve para cerrar la pieza visual.', {
+        left: 270,
+        top: 666,
+        originX: 'center',
+        originY: 'center',
+        width: 330,
+        textAlign: 'center',
+        fontFamily: flyerStyle.fontFamily,
+        fontWeight: '600',
+        fontSize: descriptionText.length > 95 ? 14 : 16,
+        lineHeight: 1.28,
+        fill: flyerStyle.descriptionColor,
+        shadow: currentTextShadow(),
+        editable: true,
+        customType: 'product-description'
+      });
+
+      canvas.add(title, description);
+      canvas.renderAll();
+    };
+
+    const renderPricePanel = () => {
+      removeByTypes(['price-panel']);
+      if (!els.togglePrice.checked) {
+        canvas.renderAll();
+        return;
+      }
+
+      const normal = getNumeric(els.priceNormal.value);
+      const offer = getNumeric(els.priceOffer.value);
+      const discountEnabled = els.toggleDiscount.checked && normal > 0 && offer > 0 && offer < normal;
+      const finalPrice = discountEnabled ? offer : normal;
+      if (!finalPrice) {
+        canvas.renderAll();
+        return;
+      }
+
+      const panel = new fabric.Rect({
+        width: 332,
+        height: 118,
+        rx: 28,
+        ry: 28,
+        fill: '#ffffff',
+        shadow: new fabric.Shadow({
+          color: 'rgba(15,23,42,0.14)',
+          blur: 20,
+          offsetY: 8
+        }),
+        originX: 'center',
+        originY: 'center'
+      });
+
+      const items = [panel];
+
+      if (discountEnabled) {
+        const savings = normal - offer;
+        items.push(
+          new fabric.Text('ANTES', {
+            left: -120,
+            top: -20,
+            originX: 'left',
+            originY: 'center',
+            fontFamily: 'Inter',
+            fontWeight: '800',
+            fontSize: 12,
+            fill: '#64748b'
+          }),
+          new fabric.Text(formatearDinero(normal), {
+            left: -120,
+            top: 10,
+            originX: 'left',
+            originY: 'center',
+            fontFamily: 'Inter',
+            fontWeight: '700',
+            fontSize: 18,
+            fill: '#94a3b8',
+            linethrough: true
+          }),
+          new fabric.Text('AHORA', {
+            left: 65,
+            top: -20,
+            originX: 'left',
+            originY: 'center',
+            fontFamily: 'Inter',
+            fontWeight: '900',
+            fontSize: 13,
+            fill: '#16a34a'
+          }),
+          new fabric.Text(formatearDinero(offer), {
+            left: 42,
+            top: 12,
+            originX: 'left',
+            originY: 'center',
+            fontFamily: 'Inter',
+            fontWeight: '900',
+            fontSize: 30,
+            fill: '#0f172a'
+          })
+        );
+
+        if (savings > 0) {
+          const chipBg = new fabric.Rect({
+            width: 118,
+            height: 30,
+            rx: 15,
+            ry: 15,
+            fill: '#16a34a',
+            left: 78,
+            top: 38,
+            originX: 'center',
+            originY: 'center'
+          });
+          const chipText = new fabric.Text(`Ahorrás ${formatearDinero(savings)}`, {
+            left: 78,
+            top: 38,
+            originX: 'center',
+            originY: 'center',
+            fontFamily: 'Inter',
+            fontWeight: '800',
+            fontSize: 12,
+            fill: '#ffffff'
+          });
+          items.push(chipBg, chipText);
+        }
+      } else {
+        items.push(
+          new fabric.Text('PRECIO', {
+            left: 0,
+            top: -18,
+            originX: 'center',
+            originY: 'center',
+            fontFamily: 'Inter',
+            fontWeight: '800',
+            fontSize: 13,
+            fill: '#64748b'
+          }),
+          new fabric.Text(formatearDinero(finalPrice), {
+            left: 0,
+            top: 18,
+            originX: 'center',
+            originY: 'center',
+            fontFamily: 'Inter',
+            fontWeight: '900',
+            fontSize: 34,
+            fill: '#0f172a'
+          })
+        );
+      }
+
+      const group = new fabric.Group(items, {
+        left: 270,
+        top: 776,
+        originX: 'center',
+        originY: 'center',
+        customType: 'price-panel'
+      });
+
+      canvas.add(group);
+      canvas.renderAll();
+    };
+
+    const renderDiscountBadge = () => {
+      removeByTypes(['discount-badge']);
+      if (!els.toggleDiscount.checked) {
+        canvas.renderAll();
+        return;
+      }
+      const discount = Math.round(getNumeric(els.discountPercent.value) || 0);
+      if (!discount) {
+        canvas.renderAll();
+        return;
+      }
+
+      const bg = new fabric.Rect({
+        width: 98,
+        height: 58,
+        rx: 20,
+        ry: 20,
+        fill: '#facc15',
+        shadow: new fabric.Shadow({
+          color: 'rgba(234,179,8,0.28)',
+          blur: 18,
+          offsetY: 8
+        }),
+        originX: 'center',
+        originY: 'center'
+      });
+      const label = new fabric.Text('DTO', {
+        left: -23,
+        top: -1,
+        originX: 'center',
+        originY: 'center',
+        fontFamily: 'Inter',
+        fontWeight: '900',
+        fontSize: 12,
+        fill: '#111827'
+      });
+      const value = new fabric.Text(`-${discount}%`, {
+        left: 19,
+        top: 0,
+        originX: 'center',
+        originY: 'center',
+        fontFamily: 'Inter',
+        fontWeight: '900',
+        fontSize: 24,
+        fill: '#111827'
+      });
+      const group = new fabric.Group([bg, label, value], {
+        left: 400,
+        top: 226,
+        originX: 'center',
+        originY: 'center',
+        customType: 'discount-badge'
+      });
+      canvas.add(group);
+      canvas.renderAll();
+    };
+
+    const renderFlashBadge = () => {
+      removeByTypes(['flash-badge', 'new-badge']);
+
+      if (els.toggleFlash.checked) {
+        const pill = new fabric.Rect({
+          width: 174,
+          height: 42,
+          rx: 21,
+          ry: 21,
+          fill: '#0ea5e9',
+          originX: 'center',
+          originY: 'center',
+          shadow: new fabric.Shadow({
+            color: 'rgba(14,165,233,0.25)',
+            blur: 14,
+            offsetY: 6
+          })
+        });
+        const edge = new fabric.Rect({
+          left: -79,
+          top: 0,
+          width: 10,
+          height: 42,
+          rx: 5,
+          ry: 5,
+          fill: '#2563eb',
+          originX: 'center',
+          originY: 'center'
+        });
+        const text = new fabric.Text('FLASH', {
+          left: 18,
+          top: 0,
+          originX: 'center',
+          originY: 'center',
+          fontFamily: 'Inter',
+          fontWeight: '900',
+          fontSize: 17,
+          fill: '#ffffff'
+        });
+        const icon = new fabric.Text('⚡', {
+          left: -44,
+          top: 0,
+          originX: 'center',
+          originY: 'center',
+          fontFamily: 'Inter',
+          fontWeight: '900',
+          fontSize: 20,
+          fill: '#fde047'
+        });
+        const badge = new fabric.Group([pill, edge, icon, text], {
+          left: els.toggleNew.checked ? 218 : 270,
+          top: 282,
+          originX: 'center',
+          originY: 'center',
+          customType: 'flash-badge'
+        });
+        canvas.add(badge);
+      }
+
+      if (els.toggleNew.checked) {
+        const bg = new fabric.Rect({
+          width: 132,
+          height: 42,
+          rx: 21,
+          ry: 21,
+          fill: '#10b981',
+          originX: 'center',
+          originY: 'center',
+          shadow: new fabric.Shadow({
+            color: 'rgba(16,185,129,0.22)',
+            blur: 14,
+            offsetY: 6
+          })
+        });
+        const text = new fabric.Text('NUEVO INGRESO', {
+          left: 0,
+          top: 0,
+          originX: 'center',
+          originY: 'center',
+          fontFamily: 'Inter',
+          fontWeight: '900',
+          fontSize: 12,
+          fill: '#ffffff'
+        });
+        const badge = new fabric.Group([bg, text], {
+          left: els.toggleFlash.checked ? 376 : 270,
+          top: 282,
+          originX: 'center',
+          originY: 'center',
+          customType: 'new-badge'
+        });
+        canvas.add(badge);
+      }
+
+      canvas.renderAll();
+    };
+
+    const renderFlyer = async () => {
+      ensureBaseLayout();
+      await renderBrand();
+      await renderProductImage();
+      await renderBrandBadge();
+      renderDiscountBadge();
+      renderFlashBadge();
+      renderTitleAndDescription();
+      renderPricePanel();
+      canvas.renderAll();
+    };
+
+    const fillProductForm = (product) => {
+      selectedProduct = product;
+      els.flyerTitle.value = product.descripcion || '';
+      els.flyerDescription.value = product.detalles || '';
+      els.priceNormal.value = product.precio != null ? String(Math.round(getNumeric(product.precio))) : '';
+      if (!els.discountPercent.value) els.discountPercent.value = '15';
+      computeOfferPrice();
+      els.selectedProductTitle.textContent = product.descripcion || 'Producto sin descripción';
+      const meta = [product.codigo || 'Sin código'];
+      if (product.marca) meta.push(product.marca);
+      if (product.categoria) meta.push(product.categoria);
+      els.selectedProductMeta.textContent = meta.join(' · ');
+    };
+
+    const resolveBrandLogoForProduct = (product) => {
+      if (!product) return '';
+      if (product.logoMarca) return product.logoMarca;
+      const key = normalizarTexto(product.marca || '');
+      return brandLogos.get(key) || '';
+    };
+
+    const applyProductSelection = async (product) => {
+      fillProductForm(product);
+      productImageSrc = product.imagen || '';
+      productBrandLogoSrc = resolveBrandLogoForProduct(product);
+      mostrarToast('Producto cargado desde inventario.', 'success');
+      await renderFlyer();
+    };
+
+    const renderInventoryList = () => {
+      if (!filteredProducts.length) {
+        els.inventoryGrid.innerHTML = '<div class="col-span-full rounded-3xl border border-slate-800 bg-slate-950/80 px-6 py-10 text-center text-sm font-semibold text-slate-400">No encontré productos con esa búsqueda.</div>';
+        return;
+      }
+
+      els.inventoryGrid.innerHTML = filteredProducts.map((product) => {
+        const image = product.imagen
+          ? `<img src="${product.imagen}" alt="${product.descripcion || 'Producto'}" class="h-full w-full object-contain" loading="lazy" />`
+          : '<div class="flex h-full w-full items-center justify-center text-slate-500 text-xs font-bold">Sin imagen</div>';
+        const code = product.codigo || product.codigoInterno || product.codigoBarras || 'Sin código';
+        const meta = [product.marca, product.categoria].filter(Boolean).join(' · ');
+        return `
+          <button
+            type="button"
+            data-product-id="${product.id}"
+            class="inventory-item rounded-[26px] border border-slate-800 bg-slate-950/80 p-4 text-left transition hover:border-blue-500 hover:bg-slate-900"
+          >
+            <div class="flex gap-4">
+              <div class="h-20 w-20 shrink-0 rounded-2xl border border-slate-800 bg-white overflow-hidden">${image}</div>
+              <div class="min-w-0 flex-1">
+                <p class="text-sm font-black text-white leading-tight">${product.descripcion || 'Producto'}</p>
+                <p class="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">${code}</p>
+                <p class="mt-2 text-xs font-medium text-slate-400">${meta || 'Sin marca / categoría'}</p>
+                <p class="mt-3 text-sm font-black text-emerald-300">${formatearDinero(product.precio || 0)}</p>
+              </div>
+            </div>
+          </button>
+        `;
+      }).join('');
+
+      els.inventoryGrid.querySelectorAll('.inventory-item').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const product = products.find((item) => item.id === button.dataset.productId);
+          if (!product) return;
+          closeInventoryModal();
+          await applyProductSelection(product);
+        });
+      });
+    };
+
+    const filterProducts = () => {
+      const query = normalizarTexto(els.inventorySearch.value);
+      filteredProducts = products.filter((product) => {
+        if (!query) return true;
+        const haystack = [
+          product.descripcion,
+          product.detalles,
+          product.codigo,
+          product.codigoInterno,
+          product.codigoBarras,
+          product.categoria,
+          product.marca
+        ].map((value) => normalizarTexto(value || '')).join(' ');
+        return haystack.includes(query);
+      });
+      renderInventoryList();
+    };
+
+    const openInventoryModal = () => {
+      els.inventoryModal.classList.remove('hidden');
+      els.inventorySearch.focus();
+    };
+
+    const closeInventoryModal = () => {
+      els.inventoryModal.classList.add('hidden');
+    };
+
+    const setCompanyLogo = (src, sourceLabel = 'Logo listo para usar') => {
+      companyLogoSrc = src || '';
+      els.brandLogoStatus.textContent = companyLogoSrc
+        ? `${sourceLabel}.`
+        : 'Todavía no hay logo de negocio cargado.';
+    };
+
+    const addManualTexts = () => {
+      const title = new fabric.IText('NOMBRE DEL PRODUCTO', {
+        left: 270,
+        top: 610,
+        originX: 'center',
+        originY: 'center',
+        width: 360,
+        textAlign: 'center',
+        fontFamily: 'Inter',
+        fontWeight: '900',
+        fontSize: 30,
+        fill: '#0f172a'
+      });
+      const desc = new fabric.IText('Descripción breve del producto', {
+        left: 270,
+        top: 664,
+        originX: 'center',
+        originY: 'center',
+        width: 320,
+        textAlign: 'center',
+        fontFamily: 'Inter',
+        fontWeight: '600',
+        fontSize: 16,
+        fill: '#475569'
+      });
+      canvas.add(title, desc);
+      canvas.setActiveObject(title);
+      canvas.renderAll();
+    };
+
+    const addPriceBadge = () => {
+      const bg = new fabric.Rect({
+        width: 154,
+        height: 56,
+        rx: 18,
+        ry: 18,
+        fill: '#2563eb',
+        shadow: new fabric.Shadow({ color: 'rgba(37,99,235,0.28)', blur: 14, offsetY: 6 }),
+        originX: 'center',
+        originY: 'center'
+      });
+      const text = new fabric.IText(formatearDinero(getNumeric(els.priceNormal.value) || 9999), {
+        originX: 'center',
+        originY: 'center',
+        fontFamily: 'Inter',
+        fontWeight: '900',
+        fontSize: 21,
+        fill: '#ffffff'
+      });
+      const group = new fabric.Group([bg, text], {
+        left: 392,
+        top: 768,
+        originX: 'center',
+        originY: 'center'
+      });
+      canvas.add(group);
+      canvas.setActiveObject(group);
+      canvas.renderAll();
+    };
+
+    const addVipBadge = () => {
+      const bg = new fabric.Rect({
+        width: 154,
+        height: 56,
+        rx: 18,
+        ry: 18,
+        fill: '#facc15',
+        shadow: new fabric.Shadow({ color: 'rgba(250,204,21,0.25)', blur: 14, offsetY: 6 }),
+        originX: 'center',
+        originY: 'center'
+      });
+      const label = new fabric.Text('VIP', {
+        left: -44,
+        top: 0,
+        originX: 'center',
+        originY: 'center',
+        fontFamily: 'Inter',
+        fontWeight: '900',
+        fontSize: 15,
+        fill: '#111827'
+      });
+      const value = new fabric.IText(formatearDinero(Math.max(0, getNumeric(els.priceOffer.value) || 8500)), {
+        left: 20,
+        top: 0,
+        originX: 'center',
+        originY: 'center',
+        fontFamily: 'Inter',
+        fontWeight: '900',
+        fontSize: 20,
+        fill: '#111827'
+      });
+      const group = new fabric.Group([bg, label, value], {
+        left: 146,
+        top: 768,
+        originX: 'center',
+        originY: 'center'
+      });
+      canvas.add(group);
+      canvas.setActiveObject(group);
+      canvas.renderAll();
+    };
+
+    const addNewSticker = () => {
+      const bg = new fabric.Rect({
+        width: 126,
+        height: 44,
+        rx: 22,
+        ry: 22,
+        fill: '#10b981',
+        originX: 'center',
+        originY: 'center',
+        shadow: new fabric.Shadow({ color: 'rgba(16,185,129,0.25)', blur: 14, offsetY: 6 })
+      });
+      const text = new fabric.Text('NUEVO INGRESO', {
+        originX: 'center',
+        originY: 'center',
+        fontFamily: 'Inter',
+        fontWeight: '900',
+        fontSize: 12,
+        fill: '#ffffff'
+      });
+      const group = new fabric.Group([bg, text], {
+        left: 384,
+        top: 282,
+        originX: 'center',
+        originY: 'center'
+      });
+      canvas.add(group);
+      canvas.setActiveObject(group);
+      canvas.renderAll();
+    };
+
+    const addSaleSticker = () => {
+      const circle = new fabric.Circle({
+        radius: 48,
+        fill: '#e11d48',
+        shadow: new fabric.Shadow({ color: 'rgba(225,29,72,0.28)', blur: 14, offsetY: 6 }),
+        originX: 'center',
+        originY: 'center'
+      });
+      const top = new fabric.Text('MEGA', {
+        top: -12,
+        originX: 'center',
+        originY: 'center',
+        fontFamily: 'Inter',
+        fontWeight: '900',
+        fontSize: 12,
+        fill: '#fde047'
+      });
+      const bottom = new fabric.Text('OFERTA', {
+        top: 14,
+        originX: 'center',
+        originY: 'center',
+        fontFamily: 'Inter',
+        fontWeight: '900',
+        fontSize: 18,
+        fill: '#ffffff'
+      });
+      const group = new fabric.Group([circle, top, bottom], {
+        left: 410,
+        top: 228,
+        originX: 'center',
+        originY: 'center'
+      });
+      canvas.add(group);
+      canvas.setActiveObject(group);
+      canvas.renderAll();
+    };
+
+    const deleteSelected = () => {
+      const activeObjects = canvas.getActiveObjects();
+      if (!activeObjects.length) return;
+      activeObjects.forEach((obj) => {
+        if (!BASE_TYPES.includes(obj.customType)) {
+          canvas.remove(obj);
+        }
+      });
+      canvas.discardActiveObject();
+      canvas.requestRenderAll();
+      mostrarToast('Elemento extra eliminado.', 'success');
+    };
+
+    const handleDownload = () => {
+      try {
+        canvas.discardActiveObject();
+        canvas.renderAll();
+        const dataUrl = canvas.toDataURL({
+          format: 'jpeg',
+          quality: 1,
+          multiplier: 4
+        });
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = `flyer-${Date.now()}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        mostrarToast('Descarga iniciada en 4K.', 'success');
+      } catch (error) {
+        console.error(error);
+        mostrarToast('No pude exportar. Revisá si alguna imagen externa bloqueó el lienzo.', 'error');
+      }
+    };
+
+    const getSavedFlyers = () => {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(SAVED_FLYERS_KEY) || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    };
+
+    const setSavedFlyers = (items) => {
+      localStorage.setItem(SAVED_FLYERS_KEY, JSON.stringify(items.slice(0, 30)));
+    };
+
+    const buildSavedFlyerPayload = () => {
+      canvas.discardActiveObject();
+      canvas.renderAll();
+      let preview = '';
+      try {
+        preview = canvas.toDataURL({ format: 'jpeg', quality: 0.82, multiplier: 0.45 });
+      } catch {
+        preview = '';
+      }
+      return {
+        id: `flyer-${Date.now()}`,
+        title: els.flyerTitle.value.trim() || 'Flyer sin titulo',
+        updatedAt: new Date().toISOString(),
+        preview,
+        form: {
+          title: els.flyerTitle.value,
+          description: els.flyerDescription.value,
+          priceNormal: els.priceNormal.value,
+          discountPercent: els.discountPercent.value,
+          priceOffer: els.priceOffer.value,
+          toggleDiscount: els.toggleDiscount.checked,
+          togglePrice: els.togglePrice.checked,
+          toggleFlash: els.toggleFlash.checked,
+          toggleNew: els.toggleNew.checked,
+          selectedTheme,
+          flyerStyle: { ...flyerStyle }
+        },
+        assets: {
+          productImageSrc,
+          productBrandLogoSrc,
+          companyLogoSrc
+        },
+        canvas: canvas.toJSON(['customType'])
+      };
+    };
+
+    const renderSavedFlyers = () => {
+      const flyers = getSavedFlyers();
+      if (!flyers.length) {
+        els.savedFlyersList.innerHTML = '<div class="rounded-3xl border border-slate-800 bg-slate-950/80 p-5 text-sm font-semibold text-slate-400">Todavia no hay flyers guardados en este equipo.</div>';
+        return;
+      }
+
+      els.savedFlyersList.innerHTML = flyers.map((flyer) => {
+        const date = flyer.updatedAt
+          ? new Date(flyer.updatedAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
+          : '';
+        const preview = flyer.preview
+          ? `<img src="${flyer.preview}" alt="${flyer.title}" class="h-20 w-14 shrink-0 rounded-xl object-cover bg-slate-800" />`
+          : '<div class="h-20 w-14 shrink-0 rounded-xl bg-slate-800"></div>';
+        return `
+          <article class="saved-card rounded-3xl border border-slate-800 bg-slate-950/80 p-3">
+            <div class="flex gap-3">
+              ${preview}
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-black text-white">${flyer.title || 'Flyer guardado'}</p>
+                <p class="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">${date}</p>
+                <div class="mt-3 flex gap-2">
+                  <button type="button" data-load-flyer="${flyer.id}" class="rounded-xl bg-cyan-600 px-3 py-2 text-xs font-black text-white hover:bg-cyan-500">Abrir</button>
+                  <button type="button" data-delete-flyer="${flyer.id}" class="rounded-xl bg-rose-500/10 px-3 py-2 text-xs font-black text-rose-200 hover:bg-rose-500 hover:text-white">Eliminar</button>
+                </div>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join('');
+
+      els.savedFlyersList.querySelectorAll('[data-load-flyer]').forEach((button) => {
+        button.addEventListener('click', () => loadSavedFlyer(button.dataset.loadFlyer));
+      });
+      els.savedFlyersList.querySelectorAll('[data-delete-flyer]').forEach((button) => {
+        button.addEventListener('click', () => deleteSavedFlyer(button.dataset.deleteFlyer));
+      });
+    };
+
+    const saveCurrentFlyer = () => {
+      const flyers = getSavedFlyers();
+      setSavedFlyers([buildSavedFlyerPayload(), ...flyers]);
+      renderSavedFlyers();
+      mostrarToast('Flyer guardado.', 'success');
+    };
+
+    const applySavedForm = (flyer) => {
+      const form = flyer.form || {};
+      const assets = flyer.assets || {};
+      els.flyerTitle.value = form.title || '';
+      els.flyerDescription.value = form.description || '';
+      els.priceNormal.value = form.priceNormal || '';
+      els.discountPercent.value = form.discountPercent || '';
+      els.priceOffer.value = form.priceOffer || '';
+      els.toggleDiscount.checked = Boolean(form.toggleDiscount);
+      els.togglePrice.checked = Boolean(form.togglePrice);
+      els.toggleFlash.checked = Boolean(form.toggleFlash);
+      els.toggleNew.checked = Boolean(form.toggleNew);
+      selectedTheme = form.selectedTheme || 'clean';
+      Object.assign(flyerStyle, form.flyerStyle || {});
+      els.fontFamilySelect.value = flyerStyle.fontFamily || 'Inter';
+      els.titleColor.value = flyerStyle.titleColor || '#0f172a';
+      els.descriptionColor.value = flyerStyle.descriptionColor || '#475569';
+      els.footerIconColor.value = flyerStyle.footerIconColor || '#38bdf8';
+      els.toggleTextShadow.checked = Boolean(flyerStyle.textShadow);
+      syncThemeButtons();
+      productImageSrc = assets.productImageSrc || '';
+      productBrandLogoSrc = assets.productBrandLogoSrc || '';
+      companyLogoSrc = assets.companyLogoSrc || COMPANY_LOGO_LIGHT;
+      syncDiscountControls();
+    };
+
+    const loadSavedFlyer = (id) => {
+      const flyer = getSavedFlyers().find((item) => item.id === id);
+      if (!flyer) return;
+      applySavedForm(flyer);
+      if (flyer.canvas) {
+        canvas.loadFromJSON(flyer.canvas, () => {
+          canvas.requestRenderAll();
+          mostrarToast('Flyer guardado abierto.', 'success');
+        });
+      } else {
+        renderFlyer();
+      }
+      setSidebarTab('editor');
+    };
+
+    const deleteSavedFlyer = (id) => {
+      setSavedFlyers(getSavedFlyers().filter((item) => item.id !== id));
+      renderSavedFlyers();
+      mostrarToast('Flyer eliminado de guardados.', 'success');
+    };
+
+    const setSidebarTab = (tab) => {
+      const showSaved = tab === 'saved';
+      els.tabEditor.classList.toggle('active', !showSaved);
+      els.tabSaved.classList.toggle('active', showSaved);
+      els.editorPanel.classList.toggle('hidden', showSaved);
+      els.savedPanel.classList.toggle('hidden', !showSaved);
+      if (showSaved) renderSavedFlyers();
+    };
+
+    const syncThemeButtons = () => {
+      document.querySelectorAll('[data-theme]').forEach((button) => {
+        button.classList.toggle('is-active', button.dataset.theme === selectedTheme);
+      });
+    };
+
+    const readStyleControls = () => {
+      flyerStyle.fontFamily = els.fontFamilySelect.value || 'Inter';
+      flyerStyle.titleColor = els.titleColor.value || '#0f172a';
+      flyerStyle.descriptionColor = els.descriptionColor.value || '#475569';
+      flyerStyle.footerIconColor = els.footerIconColor.value || '#38bdf8';
+      flyerStyle.textShadow = Boolean(els.toggleTextShadow.checked);
+    };
+
+    const setTheme = async (themeKey = 'clean') => {
+      selectedTheme = THEME_MAP[themeKey] ? themeKey : 'clean';
+      syncThemeButtons();
+      await renderFlyer();
+    };
+
+    const toggleCollapsiblePanel = (button) => {
+      const panel = button.closest('.collapsible-panel');
+      if (!panel) return;
+      panel.classList.toggle('is-open');
+      const icon = panel.querySelector('.panel-toggle-icon');
+      if (icon) icon.textContent = panel.classList.contains('is-open') ? '-' : '+';
+    };
+
+    const fetchInitialData = async () => {
+      try {
+        const [configSnap, productsSnap, brandsSnap] = await Promise.all([
+          getDoc(doc(db, 'sistema', 'configuracion')),
+          getDocs(collection(db, 'productos')),
+          getDocs(collection(db, 'marcas'))
+        ]);
+
+        const config = configSnap.exists() ? configSnap.data() : {};
+        els.brandWa.value = config.whatsapp || '';
+        els.brandWeb.value = config.web || '';
+        els.brandEmail.value = config.correo || '';
+        setCompanyLogo(COMPANY_LOGO_LIGHT, 'Logo automatico del repositorio');
+
+        brandLogos = new Map();
+        brandsSnap.forEach((item) => {
+          const brand = item.data() || {};
+          const key = normalizarTexto(brand.nombre || brand.normalizada || '');
+          if (key && brand.logo) {
+            brandLogos.set(key, brand.logo);
+          }
+        });
+
+        products = productsSnap.docs
+          .map((item) => ({ id: item.id, ...item.data() }))
+          .sort((a, b) => (a.descripcion || '').localeCompare(b.descripcion || '', 'es'));
+
+        filteredProducts = [...products];
+        renderInventoryList();
+        await renderFlyer();
+        mostrarToast('Editor listo y conectado al inventario.', 'success');
+      } catch (error) {
+        console.error(error);
+        mostrarToast('No pude cargar inventario o configuración.', 'error');
+        setCompanyLogo(COMPANY_LOGO_LIGHT, 'Logo automatico del repositorio');
+        ensureBaseLayout();
+        await renderFlyer();
+      }
+    };
+
+    const bindEvents = () => {
+      els.logoUploadTrigger.addEventListener('click', () => els.logoUpload.click());
+      els.brandUploadTrigger.addEventListener('click', () => els.brandUpload.click());
+      els.productUploadTrigger.addEventListener('click', () => els.productUpload.click());
+      els.tabEditor.addEventListener('click', () => setSidebarTab('editor'));
+      els.tabSaved.addEventListener('click', () => setSidebarTab('saved'));
+      els.btnSaveFlyer.addEventListener('click', saveCurrentFlyer);
+      document.querySelectorAll('.panel-toggle').forEach((button) => {
+        button.addEventListener('click', () => toggleCollapsiblePanel(button));
+      });
+      document.querySelectorAll('[data-theme]').forEach((button) => {
+        button.addEventListener('click', () => setTheme(button.dataset.theme));
+      });
+      [els.fontFamilySelect, els.titleColor, els.descriptionColor, els.footerIconColor, els.toggleTextShadow].forEach((control) => {
+        control.addEventListener('input', async () => {
+          readStyleControls();
+          await renderFlyer();
+        });
+        control.addEventListener('change', async () => {
+          readStyleControls();
+          await renderFlyer();
+        });
+      });
+
+      els.logoUpload.addEventListener('change', async (event) => {
+        try {
+          const src = await readFileAsDataUrl(event.target.files?.[0]);
+          setCompanyLogo(src, 'Logo cargado manualmente');
+          await renderBrand();
+          mostrarToast('Logo del negocio actualizado.', 'success');
+        } catch {
+          mostrarToast('No pude leer el logo del negocio.', 'error');
+        }
+      });
+
+      els.brandUpload.addEventListener('change', async (event) => {
+        try {
+          productBrandLogoSrc = await readFileAsDataUrl(event.target.files?.[0]);
+          await renderBrandBadge();
+          mostrarToast('Logo de marca listo.', 'success');
+        } catch {
+          mostrarToast('No pude leer el logo de marca.', 'error');
+        }
+      });
+
+      els.productUpload.addEventListener('change', async (event) => {
+        try {
+          productImageSrc = await readFileAsDataUrl(event.target.files?.[0]);
+          selectedProduct = null;
+          els.selectedProductTitle.textContent = 'Imagen manual cargada';
+          els.selectedProductMeta.textContent = 'Podés combinarla con título, descripción y precio desde el panel.';
+          await renderProductImage();
+          mostrarToast('Imagen del producto cargada.', 'success');
+        } catch {
+          mostrarToast('No pude leer la imagen del producto.', 'error');
+        }
+      });
+
+      els.btnApplyBrand.addEventListener('click', renderBrand);
+      els.btnOpenInventory.addEventListener('click', openInventoryModal);
+      els.btnCloseInventory.addEventListener('click', closeInventoryModal);
+      els.inventoryModal.addEventListener('click', (event) => {
+        if (event.target === els.inventoryModal || event.target === els.inventoryModal.firstElementChild) {
+          closeInventoryModal();
+        }
+      });
+      els.inventorySearch.addEventListener('input', filterProducts);
+
+      [els.priceNormal, els.discountPercent].forEach((input) => {
+        input.addEventListener('input', () => {
+          if (els.toggleDiscount.checked) {
+            computeOfferPrice();
+          } else {
+            els.priceOffer.value = els.priceNormal.value;
+          }
+          renderFlyer();
+        });
+      });
+
+      els.toggleDiscount.addEventListener('change', () => {
+        if (els.toggleDiscount.checked) {
+          computeOfferPrice();
+        } else {
+          els.priceOffer.value = els.priceNormal.value;
+        }
+        syncDiscountControls();
+        renderFlyer();
+      });
+
+      els.togglePrice.addEventListener('change', renderFlyer);
+      els.toggleFlash.addEventListener('change', renderFlyer);
+      els.toggleNew.addEventListener('change', renderFlyer);
+
+      els.priceOffer.addEventListener('input', renderFlyer);
+      els.flyerTitle.addEventListener('input', renderFlyer);
+      els.flyerDescription.addEventListener('input', renderFlyer);
+      els.brandWa.addEventListener('input', renderBrand);
+      els.brandWeb.addEventListener('input', renderBrand);
+      els.brandEmail.addEventListener('input', renderBrand);
+
+      els.btnApplyProduct.addEventListener('click', async () => {
+        if (els.toggleDiscount.checked) computeOfferPrice();
+        await renderFlyer();
+        mostrarToast('Datos aplicados al lienzo.', 'success');
+      });
+
+      els.addTexts.addEventListener('click', addManualTexts);
+      els.addBadgePrice.addEventListener('click', addPriceBadge);
+      els.addBadgeVip.addEventListener('click', addVipBadge);
+      els.addBadgeNew.addEventListener('click', addNewSticker);
+      els.addBadgeSale.addEventListener('click', addSaleSticker);
+      els.btnSmartDiscount.addEventListener('click', async () => {
+        if (!els.priceNormal.value) {
+          mostrarToast('Primero cargá un precio base.', 'error');
+          return;
+        }
+        if (!els.discountPercent.value) els.discountPercent.value = '15';
+        els.toggleDiscount.checked = true;
+        computeOfferPrice();
+        syncDiscountControls();
+        await renderFlyer();
+        mostrarToast('Descuento calculado y aplicado.', 'success');
+      });
+
+      els.downloadBtn.addEventListener('click', handleDownload);
+      els.deleteItemBtn.addEventListener('click', deleteSelected);
+
+      canvas.on('selection:created', () => els.deleteItemBtn.classList.remove('hidden'));
+      canvas.on('selection:updated', () => els.deleteItemBtn.classList.remove('hidden'));
+      canvas.on('selection:cleared', () => els.deleteItemBtn.classList.add('hidden'));
+
+      document.addEventListener('keydown', (event) => {
+        const tag = event.target?.tagName?.toLowerCase();
+        if (tag === 'input' || tag === 'textarea') return;
+        const active = canvas.getActiveObject();
+        if (active && active.isEditing) return;
+        if (event.key === 'Delete' || event.key === 'Backspace') {
+          deleteSelected();
+        }
+        if (event.key === 'Escape') {
+          closeInventoryModal();
+        }
+      });
+    };
+
+    bindEvents();
+    readStyleControls();
+    syncThemeButtons();
+    syncDiscountControls();
+    fetchInitialData();
+  </script>
+</body>
+</html>
