@@ -1,0 +1,2114 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="SeniorFlow - control diario de ventas, gastos, caja y cuentas corrientes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>Stock rápido - SeniorFlow</title>
+  <link rel="manifest" href="./manifest-stock-rapido.json" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <link rel="icon" type="image/png" href="./icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- LIBRERIAS AGREGADAS PARA EL GENERADOR DE OFERTAS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    const OFFER_COMPANY_FALLBACK = {
+      web: 'www.mundoledchaco.com',
+      whatsapp: '3735506858',
+      correo: 'info@mundoledchaco.com'
+    };
+
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Manrope', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    :root {
+      --sf-vw: 100vw;
+      --sf-vh: 100dvh;
+      --sf-modal-gutter: clamp(0.5rem, 2vw, 1.5rem);
+      --sf-page-gutter: clamp(0.75rem, 2vw, 2rem);
+    }
+    * { box-sizing: border-box; }
+    html {
+      width: 100%;
+      min-width: 0;
+      overflow-x: hidden;
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+    body {
+      width: 100%;
+      min-width: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      margin: 0;
+      overflow-x: hidden;
+      font-family: Manrope, system-ui, sans-serif;
+      background: #f8fafc;
+    }
+    #root {
+      width: 100%;
+      min-width: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+    }
+    img, video, canvas, svg { max-width: 100%; }
+    input, select, textarea, button { max-width: 100%; }
+    button, a, label { touch-action: manipulation; }
+    .sf-app-shell {
+      min-height: 100vh;
+      min-height: 100dvh;
+      width: 100%;
+      overflow-x: clip;
+    }
+    .sf-main {
+      padding-left: max(var(--sf-page-gutter), env(safe-area-inset-left));
+      padding-right: max(var(--sf-page-gutter), env(safe-area-inset-right));
+    }
+    .sf-modal-overlay {
+      padding: max(var(--sf-modal-gutter), env(safe-area-inset-top)) max(var(--sf-modal-gutter), env(safe-area-inset-right)) max(var(--sf-modal-gutter), env(safe-area-inset-bottom)) max(var(--sf-modal-gutter), env(safe-area-inset-left));
+    }
+    .sf-modal-panel {
+      max-width: min(var(--sf-modal-max-width, 28rem), calc(100vw - (var(--sf-modal-gutter) * 2)));
+      max-height: min(95vh, calc(100dvh - (var(--sf-modal-gutter) * 2)));
+    }
+    .sf-modal-panel.max-w-sm { --sf-modal-max-width: 24rem; }
+    .sf-modal-panel.max-w-md { --sf-modal-max-width: 28rem; }
+    .sf-modal-panel.max-w-lg { --sf-modal-max-width: 32rem; }
+    .sf-modal-panel.max-w-xl { --sf-modal-max-width: 36rem; }
+    .sf-modal-panel.max-w-2xl { --sf-modal-max-width: 42rem; }
+    .sf-modal-panel.max-w-3xl { --sf-modal-max-width: 48rem; }
+    .sf-modal-panel.max-w-4xl { --sf-modal-max-width: 56rem; }
+    .sf-modal-panel.max-w-5xl { --sf-modal-max-width: 64rem; }
+    .sf-modal-panel.max-w-6xl { --sf-modal-max-width: 72rem; }
+    .sf-modal-panel.max-w-7xl { --sf-modal-max-width: 80rem; }
+    .sf-modal-panel.sf-modal-fullscreen {
+      width: 100%;
+      max-width: none;
+      height: calc(100dvh - (var(--sf-modal-gutter) * 2));
+      max-height: calc(100dvh - (var(--sf-modal-gutter) * 2));
+    }
+    .sf-modal-body {
+      min-width: 0;
+      overscroll-behavior: contain;
+    }
+    .sf-app-shell table {
+      border-collapse: collapse;
+    }
+    .sf-app-shell .overflow-x-auto,
+    .sf-app-shell .custom-scrollbar {
+      -webkit-overflow-scrolling: touch;
+    }
+    .sf-app-shell :where(h1, h2, h3, h4, p, span, button, a, th, td, label) {
+      min-width: 0;
+    }
+    @media (max-width: 640px), (max-height: 620px) {
+      :root {
+        --sf-modal-gutter: 0.5rem;
+        --sf-page-gutter: 0.75rem;
+      }
+      .sf-app-shell {
+        font-size: 15px;
+      }
+      .sf-main {
+        padding-top: 1rem;
+        padding-bottom: calc(6.5rem + env(safe-area-inset-bottom));
+      }
+      .sf-modal-overlay {
+        align-items: stretch !important;
+      }
+      .sf-modal-panel {
+        border-radius: 1rem !important;
+        width: 100%;
+        max-width: calc(100vw - 1rem);
+        max-height: calc(100dvh - 1rem);
+      }
+      .sf-modal-body {
+        padding: 1rem !important;
+      }
+      .sf-app-shell :where(h1, h2, h3) {
+        overflow-wrap: anywhere;
+      }
+      .sf-app-shell :where(button, input, select, textarea) {
+        font-size: 16px;
+      }
+      .sf-app-shell table {
+        font-size: 0.78rem;
+      }
+    }
+    @media (min-width: 1536px) {
+      :root { --sf-page-gutter: clamp(2rem, 3vw, 4rem); }
+      .sf-app-shell main { max-width: 1920px; margin-left: auto; margin-right: auto; }
+    }
+    @media (pointer: coarse) {
+      .sf-app-shell button,
+      .sf-app-shell a,
+      .sf-app-shell input,
+      .sf-app-shell select {
+        min-height: 40px;
+      }
+    }
+    html[data-sf-height="short"] .sf-modal-panel {
+      max-height: calc(100dvh - 0.75rem);
+    }
+    html[data-sf-density="compact"] .sf-app-shell {
+      --sf-page-gutter: 0.75rem;
+    }
+    .sf-app-shell .btn {
+      min-height: 2.5rem;
+      border-radius: 0.75rem;
+      padding: 0.625rem 1rem;
+      font-size: 0.875rem;
+      line-height: 1.25rem;
+      border: 1px solid transparent;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+      white-space: nowrap;
+    }
+    .sf-app-shell .btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.62;
+      transform: none;
+    }
+    .sf-app-shell .btn-sm {
+      min-height: 2rem;
+      padding: 0.375rem 0.75rem;
+      font-size: 0.75rem;
+      line-height: 1rem;
+      border-radius: 0.625rem;
+    }
+    .sf-app-shell .btn-lg {
+      min-height: 3rem;
+      padding: 0.75rem 1.25rem;
+      font-size: 1rem;
+      line-height: 1.5rem;
+      border-radius: 0.875rem;
+    }
+    .sf-app-shell .btn-primary {
+      background: #4f46e5;
+      color: #fff;
+    }
+    .sf-app-shell .btn-primary:hover:not(:disabled) { background: #4338ca; }
+    .sf-app-shell .btn-secondary {
+      background: #fff;
+      color: #334155;
+      border-color: #e2e8f0;
+    }
+    .sf-app-shell .btn-secondary:hover:not(:disabled) { background: #f8fafc; }
+    .sf-app-shell .btn-ghost {
+      background: transparent;
+      color: #475569;
+      border-color: transparent;
+      box-shadow: none;
+    }
+    .sf-app-shell .btn-ghost:hover:not(:disabled) { background: #f1f5f9; }
+    .sf-app-shell .btn-danger {
+      background: #dc2626;
+      color: #fff;
+    }
+    .sf-app-shell .btn-danger:hover:not(:disabled) { background: #b91c1c; }
+    .sf-app-shell .btn-soft {
+      background: #eef2ff;
+      color: #4338ca;
+      border-color: #c7d2fe;
+    }
+    .sf-app-shell .btn-soft:hover:not(:disabled) { background: #e0e7ff; }
+    .sf-app-shell .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.75rem;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+    }
+    .sf-app-shell .hover-lift {
+      transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+    }
+    .sf-app-shell .hover-lift:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.10);
+      border-color: #cbd5e1;
+    }
+    .sf-app-shell .table-container {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.75rem;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    }
+    .sf-app-shell .table-container table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .sf-app-shell .table-container th {
+      background: #f8fafc;
+      color: #475569;
+      font-size: 0.6875rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-align: left;
+      text-transform: uppercase;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #e2e8f0;
+      white-space: nowrap;
+    }
+    .sf-app-shell .table-container td {
+      color: #334155;
+      font-size: 0.875rem;
+      font-weight: 700;
+      padding: 0.875rem 1rem;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: middle;
+    }
+    .sf-app-shell .table-container tbody tr:last-child td {
+      border-bottom: 0;
+    }
+    .sf-app-shell .field {
+      display: grid;
+      gap: 0.375rem;
+    }
+    .sf-app-shell .label {
+      color: #334155;
+      font-size: 0.75rem;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .sf-app-shell .input {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.75rem;
+      background: #fff;
+      color: #0f172a;
+      font-weight: 700;
+      outline: none;
+      padding: 0.75rem 0.875rem;
+      transition: border-color 160ms ease, box-shadow 160ms ease;
+    }
+    .sf-app-shell .input:focus {
+      border-color: #4f46e5;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.16);
+    }
+    .sf-app-shell .hint {
+      color: #64748b;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .sf-app-shell .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 1.5rem;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      padding: 0.25rem 0.625rem;
+      font-size: 0.6875rem;
+      font-weight: 900;
+      line-height: 1;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .sf-app-shell .badge-success {
+      background: #ecfdf5;
+      border-color: #a7f3d0;
+      color: #047857;
+    }
+    .sf-app-shell .badge-warning {
+      background: #fffbeb;
+      border-color: #fde68a;
+      color: #b45309;
+    }
+    .sf-app-shell .badge-danger {
+      background: #fef2f2;
+      border-color: #fecaca;
+      color: #b91c1c;
+    }
+    .sf-app-shell .badge-info {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+      color: #1d4ed8;
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .pb-safe { padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
+
+    /* ESTILO AGREGADO PARA EL GENERADOR */
+    .pattern-dots {
+      background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+    .line-clamp-1,
+    .line-clamp-2,
+    .line-clamp-3,
+    .line-clamp-7 {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .line-clamp-1 { -webkit-line-clamp: 1; }
+    .line-clamp-2 { -webkit-line-clamp: 2; }
+    .line-clamp-3 { -webkit-line-clamp: 3; }
+    .line-clamp-7 { -webkit-line-clamp: 7; }
+
+    @media print {
+      @page {
+        size: A4;
+        margin: 5mm;
+      }
+
+      html, body {
+        background: #fff !important;
+        overflow: visible !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      #root {
+        overflow: visible !important;
+      }
+
+      .print-modal-root {
+        position: static !important;
+        inset: auto !important;
+        height: auto !important;
+        min-height: auto !important;
+        overflow: visible !important;
+        display: block !important;
+        padding: 0 !important;
+        background: #fff !important;
+      }
+
+      .print-modal-pages {
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+      }
+
+      .print-a4-sheet {
+        width: calc(210mm - 10mm) !important;
+        max-width: calc(210mm - 10mm) !important;
+        min-height: calc(297mm - 10mm) !important;
+        margin: 0 auto 5mm !important;
+        box-shadow: none !important;
+        page-break-after: always !important;
+        break-after: page !important;
+      }
+
+      .print-a4-sheet:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
+      }
+
+      .print-no-break {
+        page-break-inside: avoid !important;
+        break-inside: avoid-page !important;
+      }
+    }
+  </style>
+  <script>
+    (function () {
+      const aplicarPerfilPantalla = () => {
+        const viewport = window.visualViewport || {};
+        const ancho = Math.round(viewport.width || window.innerWidth || document.documentElement.clientWidth || 1024);
+        const alto = Math.round(viewport.height || window.innerHeight || document.documentElement.clientHeight || 768);
+        const tipo = ancho < 640 ? 'phone' : (ancho < 1024 ? 'tablet' : (ancho >= 1536 ? 'wide' : 'desktop'));
+        const orientacion = ancho >= alto ? 'landscape' : 'portrait';
+        const altura = alto < 620 ? 'short' : 'normal';
+        const densidad = ancho < 390 || alto < 560 ? 'compact' : 'normal';
+        const root = document.documentElement;
+        root.dataset.sfScreen = tipo;
+        root.dataset.sfOrientation = orientacion;
+        root.dataset.sfHeight = altura;
+        root.dataset.sfDensity = densidad;
+        root.style.setProperty('--sf-vw', ancho + 'px');
+        root.style.setProperty('--sf-vh', alto + 'px');
+      };
+      aplicarPerfilPantalla();
+      window.addEventListener('resize', aplicarPerfilPantalla);
+      window.addEventListener('orientationchange', aplicarPerfilPantalla);
+      window.visualViewport?.addEventListener('resize', aplicarPerfilPantalla);
+      window.visualViewport?.addEventListener('scroll', aplicarPerfilPantalla);
+    })();
+  </script>
+  <!-- SeniorFlow fixes 22: recordatorios, logos izquierda, carga historica sin doble impacto -->
+</head>
+<body>
+  <!-- AQUI CARGA TU APP DE REACT PRINCIPAL -->
+  <div id="root"></div>
+
+  <!-- ========================================================= -->
+  <!-- INICIO: SISTEMA INTEGRADO DE GENERADOR DE OFERTAS 4K      -->
+  <!-- ========================================================= -->
+
+	      <!-- Selector de inventario -->
+      <div id="inventoryModal" class="hidden fixed inset-0 z-[10030] bg-slate-950/70 backdrop-blur-sm p-4 md:p-8">
+        <div class="bg-white w-full max-w-5xl mx-auto h-full rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
+          <div class="relative p-5 pr-20 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <h3 class="text-xl font-black text-gray-900">Agregar producto</h3>
+              <p class="text-sm font-bold text-gray-500">Busca en tu inventario y selecciona un producto para la oferta.</p>
+            </div>
+            <button id="closeInventoryModalButton" type="button" class="absolute top-4 right-4 z-20 text-gray-500 hover:text-white hover:bg-red-500 bg-gray-100 p-2.5 rounded-full transition-colors shadow-sm" aria-label="Cerrar inventario">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+	          </div>
+	          <div class="p-5 border-b border-gray-100">
+	            <div class="relative">
+	              <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"></i>
+	              <input id="inventorySearchInput" type="search" placeholder="Buscar por producto, codigo, marca o categoria..." class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-gray-800" />
+	            </div>
+	          </div>
+	          <div id="inventoryList" class="flex-1 overflow-y-auto custom-scrollbar divide-y divide-gray-100"></div>
+	        </div>
+	      </div>
+	    </div>
+	  </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- SCRIPT LOGICA (FIREBASE + HISTORIAL + DESCARGA)           -->
+  <!-- ========================================================= -->
+  <script type="module">
+    import { getApps, initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+    import { getFirestore, collection, doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyCm35oVEiiFZr8bNgJZJXQp_6JJqMFSSD4",
+        authDomain: "mundoledcontrol.firebaseapp.com",
+        projectId: "mundoledcontrol",
+        storageBucket: "mundoledcontrol.firebasestorage.app",
+        messagingSenderId: "1058675840412",
+        appId: "1:1058675840412:web:f5f739886abbd7b4fa2459",
+        measurementId: "G-6TYTKKN90Y"
+      };
+
+      const app = getApps()[0] || initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+
+      const byId = (id) => document.getElementById(id);
+
+      // Referencias del modulo de ofertas
+      const elements = {
+        modal: byId('ofertas-modal'),
+        openModalButton: byId('openOfferModalButton'),
+        closeModalButton: byId('closeOfferModalButton'),
+        openInventoryModalButton: byId('openInventoryModalButton'),
+        closeInventoryModalButton: byId('closeInventoryModalButton'),
+        inventoryModal: byId('inventoryModal'),
+        inventorySearchInput: byId('inventorySearchInput'),
+        inventoryList: byId('inventoryList'),
+        inventoryStatus: byId('inventoryStatus'),
+        name: byId('inputName'),
+        showPrice: byId('inputShowPrice'),
+        priceFields: byId('priceFields'),
+        originalPrice: byId('inputOriginalPrice'),
+        discountEnabled: byId('inputDiscountEnabled'),
+        discountField: byId('discountField'),
+        discount: byId('inputDiscount'),
+        offerPrice: byId('inputOfferPrice'),
+        description: byId('inputDescription'),
+        file: byId('inputFile'),
+        flashToggle: byId('inputFlash'),
+        newArrivalToggle: byId('inputNewArrival'),
+        brandLogoToggle: byId('inputBrandLogo'),
+        btnSaveOffer: byId('btnSaveOffer'),
+        btnDownload: byId('btnDownload'),
+        
+        displayName: byId('displayName'),
+        infoCard: byId('infoCard'),
+        originalPricePreview: byId('originalPricePreview'),
+        displayOriginalPrice: byId('displayOriginalPrice'),
+        displayOfferPrice: byId('displayOfferPrice'),
+        displayDescription: byId('displayDescription'),
+        displayDiscount: byId('displayDiscount'),
+        savingsBadge: byId('savingsBadge'),
+        displaySavings: byId('displaySavings'),
+        discountMiniBadge: byId('discountMiniBadge'),
+        discountBadge: byId('discount-badge'),
+        pricePanel: byId('pricePanel'),
+        priceNowBlock: byId('priceNowBlock'),
+        displayPriceLabel: byId('displayPriceLabel'),
+        displayImage: byId('displayImage'),
+        flashBadge: byId('flash-badge'),
+        newArrivalBadge: byId('new-arrival-badge'),
+        brandLogoBadge: byId('brand-logo-badge'),
+        brandLogoImage: byId('brandLogoImage'),
+        brandLogoHint: byId('brandLogoHint'),
+        
+        mainContainer: byId('offer-template'),
+        logo: byId('offerLogo'),
+        logoFallback: byId('offerLogoFallback'),
+        footerWeb: byId('footerWeb'),
+        footerWhatsapp: byId('footerWhatsapp'),
+        footerEmail: byId('footerEmail'),
+        businessFooter: byId('businessFooter'),
+        ctaButton: byId('ctaButton'),
+        templatePicker: byId('templatePicker'),
+        offerBackgroundDecor: byId('offerBackgroundDecor'),
+        offerBgGradient: byId('offerBgGradient'),
+        offerBgTopGlow: byId('offerBgTopGlow'),
+        offerBgDivider: byId('offerBgDivider'),
+        offerLogoShell: byId('offerLogoShell'),
+        imageSlot: byId('imageSlot'),
+        imageFrame: byId('imageFrame'),
+
+        btnToggleHistory: byId('btnToggleHistory'),
+        editorView: byId('editorView'),
+        historyView: byId('historyView'),
+        historyGrid: byId('historyGrid')
+      };
+
+      if (!elements.mainContainer || !elements.btnDownload || !elements.inventoryModal) {
+        return;
+      }
+
+      const OFFER_LOGO_CLASSIC = './logo-ofertas-mundoled.png';
+      const OFFER_LOGO_NON_CLASSIC = './logo-ofertas-mundoled-white.png';
+
+      let currentTemplate = 'mundoled_clean';
+      let inventoryProducts = [];
+      let syncingPrices = false;
+      let editingOfferId = null;
+      let companyLogoFromConfig = '';
+      let currentBrandLogo = '';
+      const templateLabels = {
+        mundoled_clean: 'Diseno unico Mundo LED'
+      };
+      const templateLayouts = {
+        classic: {
+          imageTop: 102,
+          imageHeight: 252,
+          infoTop: 372,
+          infoBottomWithPrice: 86,
+          infoBottomNoPrice: 86,
+          logoWidth: 220,
+          logoHeight: 48,
+          logoRadius: 0,
+          imageRadius: 26,
+          discountTop: 12,
+          discountRight: 28,
+          brandTop: 12,
+          brandLeft: 28,
+          flashLeft: 32,
+          flashBottom: 24,
+          newArrivalRight: 32,
+          newArrivalBottom: 24,
+          footerBottom: 16,
+          footerPadY: 8,
+          footerPadX: 12,
+          imageFit: 'contain',
+          imagePosition: 'center bottom',
+          frameBg: 'rgba(255,255,255,0.95)',
+          frameBorder: 'rgba(255,255,255,0.7)',
+          infoBg: '#ffffff',
+          infoBorder: '#f3f4f6',
+          footerBg: 'rgba(255,255,255,0.9)',
+          gradient: 'linear-gradient(145deg,rgba(255,255,255,0.22),transparent 42%,rgba(0,0,0,0.20))',
+          topGlow: 'linear-gradient(180deg,rgba(255,255,255,0.10),rgba(255,255,255,0))',
+          dividerTop: 96,
+          showDivider: true
+        },
+        clean: {
+          imageTop: 96,
+          imageHeight: 260,
+          infoTop: 374,
+          infoBottomWithPrice: 84,
+          infoBottomNoPrice: 84,
+          logoWidth: 220,
+          logoHeight: 48,
+          logoRadius: 0,
+          imageRadius: 28,
+          discountTop: 10,
+          discountRight: 20,
+          brandTop: 10,
+          brandLeft: 20,
+          flashLeft: 24,
+          flashBottom: 16,
+          newArrivalRight: 24,
+          newArrivalBottom: 16,
+          footerBottom: 14,
+          footerPadY: 8,
+          footerPadX: 12,
+          imageFit: 'contain',
+          imagePosition: 'center bottom',
+          frameBg: 'rgba(255,255,255,0.97)',
+          frameBorder: 'rgba(255,255,255,0.9)',
+          infoBg: 'rgba(255,255,255,0.97)',
+          infoBorder: '#e5e7eb',
+          footerBg: 'rgba(255,255,255,0.94)',
+          gradient: 'linear-gradient(160deg,rgba(255,255,255,0.35),rgba(255,255,255,0.04) 55%,rgba(15,23,42,0.24))',
+          topGlow: 'linear-gradient(180deg,rgba(255,255,255,0.14),rgba(255,255,255,0))',
+          dividerTop: 98,
+          showDivider: false
+        },
+        focus: {
+          imageTop: 88,
+          imageHeight: 280,
+          infoTop: 382,
+          infoBottomWithPrice: 84,
+          infoBottomNoPrice: 78,
+          logoWidth: 230,
+          logoHeight: 50,
+          logoRadius: 0,
+          imageRadius: 30,
+          discountTop: 12,
+          discountRight: 16,
+          brandTop: 12,
+          brandLeft: 16,
+          flashLeft: 20,
+          flashBottom: 14,
+          newArrivalRight: 20,
+          newArrivalBottom: 14,
+          footerBottom: 14,
+          footerPadY: 8,
+          footerPadX: 12,
+          imageFit: 'contain',
+          imagePosition: 'center bottom',
+          frameBg: 'rgba(255,255,255,0.96)',
+          frameBorder: 'rgba(255,255,255,0.82)',
+          infoBg: '#ffffff',
+          infoBorder: '#f3f4f6',
+          footerBg: 'rgba(255,255,255,0.92)',
+          gradient: 'linear-gradient(155deg,rgba(255,255,255,0.20),transparent 38%,rgba(2,6,23,0.30))',
+          topGlow: 'linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0))',
+          dividerTop: 94,
+          showDivider: true
+        },
+        card: {
+          imageTop: 104,
+          imageHeight: 236,
+          infoTop: 350,
+          infoBottomWithPrice: 82,
+          infoBottomNoPrice: 72,
+          logoWidth: 220,
+          logoHeight: 48,
+          logoRadius: 0,
+          imageRadius: 22,
+          discountTop: 10,
+          discountRight: 18,
+          brandTop: 10,
+          brandLeft: 18,
+          flashLeft: 20,
+          flashBottom: 12,
+          newArrivalRight: 20,
+          newArrivalBottom: 12,
+          footerBottom: 12,
+          footerPadY: 8,
+          footerPadX: 12,
+          imageFit: 'contain',
+          imagePosition: 'center bottom',
+          frameBg: 'rgba(255,255,255,0.94)',
+          frameBorder: 'rgba(255,255,255,0.72)',
+          infoBg: 'rgba(255,255,255,0.98)',
+          infoBorder: '#e5e7eb',
+          footerBg: 'rgba(255,255,255,0.95)',
+          gradient: 'linear-gradient(180deg,rgba(255,255,255,0.16),rgba(0,0,0,0.26))',
+          topGlow: 'linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0))',
+          dividerTop: 98,
+          showDivider: true
+        }
+      };
+      const templateVisuals = {
+        classic: {
+          containerBg: '',
+          containerBorder: '',
+          containerShadow: '',
+          decorImage: '',
+          decorSize: '',
+          decorOpacity: '',
+          logoBg: 'transparent',
+          logoBorder: 'transparent',
+          logoShadow: 'none',
+          infoBg: '#ffffff',
+          infoBorder: '#f3f4f6',
+          infoShadow: '0 18px 30px rgba(15,23,42,0.12)',
+          titleColor: '#030712',
+          descColor: '#6b7280',
+          priceBg: '#f9fafb',
+          priceBorder: '#f3f4f6',
+          priceLabelColor: '#6b7280',
+          originalPriceColor: '#9ca3af',
+          offerPriceColor: '',
+          flashBg: '#dc2626',
+          flashColor: '#ffffff',
+          newArrivalBg: '#facc15',
+          newArrivalColor: '#ffffff',
+          discountBg: '#fde047',
+          discountColor: '#451a03',
+          footerBg: 'rgba(255,255,255,0.9)',
+          footerColor: '#1e293b'
+        },
+        clean: {
+          containerBg: 'linear-gradient(180deg,#f8fbff 0%,#eef3fa 100%)',
+          containerBorder: '#d4deeb',
+          containerShadow: '0 26px 44px rgba(15,23,42,0.15)',
+          decorImage: 'radial-gradient(circle at 1px 1px, rgba(100,116,139,0.25) 1px, transparent 0)',
+          decorSize: '16px 16px',
+          decorOpacity: '0.25',
+          logoBg: 'transparent',
+          logoBorder: 'transparent',
+          logoShadow: 'none',
+          infoBg: 'rgba(255,255,255,0.98)',
+          infoBorder: '#dbe7f4',
+          infoShadow: '0 14px 24px rgba(15,23,42,0.08)',
+          titleColor: '#0f172a',
+          descColor: '#475569',
+          priceBg: '#f8fafc',
+          priceBorder: '#dbe7f4',
+          priceLabelColor: '#64748b',
+          originalPriceColor: '#94a3b8',
+          offerPriceColor: '#0f172a',
+          flashBg: '#0ea5e9',
+          flashColor: '#ffffff',
+          newArrivalBg: '#16a34a',
+          newArrivalColor: '#ffffff',
+          discountBg: '#fef08a',
+          discountColor: '#854d0e',
+          footerBg: 'rgba(255,255,255,0.98)',
+          footerColor: '#334155'
+        },
+        focus: {
+          containerBg: 'linear-gradient(180deg,#0b1220 0%,#111827 60%,#0b1220 100%)',
+          containerBorder: '#1f2937',
+          containerShadow: '0 30px 55px rgba(2,6,23,0.55)',
+          decorImage: 'radial-gradient(circle at 20% 20%, rgba(59,130,246,0.28), transparent 38%), radial-gradient(circle at 80% 78%, rgba(56,189,248,0.22), transparent 36%)',
+          decorSize: '100% 100%',
+          decorOpacity: '1',
+          logoBg: 'transparent',
+          logoBorder: 'transparent',
+          logoShadow: 'none',
+          infoBg: 'rgba(15,23,42,0.78)',
+          infoBorder: 'rgba(148,163,184,0.35)',
+          infoShadow: '0 20px 34px rgba(2,6,23,0.5)',
+          titleColor: '#f8fafc',
+          descColor: '#cbd5e1',
+          priceBg: 'rgba(15,23,42,0.62)',
+          priceBorder: 'rgba(148,163,184,0.35)',
+          priceLabelColor: '#cbd5e1',
+          originalPriceColor: '#94a3b8',
+          offerPriceColor: '#ffffff',
+          flashBg: '#ef4444',
+          flashColor: '#ffffff',
+          newArrivalBg: '#22c55e',
+          newArrivalColor: '#ffffff',
+          discountBg: '#facc15',
+          discountColor: '#431407',
+          footerBg: 'rgba(15,23,42,0.78)',
+          footerColor: '#e2e8f0'
+        },
+        card: {
+          containerBg: 'linear-gradient(180deg,#fff7ed 0%,#ffedd5 60%,#fed7aa 100%)',
+          containerBorder: '#fdba74',
+          containerShadow: '0 24px 42px rgba(154,52,18,0.2)',
+          decorImage: 'linear-gradient(135deg, rgba(251,146,60,0.14) 0%, rgba(251,191,36,0.04) 46%, rgba(255,255,255,0.18) 100%)',
+          decorSize: '100% 100%',
+          decorOpacity: '1',
+          logoBg: 'transparent',
+          logoBorder: 'transparent',
+          logoShadow: 'none',
+          infoBg: 'rgba(255,253,247,0.98)',
+          infoBorder: '#fdba74',
+          infoShadow: '0 16px 26px rgba(154,52,18,0.14)',
+          titleColor: '#7c2d12',
+          descColor: '#9a3412',
+          priceBg: '#fff1df',
+          priceBorder: '#fdba74',
+          priceLabelColor: '#9a3412',
+          originalPriceColor: '#b45309',
+          offerPriceColor: '#9a3412',
+          flashBg: '#dc2626',
+          flashColor: '#ffffff',
+          newArrivalBg: '#f59e0b',
+          newArrivalColor: '#ffffff',
+          discountBg: '#fb923c',
+          discountColor: '#ffffff',
+          footerBg: 'rgba(255,253,247,0.96)',
+          footerColor: '#7c2d12'
+        }
+      };
+
+      // ==========================================
+      // SISTEMA DE HISTORIAL (LocalStorage)
+      // ==========================================
+      let savedHistory = [];
+      try {
+        const stored = localStorage.getItem('seniorflow_ofertas_v1');
+        if (stored) savedHistory = JSON.parse(stored);
+      } catch (e) { console.error("Error cargando historial", e); }
+
+      const renderSaveButtonIdle = () => {
+        elements.btnSaveOffer.innerHTML = editingOfferId
+          ? `<i data-lucide="check-square" class="w-4 h-4"></i> Actualizar`
+          : `<i data-lucide="save" class="w-4 h-4"></i> Guardar`;
+        lucide.createIcons();
+      };
+
+      const setTemplateButtonState = () => {
+        if (!elements.templatePicker) return;
+        elements.templatePicker.querySelectorAll('button[data-template]').forEach((button) => {
+          const isActive = button.dataset.template === currentTemplate;
+          button.classList.toggle('border-indigo-300', isActive);
+          button.classList.toggle('bg-indigo-50', isActive);
+          button.classList.toggle('text-indigo-700', isActive);
+          button.classList.toggle('shadow-sm', isActive);
+          button.classList.toggle('border-gray-200', !isActive);
+          button.classList.toggle('bg-white', !isActive);
+          button.classList.toggle('text-gray-700', !isActive);
+          button.classList.toggle('hover:bg-gray-50', !isActive);
+        });
+      };
+
+      const getLogoForCurrentTemplate = () => {
+        return companyLogoFromConfig || './logo-empresa-mundoled.png' || OFFER_LOGO_CLASSIC;
+      };
+
+      const shouldUseImageLogo = (logoSrc = '') => {
+        const value = (logoSrc || '').toString().trim();
+        if (!value) return false;
+        return !value.endsWith('/logo-empresa-mundoled.png') && value !== './logo-empresa-mundoled.png';
+      };
+
+      const applyTemplateLayout = (showPrice) => {
+        void showPrice;
+
+        elements.mainContainer.style.background = '#ffffff';
+        elements.mainContainer.style.borderColor = 'rgba(255,255,255,0.82)';
+        elements.mainContainer.style.boxShadow = '0 30px 70px rgba(15,23,42,0.16)';
+
+        elements.offerBackgroundDecor.style.backgroundImage = 'radial-gradient(circle at top, rgba(255,255,255,0.96), rgba(237,242,247,0.82) 52%, rgba(226,232,240,0.95))';
+        elements.offerBackgroundDecor.style.backgroundSize = '100% 100%';
+        elements.offerBackgroundDecor.style.opacity = '1';
+
+        elements.offerLogoShell.style.width = '100%';
+        elements.offerLogoShell.style.height = '58px';
+        elements.offerLogoShell.style.borderRadius = '0px';
+        elements.offerLogoShell.style.background = 'transparent';
+        elements.offerLogoShell.style.border = 'none';
+        elements.offerLogoShell.style.boxShadow = 'none';
+        elements.logo.dataset.fallbackApplied = '';
+        const logoSrc = getLogoForCurrentTemplate();
+        if (shouldUseImageLogo(logoSrc)) {
+          elements.logo.src = logoSrc;
+          elements.logo.classList.remove('hidden');
+          elements.logoFallback.classList.add('hidden');
+        } else {
+          elements.logo.classList.add('hidden');
+          elements.logoFallback.classList.remove('hidden');
+        }
+
+        elements.offerBgGradient.style.background = 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0))';
+        elements.offerBgTopGlow.style.background = 'linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0))';
+        elements.offerBgDivider.style.display = 'none';
+
+        elements.imageSlot.style.top = '';
+        elements.imageSlot.style.height = '';
+        elements.imageFrame.style.minHeight = '';
+        elements.imageFrame.style.maxHeight = '';
+        elements.imageFrame.style.borderRadius = '2.25rem';
+        elements.imageFrame.style.background = '#ffffff';
+        elements.imageFrame.style.borderColor = 'rgba(255,255,255,0.9)';
+        elements.displayImage.style.minHeight = '';
+        elements.displayImage.style.maxHeight = '';
+        elements.displayImage.style.objectFit = 'contain';
+        elements.displayImage.style.objectPosition = 'center center';
+        elements.displayImage.style.width = '100%';
+        elements.displayImage.style.height = '100%';
+
+        elements.discountBadge.style.top = '';
+        elements.discountBadge.style.right = '';
+        elements.brandLogoBadge.style.top = '';
+        elements.brandLogoBadge.style.left = '';
+        elements.flashBadge.style.left = '';
+        elements.flashBadge.style.bottom = '';
+        elements.newArrivalBadge.style.right = '';
+        elements.newArrivalBadge.style.bottom = '';
+
+        elements.infoCard.style.top = '';
+        elements.infoCard.style.bottom = '';
+        elements.infoCard.style.background = 'transparent';
+        elements.infoCard.style.borderColor = 'transparent';
+        elements.infoCard.style.boxShadow = 'none';
+
+        elements.businessFooter.style.bottom = '';
+        elements.businessFooter.style.padding = '';
+        elements.businessFooter.style.background = '#111827';
+        elements.businessFooter.style.color = '#ffffff';
+
+        elements.displayName.style.color = '#030712';
+        elements.displayDescription.style.color = '#6b7280';
+        elements.pricePanel.style.background = '';
+        elements.pricePanel.style.borderColor = '';
+        elements.displayPriceLabel.style.color = '#6b7280';
+        elements.displayOriginalPrice.style.color = '#6b7280';
+        elements.displayOfferPrice.style.color = '#000000';
+        elements.flashBadge.style.background = '';
+        elements.flashBadge.style.color = '';
+        elements.newArrivalBadge.style.background = '';
+        elements.newArrivalBadge.style.color = '';
+        elements.discountBadge.style.background = '';
+        elements.discountBadge.style.color = '';
+      };
+
+      const applyTemplate = (templateKey = 'mundoled_clean') => {
+        void templateKey;
+        currentTemplate = 'mundoled_clean';
+        setTemplateButtonState();
+      };
+
+      const getCurrentOfferData = (id = Date.now()) => ({
+        id,
+        date: new Date().toLocaleDateString(),
+        name: elements.name.value,
+        showPrice: elements.showPrice.checked,
+        originalPrice: elements.originalPrice.value,
+        discountEnabled: elements.discountEnabled.checked,
+        discount: elements.discount.value,
+        offerPrice: elements.offerPrice.value,
+        description: elements.description.value,
+        template: currentTemplate,
+        flash: elements.flashToggle.checked,
+        newArrival: elements.newArrivalToggle.checked,
+        brandLogoEnabled: elements.brandLogoToggle.checked,
+        brandLogo: currentBrandLogo,
+        image: elements.displayImage.src
+      });
+
+      function saveToHistory() {
+        const offerData = getCurrentOfferData(editingOfferId || Date.now());
+        const existingIndex = editingOfferId ? savedHistory.findIndex((offer) => offer.id === editingOfferId) : -1;
+
+        if (existingIndex >= 0) {
+          savedHistory[existingIndex] = { ...savedHistory[existingIndex], ...offerData };
+        } else {
+          savedHistory.unshift(offerData);
+        }
+
+        if(savedHistory.length > 15) savedHistory.pop();
+        
+        try {
+          localStorage.setItem('seniorflow_ofertas_v1', JSON.stringify(savedHistory));
+          renderHistory();
+        } catch(e) { console.error("Memoria llena, no se guardo el historial", e); }
+
+        return existingIndex >= 0 ? 'updated' : 'created';
+      }
+
+      function renderHistory() {
+        elements.historyGrid.innerHTML = '';
+        if(savedHistory.length === 0) {
+          elements.historyGrid.innerHTML = '<div class="col-span-full text-center py-10 bg-white rounded-xl border border-gray-200"><p class="text-gray-500 font-medium">No hay ofertas guardadas aun. !Crea una y descargala!</p></div>';
+          return;
+        }
+
+        savedHistory.forEach(offer => {
+          const card = document.createElement('div');
+          card.className = 'bg-white p-4 rounded-2xl shadow-sm border border-gray-200 flex flex-col gap-3 hover:shadow-md transition-shadow';
+          card.innerHTML = `
+            <div class="h-32 bg-gray-50 rounded-xl p-2 flex items-center justify-center border border-gray-100 relative overflow-hidden">
+              <img src="${offer.image}" class="max-h-full max-w-full object-contain">
+            </div>
+            <div>
+              <h4 class="font-extrabold text-gray-800 line-clamp-1 text-sm">${offer.name}</h4>
+              <p class="text-xs font-bold text-green-600 mt-1">$ ${offer.offerPrice}</p>
+              <p class="text-[10px] font-bold text-indigo-500 mt-0.5 uppercase tracking-wide">Plantilla: ${templateLabels[offer.template] || 'Diseno unico Mundo LED'}</p>
+              <p class="text-[10px] text-gray-400 mt-0.5">${offer.date}</p>
+            </div>
+            <div class="grid grid-cols-[1fr_1fr_auto] gap-2 mt-auto pt-2 border-t border-gray-100">
+               <button type="button" data-action="edit-offer" data-offer-id="${offer.id}" class="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 py-2 rounded-lg font-bold text-xs transition-colors flex items-center justify-center gap-1"><i data-lucide="pencil" class="w-3.5 h-3.5"></i>Editar</button>
+               <button type="button" data-action="duplicate-offer" data-offer-id="${offer.id}" class="bg-slate-50 text-slate-700 hover:bg-slate-100 py-2 rounded-lg font-bold text-xs transition-colors flex items-center justify-center gap-1"><i data-lucide="copy" class="w-3.5 h-3.5"></i>Duplicar</button>
+               <button type="button" data-action="delete-offer" data-offer-id="${offer.id}" class="text-red-500 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors" title="Eliminar"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            </div>
+          `;
+          elements.historyGrid.appendChild(card);
+        });
+        lucide.createIcons();
+      }
+
+      const openOfferModal = () => {
+        elements.modal.classList.remove('hidden');
+        // Refrescamos en segundo plano para que siempre aparezcan productos nuevos.
+        void cargarInventario();
+      };
+      const closeOfferModal = () => elements.modal.classList.add('hidden');
+      const openInventoryModal = async () => {
+        elements.inventoryModal.classList.remove('hidden');
+        elements.inventorySearchInput.value = '';
+        elements.inventoryStatus.textContent = 'Actualizando inventario...';
+        elements.inventoryList.innerHTML = '<div class="p-4 text-xs font-bold text-gray-500">Actualizando inventario...</div>';
+        await cargarInventario();
+        elements.inventorySearchInput.focus();
+      };
+      const closeInventoryModal = () => elements.inventoryModal.classList.add('hidden');
+
+      const updateOfferButtonVisibility = () => {
+        const root = byId('root');
+        const isLoginScreen = Boolean(root?.querySelector('input[placeholder="Ingresa tu usuario"]'));
+        const isAuthenticatedScreen = Boolean(root?.querySelector('header')) && !isLoginScreen;
+        const currentView = (document.body?.dataset?.currentView || '').toLowerCase();
+        const shouldHideInCurrentView = ['ajustes', 'usuarios', 'configuracion'].includes(currentView);
+        const isPrintPreviewOpen = Boolean(root?.querySelector('.print-modal-root'));
+        const isAnyModalOpen = Boolean(root?.querySelector('.fixed.inset-0'));
+        const shouldShowButton = isAuthenticatedScreen && !shouldHideInCurrentView && !isPrintPreviewOpen && !isAnyModalOpen;
+        elements.openModalButton.classList.toggle('hidden', !shouldShowButton);
+        elements.openModalButton.classList.toggle('flex', shouldShowButton);
+        if (!shouldShowButton) closeOfferModal();
+      };
+
+      const rootObserver = new MutationObserver(updateOfferButtonVisibility);
+      rootObserver.observe(byId('root'), { childList: true, subtree: true });
+      const bodyObserver = new MutationObserver(updateOfferButtonVisibility);
+      bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['data-current-view'] });
+
+      const renderHistoryToggleButton = (showingHistory) => {
+        elements.btnToggleHistory.innerHTML = showingHistory
+          ? `<i data-lucide="edit-3" class="w-4 h-4"></i><span>Volver al Editor</span>`
+          : `<i data-lucide="bookmark" class="w-4 h-4"></i><span>Ver Guardadas</span>`;
+        lucide.createIcons();
+      };
+
+      const setHistoryVisible = (showingHistory) => {
+        elements.editorView.classList.toggle('hidden', showingHistory);
+        elements.editorView.classList.toggle('block', !showingHistory);
+        elements.historyView.classList.toggle('hidden', !showingHistory);
+        elements.historyView.classList.toggle('block', showingHistory);
+        renderHistoryToggleButton(showingHistory);
+        if (showingHistory) renderHistory();
+      };
+
+      const loadOfferFromHistory = (id, mode = 'edit') => {
+        const offer = savedHistory.find(o => o.id === id);
+        if(!offer) return;
+        
+        elements.name.value = offer.name;
+        elements.showPrice.checked = offer.showPrice !== false;
+        elements.originalPrice.value = offer.originalPrice;
+        elements.discountEnabled.checked = offer.discountEnabled !== false;
+        elements.discount.value = offer.discount || calcularDescuentoDesdePrecio(offer.originalPrice, offer.offerPrice);
+        elements.offerPrice.value = offer.offerPrice;
+        elements.description.value = offer.description;
+        elements.flashToggle.checked = offer.flash;
+        elements.newArrivalToggle.checked = Boolean(offer.newArrival);
+        setBrandLogoForOffer(offer.brandLogo || '');
+        const hasBrandToggleValue = Object.prototype.hasOwnProperty.call(offer, 'brandLogoEnabled');
+        elements.brandLogoToggle.checked = hasBrandToggleValue
+          ? Boolean(offer.brandLogoEnabled) && Boolean(currentBrandLogo)
+          : Boolean(offer.brandLogo);
+        elements.displayImage.src = offer.image;
+        applyTemplate(offer.template || 'mundoled_clean');
+        
+        editingOfferId = mode === 'edit' ? id : null;
+        renderSaveButtonIdle();
+        updateDiscountControls();
+        updatePreview();
+        setHistoryVisible(false);
+      };
+
+      const deleteOfferFromHistory = (id) => {
+        savedHistory = savedHistory.filter(o => o.id !== id);
+        if (editingOfferId === id) {
+          editingOfferId = null;
+          renderSaveButtonIdle();
+        }
+        try { localStorage.setItem('seniorflow_ofertas_v1', JSON.stringify(savedHistory)); } catch(e){}
+        renderHistory();
+      };
+
+      elements.openModalButton.addEventListener('click', openOfferModal);
+      elements.closeModalButton.addEventListener('click', closeOfferModal);
+      elements.openInventoryModalButton.addEventListener('click', openInventoryModal);
+      elements.closeInventoryModalButton.addEventListener('click', closeInventoryModal);
+
+      elements.modal.addEventListener('click', (event) => {
+        if (event.target === elements.modal) closeOfferModal();
+      });
+      elements.inventoryModal.addEventListener('click', (event) => {
+        if (event.target === elements.inventoryModal) closeInventoryModal();
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !elements.inventoryModal.classList.contains('hidden')) {
+          closeInventoryModal();
+          return;
+        }
+        if (event.key === 'Escape' && !elements.modal.classList.contains('hidden')) {
+          closeOfferModal();
+        }
+      });
+
+      elements.btnToggleHistory.addEventListener('click', () => {
+        setHistoryVisible(elements.historyView.classList.contains('hidden'));
+      });
+
+      elements.historyGrid.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-action]');
+        if (!button) return;
+
+        const id = Number(button.dataset.offerId);
+        if (button.dataset.action === 'edit-offer') loadOfferFromHistory(id, 'edit');
+        if (button.dataset.action === 'duplicate-offer') loadOfferFromHistory(id, 'duplicate');
+        if (button.dataset.action === 'delete-offer') deleteOfferFromHistory(id);
+      });
+
+      elements.templatePicker.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-template]');
+        if (!button) return;
+        applyTemplate(button.dataset.template);
+        updatePreview();
+      });
+
+      elements.inventorySearchInput.addEventListener('input', renderInventoryList);
+
+      // ==========================================
+      // FUNCION: CARGAR INVENTARIO DESDE FIREBASE
+      // ==========================================
+      async function asegurarSesionFirebase() {
+        if (auth.currentUser) return;
+        await signInAnonymously(auth);
+      }
+
+      const normalizeText = (value = '') => value.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      const getProductTitle = (data = {}) => {
+        return (data.descripcion || data.nombre || data.name || data.titulo || data.codigo || 'Producto sin nombre').toString().trim();
+      };
+      const getProductPrice = (data = {}) => {
+        return Number(String(data.precioLista ?? data.precio ?? data.price ?? data.originalPrice ?? 0).replace(',', '.')) || 0;
+      };
+      const getProductImage = (data = {}) => data.imagen || data.image || data.url || data.fotoUrl || '';
+      const getProductBrandLogo = (data = {}) => data.logoMarca || data.logo_marca || data.brandLogo || '';
+
+      const setBrandLogoForOffer = (logoValue = '') => {
+        currentBrandLogo = (logoValue || '').toString().trim();
+        const hasBrandLogo = Boolean(currentBrandLogo);
+        elements.brandLogoToggle.disabled = !hasBrandLogo;
+        if (!hasBrandLogo) elements.brandLogoToggle.checked = false;
+        elements.brandLogoHint.textContent = hasBrandLogo
+          ? 'Mostrara el logo de marca del producto.'
+          : 'Este producto no tiene logo de marca cargado.';
+      };
+
+      function applyProductToOffer(product = {}) {
+        const title = getProductTitle(product);
+        const price = getProductPrice(product);
+
+        elements.name.value = title;
+        elements.originalPrice.value = price || '';
+        elements.discount.value = elements.discount.value || 15;
+        const discount = elements.discountEnabled.checked ? (Number(elements.discount.value) || 0) : 0;
+        elements.offerPrice.value = price ? Math.round(price * (1 - discount / 100)) : '';
+        elements.description.value = product.detalles || product.descripcion || product.description || title;
+
+        const imgUrl = getProductImage(product);
+        if (imgUrl) elements.displayImage.src = imgUrl;
+        setBrandLogoForOffer(getProductBrandLogo(product));
+        if (currentBrandLogo) elements.brandLogoToggle.checked = true;
+
+        updatePreview();
+        closeInventoryModal();
+      }
+
+      function renderInventoryList() {
+        const query = normalizeText(elements.inventorySearchInput.value);
+        const filtered = inventoryProducts
+          .filter((product) => {
+            if (!query) return true;
+            const haystack = [
+              getProductTitle(product),
+              product.codigo,
+              product.marca,
+              product.categoria,
+              product.detalles
+            ].map((value) => normalizeText(value || '')).join(' ');
+            return haystack.includes(query);
+          })
+          .slice(0, 80);
+
+        if (!inventoryProducts.length) {
+          elements.inventoryList.innerHTML = '<div class="p-8 text-center font-bold text-gray-500">No hay productos cargados en inventario.</div>';
+          return;
+        }
+
+        if (!filtered.length) {
+          elements.inventoryList.innerHTML = '<div class="p-8 text-center font-bold text-gray-500">No hay productos para esa busqueda.</div>';
+          return;
+        }
+
+        elements.inventoryList.innerHTML = filtered.map((product) => {
+          const title = getProductTitle(product);
+          const price = getProductPrice(product);
+          const image = getProductImage(product);
+          const meta = [product.codigo, product.marca, product.categoria].filter(Boolean).join(' - ');
+          return `
+            <button type="button" data-product-id="${product.id}" class="w-full p-4 text-left hover:bg-indigo-50 transition-colors flex items-center gap-4">
+              <div class="w-16 h-16 rounded-xl border border-gray-200 bg-white overflow-hidden flex items-center justify-center shrink-0">
+                ${image ? `<img src="${image}" alt="${title}" loading="lazy" class="w-full h-full object-contain">` : `<i data-lucide="image" class="w-6 h-6 text-gray-300"></i>`}
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="font-black text-gray-900 truncate">${title}</p>
+                <p class="text-xs font-bold text-gray-500 truncate mt-0.5">${meta || 'Sin codigo adicional'}</p>
+              </div>
+              <div class="text-right shrink-0">
+                <p class="text-[10px] font-black text-gray-400 uppercase">Precio</p>
+                <p class="font-black text-indigo-700">${formatMoney(price)}</p>
+              </div>
+            </button>
+          `;
+        }).join('');
+        lucide.createIcons();
+      }
+
+      async function cargarInventario() {
+        try {
+          await asegurarSesionFirebase();
+          const querySnapshot = await getDocs(collection(db, "productos"));
+          inventoryProducts = [];
+          if (querySnapshot.empty) {
+            elements.inventoryStatus.textContent = 'No se encontraron productos.';
+            renderInventoryList();
+            return;
+          }
+          querySnapshot.forEach((doc) => {
+            inventoryProducts.push({ id: doc.id, ...doc.data() });
+          });
+          inventoryProducts.sort((a, b) => getProductTitle(a).localeCompare(getProductTitle(b), 'es'));
+          elements.inventoryStatus.textContent = `${inventoryProducts.length} productos disponibles.`;
+          renderInventoryList();
+        } catch (error) {
+          console.warn("No se pudo cargar el inventario para ofertas:", error);
+          elements.inventoryStatus.textContent = 'No se pudo cargar inventario. Puedes completar la oferta manualmente.';
+          inventoryProducts = [];
+          renderInventoryList();
+        }
+      }
+
+      async function cargarConfiguracionEmpresa() {
+        try {
+          await asegurarSesionFirebase();
+          const snap = await getDoc(doc(db, 'sistema', 'configuracion'));
+          const data = snap.exists() ? snap.data() : {};
+          const logo = (data.logo || '').toString().trim();
+          const nombre = (data.nombre || '').toString().trim();
+          const web = (data.web || '').toString().trim() || OFFER_COMPANY_FALLBACK.web;
+          const whatsapp = (data.whatsapp || '').toString().trim() || OFFER_COMPANY_FALLBACK.whatsapp;
+          const correo = (data.correo || '').toString().trim() || OFFER_COMPANY_FALLBACK.correo;
+
+          if (logo) {
+            companyLogoFromConfig = logo;
+          } else if (nombre) {
+            elements.logoFallback.textContent = nombre;
+          }
+
+          elements.footerWeb.textContent = web ? `Web: ${web}` : '';
+          elements.footerWhatsapp.textContent = whatsapp ? `WhatsApp: ${whatsapp}` : '';
+          elements.footerEmail.textContent = correo ? `Correo: ${correo}` : '';
+          updatePreview();
+        } catch (error) {
+          console.warn('No se pudo cargar el logo de empresa:', error);
+        }
+      }
+
+      cargarInventario();
+      cargarConfiguracionEmpresa();
+
+      elements.inventoryList.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-product-id]');
+        if (!button) return;
+        const product = inventoryProducts.find((item) => item.id === button.dataset.productId);
+        if (product) applyProductToOffer(product);
+      });
+
+      // ==========================================
+      // LOGICA DE INTERFAZ Y ACTUALIZACION
+      // ==========================================
+      const formatMoney = (value) => {
+        return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(value || 0);
+      };
+
+      const clampDiscount = (value) => Math.min(100, Math.max(0, Number(value) || 0));
+      const calcularDescuentoDesdePrecio = (original, oferta) => {
+        const origPrice = Number(original) || 0;
+        const offPrice = Number(oferta) || 0;
+        if (!origPrice || !offPrice || offPrice >= origPrice) return 0;
+        return Math.round(((origPrice - offPrice) / origPrice) * 100);
+      };
+
+      const updateDiscountControls = () => {
+        const enabled = elements.discountEnabled.checked;
+        elements.discountField.classList.toggle('hidden', !enabled);
+        elements.discount.disabled = !enabled;
+        elements.offerPrice.readOnly = !enabled;
+        elements.offerPrice.classList.toggle('opacity-70', !enabled);
+        elements.offerPrice.classList.toggle('cursor-not-allowed', !enabled);
+        if (!enabled) {
+          elements.discount.value = clampDiscount(elements.discount.value);
+          elements.offerPrice.value = elements.originalPrice.value || '';
+        }
+      };
+
+      const syncOfferPriceFromDiscount = () => {
+        if (syncingPrices) return;
+        if (!elements.discountEnabled.checked) {
+          syncingPrices = true;
+          elements.offerPrice.value = elements.originalPrice.value || '';
+          syncingPrices = false;
+          updatePreview();
+          return;
+        }
+        syncingPrices = true;
+        const origPrice = Number(elements.originalPrice.value) || 0;
+        const discount = clampDiscount(elements.discount.value);
+        elements.discount.value = discount;
+        elements.offerPrice.value = origPrice ? Math.round(origPrice * (1 - discount / 100)) : '';
+        syncingPrices = false;
+        updatePreview();
+      };
+
+      const syncDiscountFromOfferPrice = () => {
+        if (syncingPrices) return;
+        if (!elements.discountEnabled.checked) {
+          syncingPrices = true;
+          elements.offerPrice.value = elements.originalPrice.value || '';
+          syncingPrices = false;
+          updatePreview();
+          return;
+        }
+        syncingPrices = true;
+        elements.discount.value = calcularDescuentoDesdePrecio(elements.originalPrice.value, elements.offerPrice.value);
+        syncingPrices = false;
+        updatePreview();
+      };
+
+      const updatePreview = () => {
+        elements.displayName.textContent = elements.name.value;
+        elements.displayDescription.textContent = elements.description.value;
+        
+        const origPrice = parseFloat(elements.originalPrice.value) || 0;
+        const rawOfferPrice = parseFloat(elements.offerPrice.value) || 0;
+        const discount = clampDiscount(elements.discount.value);
+        const discountEnabled = elements.discountEnabled.checked;
+        const showPrice = elements.showPrice.checked;
+        const effectiveOfferPrice = discountEnabled ? rawOfferPrice : origPrice;
+        const savings = Math.max(0, Math.round(origPrice - effectiveOfferPrice));
+        const hasDiscountVisual = discountEnabled && discount > 0 && origPrice > 0 && effectiveOfferPrice > 0 && effectiveOfferPrice < origPrice;
+        const titleLength = (elements.name.value || '').trim().length;
+        const descriptionLength = (elements.description.value || '').trim().length;
+        
+        elements.displayOriginalPrice.textContent = formatMoney(origPrice);
+        elements.displayOfferPrice.textContent = formatMoney(effectiveOfferPrice);
+        elements.originalPricePreview.style.display = hasDiscountVisual ? 'block' : 'none';
+        elements.displayPriceLabel.textContent = hasDiscountVisual ? 'Antes' : 'Precio';
+        elements.priceFields.classList.toggle('hidden', !showPrice);
+        elements.pricePanel.classList.toggle('hidden', !showPrice);
+        elements.pricePanel.className = showPrice
+          ? 'mt-4 rounded-[2rem] bg-white/96 border border-white/90 shadow-[0_16px_34px_rgba(148,163,184,0.12)] px-6 pt-4 pb-5 space-y-3 flex-none min-h-[172px]'
+          : 'hidden';
+        elements.displayName.className = showPrice
+          ? 'font-black text-gray-950 leading-[1.06] text-center uppercase tracking-tight h-[102px] overflow-hidden px-1'
+          : 'font-black text-gray-950 leading-[1.08] text-center uppercase tracking-tight h-[118px] overflow-hidden px-1';
+        elements.displayDescription.className = showPrice
+          ? 'text-gray-500 leading-snug text-center font-semibold h-[42px] overflow-hidden px-2'
+          : 'text-gray-500 leading-snug text-center font-semibold h-[48px] overflow-hidden px-2';
+        elements.displayName.style.fontSize = titleLength > 84 ? '14px' : titleLength > 58 ? '17px' : '21px';
+        elements.displayDescription.style.fontSize = descriptionLength > 110 ? '9px' : descriptionLength > 76 ? '10px' : '11px';
+        elements.displayName.style.display = '-webkit-box';
+        elements.displayName.style.WebkitBoxOrient = 'vertical';
+        elements.displayName.style.WebkitLineClamp = '4';
+        elements.displayDescription.style.display = '-webkit-box';
+        elements.displayDescription.style.WebkitBoxOrient = 'vertical';
+        elements.displayDescription.style.WebkitLineClamp = '3';
+        applyTemplateLayout(showPrice);
+
+        if (showPrice && hasDiscountVisual) {
+          elements.displayDiscount.textContent = `-${discount}%`;
+          elements.discountMiniBadge.textContent = `${discount}% OFF`;
+          elements.displaySavings.textContent = `¡Ahorras ${formatMoney(savings)}!`;
+          elements.discountBadge.style.display = 'flex';
+          elements.savingsBadge.style.display = 'inline-flex';
+          elements.discountMiniBadge.style.display = 'inline-flex';
+        } else {
+          elements.discountBadge.style.display = 'none';
+          elements.savingsBadge.style.display = 'none';
+          elements.discountMiniBadge.style.display = 'none';
+        }
+
+        const showBrandLogo = elements.brandLogoToggle.checked && Boolean(currentBrandLogo);
+        if (showBrandLogo) {
+          elements.brandLogoImage.src = currentBrandLogo;
+          elements.brandLogoBadge.style.display = 'flex';
+        } else {
+          elements.brandLogoBadge.style.display = 'none';
+        }
+
+        // Etiqueta Flash
+        elements.flashBadge.style.display = elements.flashToggle.checked ? 'inline-flex' : 'none';
+        elements.newArrivalBadge.style.display = elements.newArrivalToggle.checked ? 'inline-flex' : 'none';
+      };
+
+      elements.file.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => { elements.displayImage.src = event.target.result; };
+          reader.readAsDataURL(file);
+        }
+      });
+
+      elements.discountEnabled.addEventListener('change', () => {
+        updateDiscountControls();
+        syncOfferPriceFromDiscount();
+      });
+      elements.showPrice.addEventListener('change', updatePreview);
+      elements.originalPrice.addEventListener('input', () => {
+        syncOfferPriceFromDiscount();
+      });
+      elements.discount.addEventListener('input', syncOfferPriceFromDiscount);
+      elements.offerPrice.addEventListener('input', syncDiscountFromOfferPrice);
+
+      ['name', 'description', 'flashToggle', 'newArrivalToggle', 'brandLogoToggle'].forEach(id => {
+        elements[id].addEventListener('change', updatePreview);
+        elements[id].addEventListener('input', updatePreview);
+      });
+
+      elements.btnSaveOffer.addEventListener('click', () => {
+        const result = saveToHistory();
+        elements.btnSaveOffer.innerHTML = result === 'updated'
+          ? `<i data-lucide="check" class="w-4 h-4"></i> Actualizada`
+          : `<i data-lucide="check" class="w-4 h-4"></i> Guardada`;
+        lucide.createIcons();
+        window.setTimeout(() => {
+          renderSaveButtonIdle();
+        }, 1400);
+      });
+
+      const EXPORT_RESOLUTION_STEPS = [
+        { width: 2160, height: 3840, label: '2160x3840' },
+        { width: 1800, height: 3200, label: '1800x3200' },
+        { width: 1600, height: 2844, label: '1600x2844' },
+        { width: 1440, height: 2560, label: '1440x2560' }
+      ];
+
+      const waitForImageElement = (img) => {
+        if (!img) return Promise.resolve();
+        if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+        return new Promise((resolve) => {
+          const finish = () => resolve();
+          img.addEventListener('load', finish, { once: true });
+          img.addEventListener('error', finish, { once: true });
+          window.setTimeout(finish, 1800);
+        });
+      };
+
+      const waitForImagesInNode = async (node) => {
+        const images = Array.from(node?.querySelectorAll?.('img') || []);
+        await Promise.all(images.map(waitForImageElement));
+      };
+
+      const EXPORT_PLACEHOLDER_IMAGE = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
+
+      const createExportPlaceholderDataUrl = (label = 'Imagen no disponible') => {
+        const safeLabel = (label || 'Imagen no disponible').toString().replace(/[<>&"]/g, '');
+        const svg = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080">
+            <defs>
+              <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#e2e8f0" />
+                <stop offset="100%" stop-color="#cbd5e1" />
+              </linearGradient>
+            </defs>
+            <rect width="1080" height="1080" fill="url(#bg)" />
+            <rect x="120" y="120" width="840" height="840" rx="56" fill="rgba(255,255,255,0.72)" stroke="rgba(71,85,105,0.16)" stroke-width="8" />
+            <path d="M370 700l120-160 94 110 128-180 122 230H246l124-150z" fill="#94a3b8" opacity="0.92" />
+            <circle cx="440" cy="380" r="58" fill="#cbd5e1" />
+            <text x="540" y="790" text-anchor="middle" font-family="Arial, sans-serif" font-size="40" font-weight="700" fill="#334155">
+              ${safeLabel}
+            </text>
+            <text x="540" y="845" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" font-weight="600" fill="#64748b">
+              Exportada sin acceso al origen externo
+            </text>
+          </svg>
+        `.trim();
+        return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      };
+
+      const buildExportProxyCandidates = (src) => {
+        if (!/^https?:\/\//i.test(src)) return [];
+        const normalized = src.replace(/^https?:\/\//i, '');
+        return [
+          `https://images.weserv.nl/?url=${encodeURIComponent(normalized)}&output=jpg`,
+          `https://wsrv.nl/?url=${encodeURIComponent(normalized)}&output=jpg`
+        ];
+      };
+
+      const fetchImageAsDataUrl = async (src) => {
+        const candidates = [src, ...buildExportProxyCandidates(src)];
+        let lastError = null;
+        for (const candidate of candidates) {
+          try {
+            const response = await fetch(candidate, { cache: 'no-store', mode: 'cors' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const blob = await response.blob();
+            const dataUrl = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+            if (typeof dataUrl === 'string' && dataUrl.startsWith('data:')) {
+              return dataUrl;
+            }
+            throw new Error('No se obtuvo un data URL valido.');
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        throw lastError || new Error('No se pudo obtener la imagen en modo exportacion.');
+      };
+
+      const tryInlineImageToDataUrl = async (img) => {
+        const src = (img?.getAttribute('src') || '').trim();
+        if (!src || src.startsWith('data:') || src.startsWith('blob:')) return true;
+        try {
+          const dataUrl = await fetchImageAsDataUrl(src);
+          if (typeof dataUrl === 'string' && dataUrl.startsWith('data:')) {
+            img.src = dataUrl;
+            return true;
+          }
+        } catch (error) {
+          console.warn('No se pudo convertir una imagen a data URL para exportar.', src, error);
+        }
+        return false;
+      };
+
+      const inlineNodeImagesForExport = async (node) => {
+        const images = Array.from(node?.querySelectorAll?.('img') || []);
+        const originalStates = images.map((img) => ({
+          src: img.getAttribute('src'),
+          srcset: img.getAttribute('srcset'),
+          display: img.style.display,
+          visibility: img.style.visibility
+        }));
+        const badgesToRestore = [];
+
+        await Promise.all(images.map(async (img) => {
+          const wasInlined = await tryInlineImageToDataUrl(img);
+          if (wasInlined) return;
+
+          const isBrandLogo = img.id === 'brandLogoImage';
+          const isCompanyLogo = img.id === 'offerLogo';
+          const parentBadge = isBrandLogo ? img.closest('#brand-logo-badge') : null;
+
+          if (parentBadge) {
+            badgesToRestore.push({ node: parentBadge, display: parentBadge.style.display });
+            parentBadge.style.display = 'none';
+          }
+
+          img.src = isBrandLogo || isCompanyLogo
+            ? EXPORT_PLACEHOLDER_IMAGE
+            : createExportPlaceholderDataUrl(img.alt || 'Imagen no disponible');
+        }));
+        await waitForImagesInNode(node);
+        return () => {
+          images.forEach((img, index) => {
+            const originalState = originalStates[index];
+            if (originalState?.src != null) img.setAttribute('src', originalState.src);
+            if (originalState?.srcset != null) img.setAttribute('srcset', originalState.srcset);
+            else img.removeAttribute('srcset');
+            img.style.display = originalState?.display || '';
+            img.style.visibility = originalState?.visibility || '';
+          });
+          badgesToRestore.forEach(({ node: badgeNode, display }) => {
+            badgeNode.style.display = display || '';
+          });
+        };
+      };
+
+      const downloadBlobAsFile = (blob, fileName) => {
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.download = fileName;
+        link.href = url;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+      };
+
+      const withCanvasFont = (ctx, element, fallbackSize = 24, scale = 1) => {
+        const style = window.getComputedStyle(element);
+        const size = (parseFloat(style.fontSize) || fallbackSize) * scale;
+        const weight = style.fontWeight || '700';
+        const family = style.fontFamily || 'Arial, sans-serif';
+        ctx.font = `${weight} ${size}px ${family}`;
+        ctx.fillStyle = style.color || '#111827';
+        ctx.textBaseline = 'top';
+        return { size, lineHeight: (parseFloat(style.lineHeight) || (parseFloat(style.fontSize) || fallbackSize) * 1.2) * scale };
+      };
+
+      const roundRectPath = (ctx, x, y, width, height, radius = 0) => {
+        const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + width - r, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+        ctx.lineTo(x + width, y + height - r);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+        ctx.lineTo(x + r, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+      };
+
+      const fillRoundedRect = (ctx, x, y, width, height, radius, fillStyle) => {
+        ctx.save();
+        roundRectPath(ctx, x, y, width, height, radius);
+        ctx.fillStyle = fillStyle;
+        ctx.fill();
+        ctx.restore();
+      };
+
+      const getNodeRect = (element, rootRect, scaleX, scaleY) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          x: (rect.left - rootRect.left) * scaleX,
+          y: (rect.top - rootRect.top) * scaleY,
+          width: rect.width * scaleX,
+          height: rect.height * scaleY
+        };
+      };
+
+      const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      const loadImageForCanvas = async (src, label = 'Imagen no disponible') => {
+        const safeSrc = (src || '').toString().trim();
+        let dataUrl = safeSrc;
+        if (!dataUrl) dataUrl = createExportPlaceholderDataUrl(label);
+        if (dataUrl.startsWith('//')) dataUrl = `${window.location.protocol}${dataUrl}`;
+        if (dataUrl.startsWith('blob:')) {
+          try {
+            const response = await fetch(dataUrl);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            dataUrl = await blobToDataUrl(await response.blob());
+          } catch (error) {
+            console.warn('Se usara placeholder para una imagen blob bloqueada.', safeSrc, error);
+            dataUrl = createExportPlaceholderDataUrl(label);
+          }
+        }
+        if (/^https?:\/\//i.test(dataUrl) || dataUrl.startsWith('./') || dataUrl.startsWith('/')) {
+          try {
+            dataUrl = await fetchImageAsDataUrl(dataUrl);
+          } catch (error) {
+            console.warn('Se usara placeholder para una imagen bloqueada.', safeSrc, error);
+            dataUrl = createExportPlaceholderDataUrl(label);
+          }
+        }
+        return new Promise((resolve) => {
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = () => {
+            const fallback = new Image();
+            fallback.onload = () => resolve(fallback);
+            fallback.src = createExportPlaceholderDataUrl(label);
+          };
+          image.src = dataUrl;
+        });
+      };
+
+      const drawImageFit = (ctx, image, box, fit = 'cover') => {
+        const iw = image.naturalWidth || image.width || 1;
+        const ih = image.naturalHeight || image.height || 1;
+        const scale = fit === 'contain'
+          ? Math.min(box.width / iw, box.height / ih)
+          : Math.max(box.width / iw, box.height / ih);
+        const width = iw * scale;
+        const height = ih * scale;
+        const x = box.x + (box.width - width) / 2;
+        const y = box.y + (box.height - height) / 2;
+        ctx.drawImage(image, x, y, width, height);
+      };
+
+      const drawWrappedText = (ctx, text, x, y, maxWidth, lineHeight, maxLines = 2) => {
+        const words = (text || '').toString().trim().split(/\s+/).filter(Boolean);
+        const lines = [];
+        let current = '';
+        words.forEach((word) => {
+          const test = current ? `${current} ${word}` : word;
+          if (ctx.measureText(test).width <= maxWidth || !current) {
+            current = test;
+            return;
+          }
+          lines.push(current);
+          current = word;
+        });
+        if (current) lines.push(current);
+        lines.slice(0, maxLines).forEach((line, index) => {
+          const value = index === maxLines - 1 && lines.length > maxLines ? `${line.replace(/\s+\S+$/, '')}...` : line;
+          ctx.fillText(value, x, y + index * lineHeight);
+        });
+      };
+
+      const renderOfferCanvasFallback = async (node) => {
+        const step = EXPORT_RESOLUTION_STEPS[0];
+        const rect = node.getBoundingClientRect();
+        const baseWidth = Math.max(1, rect.width || 360);
+        const baseHeight = Math.max(1, rect.height || 640);
+        const scaleX = step.width / baseWidth;
+        const scaleY = step.height / baseHeight;
+        const avgScale = (scaleX + scaleY) / 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = step.width;
+        canvas.height = step.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('No se pudo preparar el canvas alternativo.');
+
+        const rootRect = node.getBoundingClientRect();
+        const visual = templateVisuals[currentTemplate] || templateVisuals.clean || templateVisuals.classic;
+        const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        if (currentTemplate === 'mundoled_clean' || currentTemplate === 'clean' || currentTemplate === 'card') {
+          bg.addColorStop(0, '#f8fafc');
+          bg.addColorStop(1, '#ffffff');
+        } else if (currentTemplate === 'focus') {
+          bg.addColorStop(0, '#0f172a');
+          bg.addColorStop(1, '#1d4ed8');
+        } else {
+          bg.addColorStop(0, '#2563eb');
+          bg.addColorStop(0.62, '#2563eb');
+          bg.addColorStop(1, '#1e3a8a');
+        }
+        fillRoundedRect(ctx, 0, 0, canvas.width, canvas.height, 24 * avgScale, bg);
+
+        const logoBox = getNodeRect(elements.offerLogoShell, rootRect, scaleX, scaleY);
+        const logoImg = await loadImageForCanvas(elements.logo.src || getLogoForCurrentTemplate(), 'Logo');
+        drawImageFit(ctx, logoImg, logoBox, 'contain');
+
+        const frameBox = getNodeRect(elements.imageFrame, rootRect, scaleX, scaleY);
+        const frameStyle = window.getComputedStyle(elements.imageFrame);
+        const frameRadius = parseFloat(frameStyle.borderRadius) * avgScale || 38 * avgScale;
+        fillRoundedRect(ctx, frameBox.x, frameBox.y, frameBox.width, frameBox.height, frameRadius, frameStyle.backgroundColor || '#ffffff');
+        ctx.save();
+        roundRectPath(ctx, frameBox.x, frameBox.y, frameBox.width, frameBox.height, frameRadius);
+        ctx.clip();
+        const productImg = await loadImageForCanvas(elements.displayImage.src, 'Imagen del producto');
+        const fit = window.getComputedStyle(elements.displayImage).objectFit || 'cover';
+        drawImageFit(ctx, productImg, frameBox, fit);
+        ctx.restore();
+
+        if (elements.discountBadge.style.display !== 'none') {
+          const badge = getNodeRect(elements.discountBadge, rootRect, scaleX, scaleY);
+          fillRoundedRect(ctx, badge.x, badge.y, badge.width, badge.height, 14 * avgScale, visual.discountBg || '#facc15');
+          withCanvasFont(ctx, elements.displayDiscount, 42, avgScale);
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = visual.discountColor || '#111827';
+          ctx.fillText(elements.displayDiscount.textContent, badge.x + badge.width / 2, badge.y + badge.height / 2);
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'top';
+        }
+
+        const drawPillBadge = (badgeEl, textEl, bg, color) => {
+          if (badgeEl.style.display === 'none') return;
+          const box = getNodeRect(badgeEl, rootRect, scaleX, scaleY);
+          fillRoundedRect(ctx, box.x, box.y, box.width, box.height, 7 * avgScale, bg);
+          withCanvasFont(ctx, badgeEl, 16, avgScale);
+          ctx.fillStyle = color;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(textEl, box.x + box.width / 2, box.y + box.height / 2);
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'top';
+        };
+        drawPillBadge(elements.flashBadge, elements.flashBadge.textContent.trim(), visual.flashBg || '#dc2626', visual.flashColor || '#ffffff');
+        drawPillBadge(elements.newArrivalBadge, elements.newArrivalBadge.textContent.trim(), visual.newArrivalBg || '#16a34a', visual.newArrivalColor || '#ffffff');
+
+        const cardBox = getNodeRect(elements.infoCard, rootRect, scaleX, scaleY);
+        const cardStyle = window.getComputedStyle(elements.infoCard);
+        fillRoundedRect(ctx, cardBox.x, cardBox.y, cardBox.width, cardBox.height, 22 * avgScale, cardStyle.backgroundColor || '#ffffff');
+        const pad = 16 * avgScale;
+        const titleFont = withCanvasFont(ctx, elements.displayName, 34, avgScale);
+        ctx.fillStyle = visual.titleColor || cardStyle.color || '#111827';
+        drawWrappedText(ctx, elements.displayName.textContent, cardBox.x + pad, cardBox.y + pad, cardBox.width - pad * 2, titleFont.lineHeight, 2);
+
+        const descFont = withCanvasFont(ctx, elements.displayDescription, 18, avgScale);
+        ctx.fillStyle = visual.descColor || '#64748b';
+        drawWrappedText(ctx, elements.displayDescription.textContent, cardBox.x + pad, cardBox.y + pad + 58 * avgScale, cardBox.width - pad * 2, descFont.lineHeight, 2);
+
+        if (elements.pricePanel.style.display !== 'none') {
+          const priceBox = getNodeRect(elements.pricePanel, rootRect, scaleX, scaleY);
+          const priceStyle = window.getComputedStyle(elements.pricePanel);
+          fillRoundedRect(ctx, priceBox.x, priceBox.y, priceBox.width, priceBox.height, 18 * avgScale, priceStyle.backgroundColor || '#f8fafc');
+
+          withCanvasFont(ctx, elements.displayPriceLabel, 18, avgScale);
+          ctx.fillStyle = visual.priceLabelColor || '#64748b';
+          ctx.textAlign = elements.discountEnabled.checked ? 'right' : 'center';
+          const priceX = elements.discountEnabled.checked ? priceBox.x + priceBox.width - pad : priceBox.x + priceBox.width / 2;
+          ctx.fillText(elements.displayPriceLabel.textContent, priceX, priceBox.y + 12 * avgScale);
+          withCanvasFont(ctx, elements.displayOfferPrice, 40, avgScale);
+          ctx.fillStyle = visual.offerPriceColor || '#2563eb';
+          ctx.fillText(elements.displayOfferPrice.textContent, priceX, priceBox.y + 34 * avgScale);
+
+          if (elements.discountEnabled.checked) {
+            ctx.textAlign = 'left';
+            withCanvasFont(ctx, elements.displayOriginalPrice, 18, avgScale);
+            ctx.fillStyle = visual.originalPriceColor || '#94a3b8';
+            ctx.fillText('Antes', priceBox.x + pad, priceBox.y + 12 * avgScale);
+            ctx.fillText(elements.displayOriginalPrice.textContent, priceBox.x + pad, priceBox.y + 34 * avgScale);
+          }
+          ctx.textAlign = 'left';
+        }
+
+        const footerBox = getNodeRect(elements.businessFooter, rootRect, scaleX, scaleY);
+        fillRoundedRect(ctx, footerBox.x, footerBox.y, footerBox.width, footerBox.height, 12 * avgScale, visual.footerBg || 'rgba(255,255,255,0.9)');
+        ctx.fillStyle = visual.footerColor || '#1f2937';
+        ctx.font = `700 ${12 * avgScale}px Arial, sans-serif`;
+        [elements.footerWeb.textContent, elements.footerWhatsapp.textContent, elements.footerEmail.textContent]
+          .filter(Boolean)
+          .forEach((line, index) => ctx.fillText(line, footerBox.x + 12 * avgScale, footerBox.y + (8 + index * 14) * avgScale));
+
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.96));
+        if (!blob) throw new Error('No se pudo generar la imagen alternativa.');
+        return { blob, resolution: `${step.label} fallback` };
+      };
+
+      const exportOfferJpegBlob = async (node) => {
+        const htmlToImageApi = window.htmlToImage;
+        if (!htmlToImageApi?.toCanvas) {
+          return renderOfferCanvasFallback(node);
+        }
+
+        const rect = node.getBoundingClientRect();
+        const nodeWidth = Math.max(1, Math.round(rect.width || node.offsetWidth || 360));
+        const nodeHeight = Math.max(1, Math.round(rect.height || node.offsetHeight || 640));
+        const restoreImages = await inlineNodeImagesForExport(node);
+        let lastError = null;
+        try {
+          const baseCanvas = await htmlToImageApi.toCanvas(node, {
+            pixelRatio: 2,
+            cacheBust: true,
+            backgroundColor: '#ffffff',
+            width: nodeWidth,
+            height: nodeHeight,
+            style: {
+              width: `${nodeWidth}px`,
+              height: `${nodeHeight}px`,
+              transform: 'none'
+            }
+          });
+          if (!baseCanvas) throw new Error('No se pudo capturar la tarjeta base.');
+
+          for (const step of EXPORT_RESOLUTION_STEPS) {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = step.width;
+              canvas.height = step.height;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) throw new Error('No se pudo preparar el canvas final.');
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
+              ctx.drawImage(baseCanvas, 0, 0, canvas.width, canvas.height);
+              const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.96));
+              if (blob) return { blob, resolution: step.label };
+            } catch (error) {
+              lastError = error;
+              console.warn(`Fallo exportacion en ${step.label}. Se intenta una resolucion menor.`, error);
+            }
+          }
+        } finally {
+          restoreImages();
+        }
+
+        console.warn('La captura DOM fallo. Se usara render alternativo.', lastError);
+        return renderOfferCanvasFallback(node);
+      };
+      // ==========================================
+      // FUNCION: DESCARGA EN ALTA RESOLUCION (4K)
+      // ==========================================
+      elements.btnDownload.addEventListener('click', async () => {
+        const node = elements.mainContainer;
+        const btn = elements.btnDownload;
+
+        btn.disabled = true;
+        btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Generando`;
+        lucide.createIcons();
+
+        // Guardar en el historial antes de descargar
+        saveToHistory();
+
+        try {
+          await waitForImagesInNode(node);
+          const { blob, resolution } = await exportOfferJpegBlob(node);
+          const fileName = elements.name.value.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+          downloadBlobAsFile(blob, `estado-whatsapp-${fileName || 'producto'}.jpg`);
+          console.info(`Oferta exportada en ${resolution}.`);
+        } catch (error) {
+          console.error('Error:', error);
+          const detail = error?.message ? `\n\nDetalle tecnico: ${error.message}` : '';
+          alert(`No se pudo exportar la imagen.${detail}`);
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = `<i data-lucide="download" class="w-4 h-4"></i> Descargar`;
+          lucide.createIcons();
+        }
+      });
+      // Init UI
+      elements.logo.addEventListener('error', () => {
+        elements.logo.classList.add('hidden');
+        elements.logoFallback.classList.remove('hidden');
+      });
+      elements.brandLogoImage.addEventListener('error', () => {
+        elements.brandLogoBadge.style.display = 'none';
+      });
+      setBrandLogoForOffer('');
+      applyTemplate('mundoled_clean');
+      updateDiscountControls();
+      renderSaveButtonIdle();
+      syncOfferPriceFromDiscount();
+      updateOfferButtonVisibility();
+      renderHistory();
+    });
+  </script>
+
+  <!-- SCRIPTS ORIGINALES DE TU APLICACION -->
+  <script>
+    (function () {
+      const CURRENT_BUILD = 'seniorflow-react-20260629-stock-rapido-03';
+      const BUILD_KEY = 'seniorflow-current-build';
+      const isFileProtocol = window.location.protocol === 'file:';
+      if (isFileProtocol) return;
+
+      const urlActual = new URL(window.location.href);
+      if (urlActual.searchParams.has('build')) {
+        urlActual.searchParams.delete('build');
+        window.location.replace(urlActual.toString());
+        return;
+      }
+
+      const storedBuild = localStorage.getItem(BUILD_KEY);
+      if (storedBuild === CURRENT_BUILD) return;
+
+      const limpiarCacheViejo = async () => {
+        try {
+          if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map((registration) => registration.unregister()));
+          }
+          if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((key) => caches.delete(key)));
+          }
+        } catch (error) {
+          console.warn('No se pudo limpiar cache anterior de SeniorFlow', error);
+        } finally {
+          localStorage.setItem(BUILD_KEY, CURRENT_BUILD);
+          window.location.reload();
+        }
+      };
+
+      limpiarCacheViejo();
+    })();
+  </script>
+  <script>
+    (function () {
+      const APP_BUNDLE = './app.js?v=seniorflow-react-20260629-stock-rapido-03';
+      const isFileProtocol = window.location.protocol === 'file:';
+
+      if (!isFileProtocol) {
+        const root = document.getElementById('root');
+        const mostrarFallbackCarga = (detalle) => {
+          if (!root) return;
+          root.innerHTML = `
+            <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f1f5f9;font-family:Inter,system-ui,-apple-system,sans-serif;">
+              <div style="max-width:680px;width:100%;background:#fff;border:1px solid #fecaca;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(2,6,23,.08);">
+                <h1 style="margin:0 0 10px;font-size:24px;line-height:1.2;color:#991b1b;font-weight:800;">No se pudo cargar el sistema</h1>
+                <p style="margin:0 0 14px;color:#7f1d1d;font-size:14px;line-height:1.55;">
+                  Esto suele pasar cuando GitHub Pages o el navegador tiene una version vieja cacheada, o cuando falta publicar <strong>app.js</strong>.
+                </p>
+                <div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word;">${String(detalle || 'Error desconocido')}</div>
+                <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;">
+                  <a href="http://localhost:8000/stock-rapido.html" style="display:inline-flex;align-items:center;justify-content:center;background:#2563eb;color:#fff;text-decoration:none;font-size:13px;font-weight:800;padding:10px 14px;border-radius:10px;">Abrir local</a>
+                  <button onclick="window.location.reload()" style="display:inline-flex;align-items:center;justify-content:center;background:#e2e8f0;color:#0f172a;border:0;cursor:pointer;font-size:13px;font-weight:800;padding:10px 14px;border-radius:10px;">Reintentar</button>
+                </div>
+              </div>
+            </div>
+          `;
+        };
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = APP_BUNDLE;
+        script.addEventListener('error', () => mostrarFallbackCarga('El archivo app.js no se pudo cargar.'));
+        window.addEventListener('error', (event) => {
+          const mensaje = event?.error?.message || event?.message || 'Error de carga inesperado.';
+          if (String(mensaje).toLowerCase().includes('chunk') || String(mensaje).toLowerCase().includes('module') || String(mensaje).toLowerCase().includes('script')) {
+            mostrarFallbackCarga(mensaje);
+          }
+        }, { once: true });
+        document.body.appendChild(script);
+        return;
+      }
+
+      const root = document.getElementById('root');
+      if (!root) return;
+
+      root.innerHTML = `
+        <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f1f5f9;font-family:Inter,system-ui,-apple-system,sans-serif;">
+          <div style="max-width:620px;width:100%;background:#fff;border:1px solid #dbeafe;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(2,6,23,.08);">
+            <h1 style="margin:0 0 10px;font-size:24px;line-height:1.2;color:#0f172a;font-weight:800;">Abri SeniorFlow desde servidor local</h1>
+            <p style="margin:0 0 14px;color:#334155;font-size:14px;line-height:1.55;">
+              El navegador bloquea modulos cuando abris con <strong>file://</strong>, por eso la pantalla queda en blanco.
+            </p>
+            <p style="margin:0 0 18px;color:#475569;font-size:13px;line-height:1.55;">
+              Usa esta URL:
+              <a href="http://localhost:8000/stock-rapido.html" style="color:#2563eb;font-weight:700;text-decoration:none;">http://localhost:8000/stock-rapido.html</a>
+            </p>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;">
+              <a href="http://localhost:8000/stock-rapido.html" style="display:inline-flex;align-items:center;justify-content:center;background:#2563eb;color:#fff;text-decoration:none;font-size:13px;font-weight:800;padding:10px 14px;border-radius:10px;">
+                Abrir en localhost
+              </a>
+              <a href="http://127.0.0.1:8000/stock-rapido.html" style="display:inline-flex;align-items:center;justify-content:center;background:#e2e8f0;color:#0f172a;text-decoration:none;font-size:13px;font-weight:800;padding:10px 14px;border-radius:10px;">
+                Abrir en 127.0.0.1
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+    })();
+  </script>
+  <script>
+    if (window.location.protocol !== 'file:' && 'serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js?v=seniorflow-react-20260629-stock-rapido-03').catch((error) => {
+          console.error('SW register error', error);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
