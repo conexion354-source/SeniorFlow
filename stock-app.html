@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Stock App" />
+  <title>Stock App - SeniorFlow</title>
+  <link rel="manifest" href="./manifest-stock-app.json" />
+  <link rel="icon" href="./icons/stock-app.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icons/stock-app-192.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { color-scheme: light; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(34, 211, 238, .22), transparent 28rem),
+        linear-gradient(135deg, #eef7ff 0%, #f8fafc 48%, #ecfeff 100%);
+    }
+    .safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+    .glass { background: rgba(255,255,255,.86); backdrop-filter: blur(18px); }
+    .tap { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    video { transform: scaleX(1); }
+  </style>
+</head>
+<body>
+  <main id="loginScreen" class="min-h-screen flex items-center justify-center p-4 safe-bottom">
+    <section class="glass w-full max-w-md rounded-[2rem] border border-white/70 shadow-2xl shadow-slate-900/10 p-5">
+      <div class="mb-6">
+        <p class="text-xs font-black uppercase tracking-[.22em] text-cyan-600">SeniorFlow</p>
+        <h1 class="text-3xl font-black tracking-tight text-slate-950 mt-1">Stock App</h1>
+        <p class="text-sm font-semibold text-slate-500 mt-2">Carga rapida de stock conectada al inventario.</p>
+      </div>
+      <form id="loginForm" class="space-y-3">
+        <label class="block">
+          <span class="text-xs font-black uppercase tracking-wider text-slate-500">Usuario</span>
+          <input id="username" autocomplete="username" class="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base font-bold outline-none focus:ring-4 focus:ring-cyan-100 focus:border-cyan-400" />
+        </label>
+        <label class="block">
+          <span class="text-xs font-black uppercase tracking-wider text-slate-500">Contraseña</span>
+          <input id="password" type="password" autocomplete="current-password" class="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base font-bold outline-none focus:ring-4 focus:ring-cyan-100 focus:border-cyan-400" />
+        </label>
+        <button class="tap w-full h-14 rounded-2xl bg-slate-950 text-white font-black text-sm uppercase tracking-wider shadow-xl shadow-slate-900/20 active:scale-[.99]" type="submit">Entrar</button>
+      </form>
+      <p id="loginStatus" class="mt-4 min-h-5 text-sm font-bold text-rose-600"></p>
+    </section>
+  </main>
+
+  <main id="appScreen" class="hidden min-h-screen safe-bottom">
+    <header class="sticky top-0 z-20 bg-slate-950 text-white border-b border-white/10">
+      <div class="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
+        <div class="h-10 w-10 rounded-2xl bg-cyan-400 text-slate-950 grid place-items-center font-black">ST</div>
+        <div class="min-w-0 flex-1">
+          <h1 class="text-lg font-black leading-tight">Stock App</h1>
+          <p id="syncStatus" class="text-xs font-bold text-cyan-200 truncate">Conectando inventario...</p>
+        </div>
+        <button id="installBtn" class="tap hidden px-3 py-2 rounded-xl bg-cyan-400 text-slate-950 text-xs font-black uppercase">Instalar</button>
+        <button id="logoutBtn" class="tap h-10 w-10 rounded-xl bg-white/10 text-white font-black" aria-label="Salir">×</button>
+      </div>
+    </header>
+
+    <section class="max-w-3xl mx-auto p-4 space-y-4">
+      <div class="glass rounded-[1.75rem] border border-white/70 shadow-xl shadow-slate-900/10 p-4">
+        <label class="block">
+          <span class="text-xs font-black uppercase tracking-wider text-slate-500">Buscar producto</span>
+          <div class="mt-2 flex gap-2">
+            <input id="searchInput" inputmode="search" placeholder="Codigo, nombre, marca o codigo proveedor" class="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base font-black outline-none focus:ring-4 focus:ring-cyan-100 focus:border-cyan-400" />
+            <button id="scanBtn" class="tap h-14 w-14 shrink-0 rounded-2xl bg-slate-950 text-white grid place-items-center shadow-lg" aria-label="Escanear codigo">
+              <span class="text-2xl leading-none">⌗</span>
+            </button>
+          </div>
+        </label>
+        <label class="block mt-3">
+          <span class="text-xs font-black uppercase tracking-wider text-slate-500">Proveedor para codigo proveedor</span>
+          <select id="providerSelect" class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base font-bold outline-none focus:ring-4 focus:ring-cyan-100 focus:border-cyan-400">
+            <option value="">Cualquier proveedor</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="cameraPanel" class="hidden rounded-[1.75rem] overflow-hidden bg-slate-950 border border-slate-800 shadow-2xl">
+        <div id="reader" class="w-full min-h-[260px] bg-black"></div>
+        <div class="p-3 flex items-center justify-between gap-3">
+          <p id="cameraStatus" class="text-xs font-bold text-slate-300">Apunta al codigo.</p>
+          <button id="stopScanBtn" class="tap px-4 py-2 rounded-xl bg-white text-slate-950 text-xs font-black uppercase">Cerrar</button>
+        </div>
+      </div>
+
+      <section id="selectedCard" class="hidden glass rounded-[1.75rem] border border-white/70 shadow-xl shadow-slate-900/10 overflow-hidden">
+        <div class="p-4 flex gap-3 items-center border-b border-slate-100">
+          <div class="h-20 w-20 rounded-2xl bg-white border border-slate-200 grid place-items-center overflow-hidden shrink-0">
+            <img id="productImage" alt="" class="max-h-full max-w-full object-contain" />
+          </div>
+          <div class="min-w-0 flex-1">
+            <h2 id="productTitle" class="text-base font-black text-slate-950 leading-tight"></h2>
+            <p id="productMeta" class="text-xs font-bold text-slate-500 mt-1"></p>
+            <p id="productStock" class="text-sm font-black text-emerald-700 mt-2"></p>
+          </div>
+        </div>
+        <form id="stockForm" class="p-4 space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <label>
+              <span class="text-xs font-black uppercase tracking-wider text-slate-500">Sumar stock</span>
+              <input id="qtyInput" type="number" min="0" step="any" inputmode="decimal" value="1" class="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-lg font-black outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-400" />
+            </label>
+            <label>
+              <span class="text-xs font-black uppercase tracking-wider text-slate-500">Codigo producto</span>
+              <input id="codigoNuevo" class="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base font-black outline-none focus:ring-4 focus:ring-cyan-100 focus:border-cyan-400" />
+            </label>
+          </div>
+          <label>
+            <span class="text-xs font-black uppercase tracking-wider text-slate-500">Codigo del proveedor</span>
+            <input id="codigoProveedorNuevo" placeholder="Elegir proveedor para cargarlo" class="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base font-black outline-none focus:ring-4 focus:ring-cyan-100 focus:border-cyan-400 disabled:bg-slate-100 disabled:text-slate-400" />
+          </label>
+          <label>
+            <span class="text-xs font-black uppercase tracking-wider text-slate-500">Nota opcional</span>
+            <input id="nota" placeholder="Ej: compra, ajuste, reposicion" class="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base font-bold outline-none focus:ring-4 focus:ring-cyan-100 focus:border-cyan-400" />
+          </label>
+          <div class="grid grid-cols-1 sm:grid-cols-[1fr_1.4fr] gap-2">
+            <button id="changeProductBtn" class="tap h-14 rounded-2xl border border-slate-200 bg-white text-slate-700 font-black text-sm uppercase tracking-wider active:scale-[.99]" type="button">Cambiar producto</button>
+            <button id="saveBtn" class="tap h-14 rounded-2xl bg-emerald-600 text-white font-black text-sm uppercase tracking-wider shadow-xl shadow-emerald-900/20 active:scale-[.99]" type="submit">Actualizar inventario</button>
+          </div>
+        </form>
+      </section>
+      <section id="results" class="space-y-2"></section>
+      <p id="status" class="min-h-6 text-center text-sm font-black text-slate-600"></p>
+    </section>
+  </main>
+
+  <script type="module" src="./stock-app.js?v=seniorflow-react-20260630-stock-app-02"></script>
+</body>
+</html>
