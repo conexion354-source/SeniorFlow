@@ -3265,19 +3265,16 @@ function AppInterna() {
     const ticketsDisponibles = ticketsPendientesParaCobroClienteSeleccionado || [];
     const ticketsPorId = Object.fromEntries(ticketsDisponibles.map((ticket) => [ticket.id, ticket]));
     const ticketsSeleccionados = idsSeleccionados.map((id) => ticketsPorId[id]).filter(Boolean);
-    const ticketsRestantes = ticketsDisponibles.filter((ticket) => !idsSeleccionados.includes(ticket.id));
-    const ticketsOrdenados = [...ticketsSeleccionados, ...ticketsRestantes];
     let restante = Math.max(0, parseNumeroBasico(formData.monto));
     let totalSeleccionado = 0;
     let totalAplicado = 0;
     let remitoParcial = null;
-    const items = ticketsOrdenados.map((ticket) => {
+    const items = ticketsSeleccionados.map((ticket) => {
       const pendienteAntes = Math.max(0, Number(ticket.pendiente || 0));
       const aplicado = Math.min(restante, pendienteAntes);
       const pendienteDespues = Math.max(0, pendienteAntes - aplicado);
       restante = Math.max(0, restante - aplicado);
-      const fueSeleccionado = idsSeleccionados.includes(ticket.id);
-      if (fueSeleccionado) totalSeleccionado += pendienteAntes;
+      totalSeleccionado += pendienteAntes;
       totalAplicado += aplicado;
       const estado = aplicado <= 0.009
         ? 'sin_aplicar'
@@ -3290,14 +3287,13 @@ function AppInterna() {
         pendienteAntes,
         aplicado,
         pendienteDespues,
-        estado,
-        fueSeleccionado
+        estado
       };
       if (estado === 'parcial' && !remitoParcial) remitoParcial = item;
       return item;
     }).filter(Boolean);
     return {
-      items: items.filter((item) => item.aplicado > 0.009 || item.fueSeleccionado),
+      items,
       totalSeleccionado,
       totalAplicado,
       remitoParcial,
@@ -8508,12 +8504,14 @@ const abrirPuntoVenta = () => {
         });
         return;
       }
-      limiteCobro = Math.max(0, Number(saldoPendienteClienteSeleccionado || 0));
+      limiteCobro = ticketsSeleccionados.reduce((acc, ticket) => acc + Math.max(0, Number(ticket.pendiente || 0)), 0);
       descripcionDefault = `Cobro aplicado a ${ticketsSeleccionados.length} remito(s) seleccionados: ${clienteSeleccionado.nombre}`;
     }
 
     if (monto > (limiteCobro + 0.01)) {
-      await notificarSistema(`El monto no debe superar el saldo pendiente (${formatearDinero(limiteCobro)}).`, {
+        await notificarSistema(tipoAbono === 'ticket_multi'
+          ? `El monto supera los remitos tildados (${formatearDinero(limiteCobro)}). Tildá más remitos o reducí el monto a pagar.`
+          : `El monto no debe superar el saldo pendiente (${formatearDinero(limiteCobro)}).`, {
         tipo: 'warning',
         titulo: 'Monto excedido'
       });
@@ -8573,11 +8571,10 @@ const abrirPuntoVenta = () => {
         aplicarCobroATicket(ticketSeleccionado);
       });
     }
-    if (restanteRecibo > 0) {
+    if (restanteRecibo > 0 && tipoAbono !== 'ticket_multi') {
       ticketsOrdenados.forEach((ticket) => {
         if (restanteRecibo <= 0) return;
         if (tipoAbono === 'ticket' && ticket.id === movimientoRelacionadoId) return;
-        if (tipoAbono === 'ticket_multi' && movimientoRelacionadoIds.includes(ticket.id)) return;
         aplicarCobroATicket(ticket);
       });
     }
@@ -32324,9 +32321,9 @@ function obtenerCategoriaProducto(producto) {
                     })}
                   </div>
                   <p className="text-[11px] font-bold text-purple-800">
-                    Primero se aplicará a los remitos tildados. Si el monto supera esa selección, el sobrante continúa automáticamente por los remitos pendientes más antiguos.
+                    Cada remito tildado descuenta su saldo del pago. La cobranza solo se confirma cuando el monto entregado queda completamente asignado a los remitos seleccionados.
                   </p>
-                  {vistaPreviaAplicacionCobroMulti.items.length > 0 && (
+                  {(vistaPreviaAplicacionCobroMulti.items.length > 0 || parseNumeroBasico(formData.monto) > 0) && (
                     <div className="rounded-xl border border-purple-200 bg-white overflow-hidden">
                       <div className="px-3 py-2 bg-purple-100/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
                         <p className="text-[10px] font-black uppercase tracking-wider text-purple-800">Vista previa de aplicación</p>
@@ -32336,27 +32333,33 @@ function obtenerCategoriaProducto(producto) {
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 px-3 py-2 bg-purple-50/70 border-b border-purple-100 text-[10px] font-black uppercase tracking-wider">
                         <div>
-                          <p className="text-purple-500">Remitos tildados</p>
-                          <p className="text-purple-900 text-xs">{formatearDinero(vistaPreviaAplicacionCobroMulti.totalSeleccionado)}</p>
+                          <p className="text-purple-500">Monto entregado</p>
+                          <p className="text-purple-900 text-xs">{formatearDinero(parseNumeroBasico(formData.monto))}</p>
                         </div>
                         <div>
-                          <p className="text-emerald-600">Total aplicado</p>
-                          <p className="text-emerald-800 text-xs">{formatearDinero(vistaPreviaAplicacionCobroMulti.totalAplicado)}</p>
+                          <p className="text-emerald-600">Remitos tildados</p>
+                          <p className="text-emerald-800 text-xs">{formatearDinero(vistaPreviaAplicacionCobroMulti.totalSeleccionado)}</p>
                         </div>
                         <div>
-                          <p className="text-amber-600">Saldo sin asignar</p>
-                          <p className="text-amber-800 text-xs">{formatearDinero(vistaPreviaAplicacionCobroMulti.sobrante)}</p>
+                          <p className="text-amber-600">Falta asignar</p>
+                          <p className={`text-xs ${vistaPreviaAplicacionCobroMulti.sobrante > 0.009 ? 'text-amber-800' : 'text-emerald-800'}`}>
+                            {formatearDinero(vistaPreviaAplicacionCobroMulti.sobrante)}
+                          </p>
                         </div>
                       </div>
+                      {vistaPreviaAplicacionCobroMulti.sobrante > 0.009 && (
+                        <p className="px-3 py-2 bg-amber-50 border-b border-amber-100 text-[11px] font-black text-amber-800">
+                          Todavía faltan {formatearDinero(vistaPreviaAplicacionCobroMulti.sobrante)} por asignar. Tildá más remitos para continuar.
+                        </p>
+                      )}
                       <div className="divide-y divide-purple-100 max-h-44 overflow-y-auto">
                         {vistaPreviaAplicacionCobroMulti.items.map((item, index) => (
-                          <div key={`preview-cobro-multi-${item.id}`} className={`px-3 py-2 text-[11px] ${item.fueSeleccionado ? '' : 'bg-amber-50/50'}`}>
+                          <div key={`preview-cobro-multi-${item.id}`} className="px-3 py-2 text-[11px]">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
                               <p className="font-bold text-slate-800">
                                 <span className="font-black">{index + 1}. Remito {item.numeroRemito || '-'}</span>
                                 {' '}· {item.descripcion}
                               </p>
-                              {!item.fueSeleccionado && <span className="w-fit px-2 py-0.5 rounded-md border border-amber-200 bg-amber-100 text-amber-800 text-[10px] font-black uppercase tracking-wider">Aplicación automática</span>}
                               <span className={`w-fit px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-wider ${
                                 item.estado === 'saldado'
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -32454,7 +32457,13 @@ function obtenerCategoriaProducto(producto) {
             {formData.metodoPago === 'tarjeta' && renderBloqueTarjeta()}
             {formData.metodoPago === 'cheque' && renderBloqueCheque()}
             
-            <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm py-3 px-4 rounded-xl mt-4 flex items-center justify-center gap-2 uppercase tracking-wide"><ArrowRight size={18}/> CONFIRMAR COBRO</button>
+            <button
+              type="submit"
+              disabled={(formData.detallesPago?.tipoAbono || 'general') === 'ticket_multi' && vistaPreviaAplicacionCobroMulti.sobrante > 0.009}
+              className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold text-sm py-3 px-4 rounded-xl mt-4 flex items-center justify-center gap-2 uppercase tracking-wide"
+            >
+              <ArrowRight size={18}/> CONFIRMAR COBRO
+            </button>
           </form>
         </Modal>
       )}
