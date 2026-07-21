@@ -1725,6 +1725,7 @@ function AppInterna() {
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [isDBReady, setIsDBReady] = useState(false);
   const [usuariosCargados, setUsuariosCargados] = useState(false);
+  const [estadoConexion, setEstadoConexion] = useState('conectando');
 
   // --- ESTADOS DE LA APP ---
   const [configuracion, setConfiguracion] = useState(CONFIG_DEFAULT);
@@ -2257,13 +2258,13 @@ function AppInterna() {
   useEffect(() => {
     let desmontado = false;
     let authResuelto = false;
-    const activarModoLocal = (razon = '') => {
-      if (desmontado || authResuelto) return;
-      authResuelto = true;
-      if (razon) console.warn(razon);
-      setUsuarios((actuales) => (actuales.length ? actuales : [USUARIO_ADMIN_FALLBACK]));
-      setUsuariosCargados(true);
-      setIsDBReady(true);
+    const marcarErrorConexion = (razon = '') => {
+      if (desmontado) return;
+      if (razon) console.error(razon);
+      setEstadoConexion('error');
+      setFirebaseUser(null);
+      setUsuariosCargados(false);
+      setIsDBReady(false);
     };
 
     const initAuth = async () => {
@@ -2274,28 +2275,36 @@ function AppInterna() {
           await signInAnonymously(auth);
         }
       } catch (e) {
-        console.error("Auth error", e);
-        activarModoLocal('No se pudo completar la autenticación inicial. Activando modo local.');
+        marcarErrorConexion('No se pudo completar la autenticación inicial.');
       }
     };
 
-    const authFallbackTimer = setTimeout(() => {
+    const authTimeout = setTimeout(() => {
       if (!authResuelto) {
-        activarModoLocal('La autenticación tardó demasiado. Activando modo local.');
+        marcarErrorConexion('La autenticación tardó demasiado.');
       }
     }, 7000);
 
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setFirebaseUser);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      authResuelto = true;
+      if (user) {
+        setFirebaseUser(user);
+        setEstadoConexion('conectando');
+      } else {
+        marcarErrorConexion('Firebase no devolvió una sesión válida.');
+      }
+    });
     return () => {
       desmontado = true;
-      clearTimeout(authFallbackTimer);
+      clearTimeout(authTimeout);
       unsubscribe();
     };
   }, []);
 
   useEffect(() => {
-    if (!firebaseUser) return;
+    if (!firebaseUser) return undefined;
+    setEstadoConexion('conectando');
     const dbReadyTimer = setTimeout(() => setIsDBReady(true), 4500);
     const marcarDBLista = () => {
       clearTimeout(dbReadyTimer);
@@ -2329,13 +2338,15 @@ function AppInterna() {
             const loaded = []; snapshot.forEach(doc => loaded.push({ id: doc.id, ...doc.data() })); setUsuarios(loaded);
         }
         setUsuariosCargados(true);
+        setEstadoConexion('conectado');
         marcarDBLista();
-    }, (err) => {
-        console.error(err);
-        setUsuarios([USUARIO_ADMIN_FALLBACK]);
-        setUsuariosCargados(true);
-        marcarDBLista();
-    });
+      }, (err) => {
+        console.error('No se pudo cargar la colección de usuarios.', err);
+        setUsuarios([]);
+        setUsuariosCargados(false);
+        setIsDBReady(false);
+        setEstadoConexion('error');
+      });
 
     const unsubMovs = onSnapshot(collection(db, 'movimientos'), (snapshot) => {
         const loaded = []; snapshot.forEach(doc => loaded.push({ id: doc.id, ...doc.data() }));
@@ -20033,6 +20044,23 @@ function obtenerCategoriaProducto(producto) {
   }, [vista, usuarioActual]);
 
   // --- PANTALLAS DE CARGA Y LOGIN ---
+  if (estadoConexion === 'error') {
+    return (
+      <div className={`sf-app-shell sf-screen-${perfilPantalla.tipo} sf-density-${perfilPantalla.densidad} min-h-screen flex flex-col items-center justify-center bg-slate-50 font-sans px-4 text-center`}>
+        <Store size={48} className="text-amber-600 mb-4" />
+        <p className="font-bold text-gray-700 text-lg">No se pudo conectar con el servidor</p>
+        <p className="text-sm text-gray-500 mt-2 max-w-md">Esperá unos segundos y reintentá. El acceso se habilita únicamente cuando podamos validar los usuarios.</p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mt-5 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm uppercase tracking-wider shadow-sm"
+        >
+          Reintentar conexión
+        </button>
+      </div>
+    );
+  }
+
   if (!isDBReady || !usuariosCargados) {
     return (
       <div className={`sf-app-shell sf-screen-${perfilPantalla.tipo} sf-density-${perfilPantalla.densidad} min-h-screen flex flex-col items-center justify-center bg-slate-50 font-sans px-4 text-center`}>
