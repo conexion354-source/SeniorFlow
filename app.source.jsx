@@ -1878,6 +1878,9 @@ function AppInterna() {
   const displayInventarioRef = useRef(null);
   const [busquedaProveedores, setBusquedaProveedores] = useState('');
   const [busquedaCuentaProveedor, setBusquedaCuentaProveedor] = useState('');
+  const [mostrarSugerenciasCuentaProveedor, setMostrarSugerenciasCuentaProveedor] = useState(false);
+  const [selectorProveedoresCuentaAbierto, setSelectorProveedoresCuentaAbierto] = useState(false);
+  const [busquedaSelectorProveedoresCuenta, setBusquedaSelectorProveedoresCuenta] = useState('');
   const [proveedorCuentaSeleccionado, setProveedorCuentaSeleccionado] = useState(null);
   const [formPagoProveedor, setFormPagoProveedor] = useState({
     proveedor: '',
@@ -22642,7 +22645,6 @@ function obtenerCategoriaProducto(producto) {
                     type="button"
                     onClick={() => {
                       setSeccionProveedoresActiva('cuenta');
-                      if (!proveedorCuentaSeleccionado && proveedoresConCuentaCorriente[0]) setProveedorCuentaSeleccionado(proveedoresConCuentaCorriente[0]);
                     }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-colors ${
                       seccionProveedoresActiva === 'cuenta'
@@ -22766,7 +22768,7 @@ function obtenerCategoriaProducto(producto) {
                   const proveedorPorBusqueda = terminoBusquedaCuenta
                     ? proveedoresConCuentaCorriente.find((prov) => normalizarTextoBusqueda(prov?.nombre || '') === normalizarTextoBusqueda(terminoBusquedaCuenta))
                     : null;
-                  const proveedorActivo = proveedorCuentaSeleccionado || proveedorPorBusqueda || (!terminoBusquedaCuenta ? (proveedoresConSaldoFiltrados[0]?.proveedor || proveedoresConCuentaCorriente[0]) : null);
+                  const proveedorActivo = proveedorCuentaSeleccionado || proveedorPorBusqueda || null;
 	                  const estadoProveedor = proveedorActivo
 	                    ? (estadosCuentaProveedores[proveedorActivo.nombre] || calcularEstadoCuentaProveedor(proveedorActivo.nombre))
 	                    : { movimientosDesc: [], cargosProcesados: [], pagos: [], totalCompras: 0, totalPagos: 0, saldoPendiente: 0 };
@@ -22774,29 +22776,56 @@ function obtenerCategoriaProducto(producto) {
                   return (
                     <div className="space-y-4">
                       <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3">
-                        <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,1fr)_auto] gap-3 items-end">
+                        <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,1fr)_auto] gap-3 items-start">
                           <div>
                             <label className="block text-[10px] font-black uppercase tracking-wider text-gray-500 mb-1">Buscar y seleccionar proveedor</label>
-                            <div className="relative mb-2">
-                              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() => { setBusquedaSelectorProveedoresCuenta(''); setSelectorProveedoresCuentaAbierto(true); }}
+                                className="absolute left-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50"
+                                title="Abrir proveedores"
+                                aria-label="Abrir proveedores"
+                              >
+                                <Search size={16} />
+                              </button>
                               <input
-	                                list="proveedores-cuenta-selector"
-	                                value={busquedaCuentaProveedor || proveedorActivo?.nombre || ''}
-	                                onChange={(e) => {
-	                                  const valor = e.target.value;
-	                                  setBusquedaCuentaProveedor(valor);
-	                                  const encontrado = (proveedoresConCuentaCorriente || []).find((prov) => normalizarTextoBusqueda(prov?.nombre || '') === normalizarTextoBusqueda(valor));
-	                                  if (encontrado) setProveedorCuentaSeleccionado(encontrado);
-	                                }}
-	                                className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-	                                placeholder="Buscar y seleccionar proveedor..."
-	                              />
-                              <datalist id="proveedores-cuenta-selector">
-                                {proveedoresConCuentaCorriente.map((prov) => <option key={`cc-prov-datalist-${prov.id}`} value={prov.nombre} />)}
-                              </datalist>
+                                value={busquedaCuentaProveedor || proveedorActivo?.nombre || ''}
+                                onChange={(e) => {
+                                  const valor = e.target.value;
+                                  setBusquedaCuentaProveedor(valor);
+                                  if (normalizarTextoBusqueda(valor) !== normalizarTextoBusqueda(proveedorCuentaSeleccionado?.nombre || '')) setProveedorCuentaSeleccionado(null);
+                                  setMostrarSugerenciasCuentaProveedor(true);
+                                }}
+                                onFocus={() => setMostrarSugerenciasCuentaProveedor(true)}
+                                className="w-full pl-11 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                                placeholder="Buscar y seleccionar proveedor..."
+                              />
+                              {mostrarSugerenciasCuentaProveedor && (
+                                <div className="absolute z-30 left-0 right-0 top-full mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
+                                  {(proveedoresConCuentaCorriente || [])
+                                    .filter((prov) => coincideBusquedaCompuesta([prov?.nombre, prov?.cuit, prov?.direccion, prov?.telefono, prov?.email], busquedaCuentaProveedor))
+                                    .map((prov) => (
+                                      <button
+                                        type="button"
+                                        key={`sugerencia-cuenta-prov-${prov.id}`}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => {
+                                          setProveedorCuentaSeleccionado(prov);
+                                          setBusquedaCuentaProveedor(prov.nombre || '');
+                                          setMostrarSugerenciasCuentaProveedor(false);
+                                        }}
+                                        className={`w-full text-left px-3 py-2.5 hover:bg-indigo-50 ${proveedorActivo?.id === prov.id ? 'bg-indigo-50' : ''}`}
+                                      >
+                                        <p className="text-sm font-black text-slate-900">{prov.nombre}</p>
+                                        <p className="text-[10px] font-bold text-slate-500">CUIT: {prov.cuit || '-'} · {prov.telefono || 'Sin teléfono'}</p>
+                                      </button>
+                                    ))}
+                                </div>
+                              )}
                             </div>
                           </div>
-                          <div className="flex items-end gap-2">
+                          <div className="flex items-center gap-2 lg:pt-5">
                             <button type="button" disabled={!proveedorActivo} onClick={() => abrirPagoProveedor(proveedorActivo)} className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
                               <Plus size={14} /> Cargar pago
                             </button>
@@ -27415,6 +27444,50 @@ function obtenerCategoriaProducto(producto) {
                     </div>
                   );
                 })}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {selectorProveedoresCuentaAbierto && (
+        <Modal
+          titulo="Seleccionar proveedor"
+          onClose={() => setSelectorProveedoresCuentaAbierto(false)}
+          customWidth="max-w-[760px]"
+        >
+          <div className="space-y-3">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                autoFocus
+                value={busquedaSelectorProveedoresCuenta}
+                onChange={(e) => setBusquedaSelectorProveedoresCuenta(e.target.value)}
+                placeholder="Buscar proveedor por nombre, CUIT o contacto..."
+                className="w-full pl-9 pr-3 py-2.5 bg-white border border-indigo-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div className="max-h-[58vh] overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100">
+              {(proveedoresConCuentaCorriente || [])
+                .filter((prov) => coincideBusquedaCompuesta([prov?.nombre, prov?.cuit, prov?.direccion, prov?.telefono, prov?.email], busquedaSelectorProveedoresCuenta))
+                .map((prov) => (
+                  <button
+                    type="button"
+                    key={`selector-cuenta-prov-${prov.id}`}
+                    onClick={() => {
+                      setProveedorCuentaSeleccionado(prov);
+                      setBusquedaCuentaProveedor(prov.nombre || '');
+                      setMostrarSugerenciasCuentaProveedor(false);
+                      setSelectorProveedoresCuentaAbierto(false);
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-indigo-50 flex items-center justify-between gap-3"
+                  >
+                    <div>
+                      <p className="text-sm font-black text-slate-900">{prov.nombre}</p>
+                      <p className="text-[10px] font-bold text-slate-500">CUIT: {prov.cuit || '-'} · {prov.telefono || 'Sin teléfono'} · {prov.email || 'Sin email'}</p>
+                    </div>
+                    <span className="text-[10px] font-black uppercase text-indigo-700">Seleccionar</span>
+                  </button>
+                ))}
             </div>
           </div>
         </Modal>
