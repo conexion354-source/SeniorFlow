@@ -20249,6 +20249,7 @@ function obtenerCategoriaProducto(producto) {
     { visible: puedeVerClientes || puedeVerCuentasCorrientes, vista: 'clientes', etiqueta: 'Cuentas corrientes', Icono: CreditCard, color: 'purple' },
     { visible: puedeVerPresupuestos, vista: 'presupuestos', etiqueta: 'Presupuestos', Icono: FileText, color: 'teal' },
     { visible: puedeUsarCombos, vista: 'combos', etiqueta: 'Presupuesto combo', Icono: FileText, color: 'indigo' },
+    { visible: puedeUsarFlyer, vista: 'flyer', etiqueta: 'Flyer', Icono: ImageIcon, color: 'fuchsia' },
     { visible: puedeVerInventario, vista: 'inventario', etiqueta: 'Inventario', Icono: Package, color: 'violet' },
     { visible: puedeVerCompras, vista: 'compras', etiqueta: 'Compras', Icono: FileSpreadsheet, color: 'orange' },
     { visible: puedeVerProveedores, vista: 'proveedores', etiqueta: 'Proveedores', Icono: Users, color: 'sky' },
