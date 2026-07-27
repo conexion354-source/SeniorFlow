@@ -1742,6 +1742,7 @@ function AppInterna() {
   const [gestionAccesosAbierta, setGestionAccesosAbierta] = useState(true);
   const [usuarios, setUsuarios] = useState([]);
   const [caja, setCaja] = useState({ estado: 'cerrada', efectivoInicial: 0, chequesInicial: 0, fechaApertura: null });
+  const [historialCaja, setHistorialCaja] = useState([]);
   const [movimientos, setMovimientos] = useState([]);
   const [clientes, setClientes] = useState([]); 
   const [presupuestos, setPresupuestos] = useState([]); 
@@ -2335,6 +2336,13 @@ function AppInterna() {
         marcarDBLista();
     }, (err) => console.error(err));
 
+    const unsubHistorialCaja = onSnapshot(collection(db, 'historial_caja'), (snapshot) => {
+        const loaded = [];
+        snapshot.forEach((item) => loaded.push({ id: item.id, ...item.data() }));
+        loaded.sort((a, b) => new Date(b.cierreFecha || b.fechaCierre || 0) - new Date(a.cierreFecha || a.fechaCierre || 0));
+        setHistorialCaja(loaded);
+    }, (err) => console.error('No se pudo cargar el historial de caja.', err));
+
     const unsubUsuarios = onSnapshot(collection(db, 'usuarios'), (snapshot) => {
         if (snapshot.empty) {
             setUsuarios([USUARIO_ADMIN_FALLBACK]);
@@ -2457,7 +2465,7 @@ function AppInterna() {
         setPedidosCompra(loaded);
     }, (err) => console.error(err));
 
-    return () => { clearTimeout(dbReadyTimer); unsubConfig(); unsubCaja(); unsubUsuarios(); unsubMovs(); unsubClientes(); unsubPresupuestos(); unsubOfertas(); unsubCombos(); unsubProductos(); unsubProveedores(); unsubPagosProveedores(); unsubFacturasEmitidas(); unsubMarcas(); unsubPedidosCompra(); };
+    return () => { clearTimeout(dbReadyTimer); unsubConfig(); unsubCaja(); unsubHistorialCaja(); unsubUsuarios(); unsubMovs(); unsubClientes(); unsubPresupuestos(); unsubOfertas(); unsubCombos(); unsubProductos(); unsubProveedores(); unsubPagosProveedores(); unsubFacturasEmitidas(); unsubMarcas(); unsubPedidosCompra(); };
   }, [firebaseUser]);
 
   useEffect(() => {
@@ -8256,15 +8264,36 @@ const abrirPuntoVenta = () => {
     };
   };
 
+  const obtenerUltimoCierreCaja = () => {
+    const ultimoHistorial = historialCaja[0];
+    return {
+      efectivo: Number(ultimoHistorial?.efectivoCierre ?? caja?.ultimoCierreEfectivo ?? caja?.efectivoInicial ?? 0),
+      cheques: Number(ultimoHistorial?.chequesCierre ?? caja?.ultimoCierreCheques ?? caja?.chequesInicial ?? 0)
+    };
+  };
+
+  const prepararAperturaCaja = () => {
+    const ultimoCierre = obtenerUltimoCierreCaja();
+    setFormData({ ...formData, efectivo: ultimoCierre.efectivo.toFixed(2), cheques: ultimoCierre.cheques.toFixed(2), tieneCheques: ultimoCierre.cheques > 0 });
+    setModalActivo('abrir');
+  };
+
   const abrirCaja = async (e) => {
     e.preventDefault();
     try {
+      if (caja.estado === 'abierta') {
+        await notificarSistema('La caja ya está abierta. Cerrá el turno actual antes de iniciar otro.', { tipo: 'warning', titulo: 'Caja ya abierta' });
+        return;
+      }
+      const ultimoCierre = obtenerUltimoCierreCaja();
       const docRef = doc(db, 'sistema', 'caja');
       await setDoc(docRef, {
         estado: 'abierta',
-        efectivoInicial: parseMontoCaja(formData.efectivo),
-        chequesInicial: formData.tieneCheques ? parseMontoCaja(formData.cheques) : 0,
-        fechaApertura: new Date().toISOString()
+        efectivoInicial: ultimoCierre.efectivo,
+        chequesInicial: ultimoCierre.cheques,
+        fechaApertura: new Date().toISOString(),
+        aperturaEfectivo: ultimoCierre.efectivo,
+        aperturaCheques: ultimoCierre.cheques
       }, { merge: true });
       setFormData({ monto: '', efectivo: '', cheques: '', tieneCheques: false, descripcion: '', metodoPago: 'efectivo', detallesPago: {} });
       setModalActivo(null);
@@ -8298,9 +8327,40 @@ const abrirPuntoVenta = () => {
 
   const cerrarCaja = async (e) => { 
     e.preventDefault(); 
-    const docRef = doc(db, 'sistema', 'caja');
-    await updateDoc(docRef, { estado: 'cerrada', fechaApertura: null });
-    setMontoCierreReal(''); setModalActivo(null); setVista('caja'); 
+    const cierreReal = parseMontoCaja(montoCierreReal);
+    if (!Number.isFinite(cierreReal) || cierreReal < 0) {
+      await notificarSistema('Ingresá un monto válido para cerrar la caja.', { tipo: 'warning', titulo: 'Recuento requerido' });
+      return;
+    }
+    try {
+      const ahora = new Date().toISOString();
+      const diferencia = cierreReal - saldoActual;
+      await addDoc(collection(db, 'historial_caja'), {
+        aperturaFecha: caja.fechaApertura || ahora,
+        cierreFecha: ahora,
+        efectivoApertura: Number(caja.efectivoInicial || 0),
+        chequesApertura: Number(caja.chequesInicial || 0),
+        efectivoEsperado: Number(saldoActual || 0),
+        efectivoCierre: cierreReal,
+        chequesCierre: Number(caja.chequesInicial || 0),
+        diferencia,
+        usuarioCierre: usuarioActual?.nombre || usuarioActual?.username || 'Sistema'
+      });
+      const docRef = doc(db, 'sistema', 'caja');
+      await updateDoc(docRef, {
+        estado: 'cerrada',
+        fechaApertura: null,
+        ultimoCierreEfectivo: cierreReal,
+        ultimoCierreCheques: Number(caja.chequesInicial || 0),
+        ultimoCierreEsperado: Number(saldoActual || 0),
+        ultimoCierreDiferencia: diferencia,
+        ultimoCierreFecha: ahora
+      });
+      setMontoCierreReal(''); setModalActivo(null); setVista('caja');
+    } catch (error) {
+      console.error('Error al cerrar caja', error);
+      await notificarSistema('No se pudo guardar el cierre ni actualizar la caja. Intentá nuevamente.', { tipo: 'error', titulo: 'Error al cerrar caja' });
+    }
   };
 
   const guardarConfiguracion = async (e) => {
@@ -20397,9 +20457,29 @@ function obtenerCategoriaProducto(producto) {
             <div className="bg-white w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-md"><Lock size={40} className="text-blue-600" /></div>
             <h2 className="text-2xl font-black text-gray-900 mb-3 tracking-tight">El turno está cerrado</h2>
             <p className="text-gray-600 mb-8 font-medium">Hola, <b className="text-blue-700">{usuarioActualSeguro.nombre}</b>. Para comenzar a registrar movimientos en la caja diaria, debes realizar la apertura indicando con cuánto dinero inicias.</p>
-            <button onClick={() => setModalActivo('abrir')} className="bg-blue-600 hover:bg-blue-700 text-white font-black px-10 py-4 rounded-2xl shadow-lg hover:shadow-xl transition-all active:scale-95 w-full sm:w-auto text-lg">
+            <button onClick={prepararAperturaCaja} className="bg-blue-600 hover:bg-blue-700 text-white font-black px-10 py-4 rounded-2xl shadow-lg hover:shadow-xl transition-all active:scale-95 w-full sm:w-auto text-lg">
               ABRIR CAJA AHORA
             </button>
+          </div>
+        )}
+
+        {cajaSegura.estado === 'cerrada' && vista === 'caja' && historialCaja.length > 0 && (
+          <div className="max-w-3xl mx-auto mt-6 bg-white border border-gray-200 rounded-2xl shadow-sm p-5 print:hidden">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h3 className="font-black text-gray-900 uppercase tracking-wider text-sm">Historial de cierres</h3>
+              <span className="text-[10px] font-bold text-gray-400 uppercase">Últimas jornadas</span>
+            </div>
+            <div className="space-y-2">
+              {historialCaja.slice(0, 5).map((cierre) => (
+                <div key={cierre.id} className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-center rounded-xl bg-gray-50 border border-gray-100 px-3 py-2 text-xs">
+                  <span className="font-bold text-gray-600">{cierre.cierreFecha ? formatearFecha(cierre.cierreFecha) : 'Sin fecha'}</span>
+                  <span><b className="text-gray-500">Apertura:</b> {formatearDinero(cierre.efectivoApertura || 0)}</span>
+                  <span><b className="text-gray-500">Esperado:</b> {formatearDinero(cierre.efectivoEsperado || 0)}</span>
+                  <span><b className="text-gray-500">Cierre:</b> {formatearDinero(cierre.efectivoCierre || 0)}</span>
+                  <span className={`font-black ${Number(cierre.diferencia || 0) === 0 ? 'text-green-600' : 'text-red-600'}`}>Dif.: {formatearDinero(cierre.diferencia || 0)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -25898,6 +25978,9 @@ function obtenerCategoriaProducto(producto) {
       {modalActivo === 'abrir' && (
         <Modal titulo="Abrir Caja" onClose={() => setModalActivo(null)}>
           <form onSubmit={abrirCaja} className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs font-bold text-blue-800">
+              La apertura toma automáticamente el último cierre guardado. El importe no se puede modificar manualmente.
+            </div>
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">Fondo inicial en efectivo</label>
               <div className="relative">
@@ -25908,7 +25991,7 @@ function obtenerCategoriaProducto(producto) {
                   min="0"
                   required
                   value={formData.efectivo}
-                  onChange={(e) => setFormData({ ...formData, efectivo: e.target.value })}
+                  readOnly
                   className="w-full pl-10 pr-4 py-3 bg-white border-2 border-blue-200 rounded-xl text-2xl font-black text-blue-700 outline-none focus:border-blue-600"
                   placeholder="0.00"
                   autoFocus
@@ -25921,6 +26004,7 @@ function obtenerCategoriaProducto(producto) {
                 <input
                   type="checkbox"
                   checked={!!formData.tieneCheques}
+                  disabled
                   onChange={(e) => setFormData({ ...formData, tieneCheques: e.target.checked, cheques: e.target.checked ? formData.cheques : '' })}
                   className="w-4 h-4"
                 />
@@ -25934,7 +26018,7 @@ function obtenerCategoriaProducto(producto) {
                     step="0.01"
                     min="0"
                     value={formData.cheques}
-                    onChange={(e) => setFormData({ ...formData, cheques: e.target.value })}
+                    readOnly
                     className="w-full pl-8 pr-3 py-2.5 bg-white border border-orange-200 rounded-lg font-bold text-sm outline-none focus:border-orange-500"
                     placeholder="Monto total en cheques"
                   />
