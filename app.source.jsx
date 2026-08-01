@@ -6,7 +6,7 @@ import {
   Trash2, Save, PlusCircle, Calendar, Filter, Printer, BarChart2, FileSpreadsheet, 
   LogOut, User, UserCog, UserPlus, ShieldCheck, Settings, Image as ImageIcon,
   Search, Loader2, ClipboardList, Send, FilePlus2, CheckCircle, XCircle, Package, Truck,
-  Eye, EyeOff, Copy, Monitor, ShoppingCart, Layers,
+  Eye, EyeOff, Copy, Monitor, ShoppingCart, Layers, BookOpen,
   Camera, ScanBarcode, ArrowDownCircle, Mail, MapPin, Globe, History, Download, Paperclip, ChevronDown
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
@@ -491,6 +491,89 @@ const PERMISOS_USUARIO_OPCIONES = [
   { key: 'puedeVerCaja', label: 'Caja', description: 'Acceso al módulo de caja diaria.' },
   { key: 'puedeVerClientesEspeciales', label: 'Clientes especiales', description: 'Ver clientes marcados como especiales.' },
   { key: 'puedeCargarCuentaHistorica', label: 'Cuentas históricas', description: 'Cargar movimientos históricos de cuenta corriente.' }
+];
+
+const AYUDA_SECCIONES = [
+  {
+    id: 'inicio', titulo: 'Cómo empezar', resumen: 'Recorrido general para trabajar de forma segura y ordenada.', icono: 'BookOpen',
+    pasos: ['Iniciá sesión con tu usuario personal.', 'Verificá que estés trabajando en la empresa correcta y que los datos del negocio sean los esperados.', 'Abrí la caja antes de registrar ventas o gastos del turno.', 'Usá el menú superior para entrar a cada módulo.'],
+    claves: ['Cada usuario tiene permisos propios.', 'Los datos de cada empresa permanecen separados.', 'Los cambios se guardan automáticamente en la base de datos de la empresa.']
+  },
+  {
+    id: 'caja', titulo: 'Caja diaria', resumen: 'Apertura, movimientos, gastos, ingresos y cierre del turno.', icono: 'Wallet',
+    pasos: ['Abrí la caja indicando el efectivo inicial.', 'Registrá ventas, gastos, ingresos extra y retiros desde sus botones correspondientes.', 'Revisá los movimientos y filtrá por fecha o tipo.', 'Al finalizar el turno, compará el efectivo real y cerrá la caja.'],
+    claves: ['Los retiros afectan el efectivo disponible, pero no representan un gasto del negocio.', 'Los pagos reales a proveedores también se reflejan como gastos en reportes.', 'El historial de caja puede quedar restringido al administrador desde Ajustes.']
+  },
+  {
+    id: 'ventas', titulo: 'Ventas', resumen: 'Carga de comprobantes, productos, clientes y formas de pago.', icono: 'ClipboardList',
+    pasos: ['Seleccioná cliente existente o cargá uno nuevo.', 'Elegí tipo y número de comprobante.', 'Agregá productos, cantidades, descuentos y observaciones.', 'Seleccioná la forma de pago y guardá la venta.'],
+    claves: ['Las ventas a cuenta corriente generan saldo del cliente.', 'El número de comprobante puede ser automático o manual.', 'La pantalla cliente puede abrirse en un segundo monitor cuando está configurada.']
+  },
+  {
+    id: 'clientes', titulo: 'Clientes y cuentas corrientes', resumen: 'Seguimiento de saldos, cobros, vencimientos y recargos.', icono: 'CreditCard',
+    pasos: ['Buscá el cliente por nombre, teléfono o identificación.', 'Consultá saldo, remitos pendientes, vencimientos y movimientos.', 'Registrá cobros y asigná el pago a uno o varios comprobantes.', 'Cuando el saldo llega a cero, el ciclo de recargos y recordatorios vuelve a comenzar.'],
+    claves: ['Los recargos históricos no se borran, pero dejan de contarse cuando la cuenta queda al día.', 'Los clientes especiales pueden estar limitados según permisos.', 'El PDF de resumen muestra la situación de la cuenta.']
+  },
+  {
+    id: 'presupuestos', titulo: 'Presupuestos', resumen: 'Creación, seguimiento, entregas y conversión de presupuestos.', icono: 'FileText',
+    pasos: ['Creá un presupuesto con cliente, productos, cantidades y precios.', 'Guardalo como pendiente, enviado o aprobado según tu circuito.', 'Registrá entregas parciales desde el seguimiento.', 'Imprimí o descargá el PDF cuando necesites enviarlo.'],
+    claves: ['Los presupuestos pendientes de entrega permanecen visibles para su seguimiento.', 'Podés reutilizar un presupuesto para crear una venta o un pedido de compra.']
+  },
+  {
+    id: 'inventario', titulo: 'Inventario', resumen: 'Productos, precios, costos, proveedores, stock y stock mínimo.', icono: 'Package',
+    pasos: ['Creá o editá productos con código, descripción, categoría, unidad e imagen.', 'Cargá costo, precio, IVA, margen y proveedores.', 'Definí el stock mínimo para cada producto.', 'Usá la búsqueda, filtros y acciones rápidas para mantener actualizado el inventario.'],
+    claves: ['El stock mínimo alimenta el menú Stock bajo.', 'Los costos por proveedor permiten comparar y elegir el mejor costo.', 'Las modificaciones masivas deben revisarse antes de confirmarlas.']
+  },
+  {
+    id: 'stock_bajo', titulo: 'Stock bajo', resumen: 'Control de productos que alcanzaron o están por debajo del mínimo configurado.', icono: 'AlertCircle',
+    pasos: ['Entrá a Stock bajo desde el menú.', 'Revisá stock actual, mínimo, código y proveedor.', 'Actualizá el stock desde Inventario, una compra o el ajuste rápido.', 'Cuando el stock supere el mínimo, el producto deja de aparecer automáticamente.'],
+    claves: ['Un producto sin stock mínimo configurado no se considera en este listado.', 'El cálculo usa el stock actual guardado en el producto.']
+  },
+  {
+    id: 'compras', titulo: 'Compras y pedidos', resumen: 'Pedidos de compra, compras directas, recepción y comprobantes.', icono: 'FileSpreadsheet',
+    pasos: ['Elegí el proveedor del pedido o de la compra directa.', 'Agregá cualquier producto del inventario, aunque todavía no tenga costo cargado para ese proveedor.', 'Completá cantidades, costos, descuentos y transporte.', 'Si es una factura, indicá tipo y número de comprobante.', 'Guardá el pedido o registrá la compra y luego confirmá la recepción.'],
+    claves: ['Si no existe costo específico, se propone el costo general o se puede completar manualmente.', 'La recepción puede actualizar stock y costos del proveedor.', 'Los pagos reales a proveedores aparecen como gasto en caja y reportes.']
+  },
+  {
+    id: 'proveedores', titulo: 'Proveedores', resumen: 'Maestro de proveedores, costos, cuenta corriente y pagos.', icono: 'Users',
+    pasos: ['Cargá datos comerciales, contacto y condiciones del proveedor.', 'Consultá su cuenta corriente y compras relacionadas.', 'Registrá pagos con medio, comprobante, banco y adjuntos.', 'Descargá el recibo de pago o el estado de cuenta.'],
+    claves: ['Editar un pago actualiza su gasto vinculado sin duplicarlo.', 'Eliminar un pago también elimina el gasto que se generó para el balance.', 'Pendiente y cuenta corriente no se consideran pagos efectivamente realizados.']
+  },
+  {
+    id: 'comparativa', titulo: 'Comparativa y logística', resumen: 'Análisis de costos y condiciones para elegir proveedores.', icono: 'BarChart2',
+    pasos: ['Seleccioná productos para comparar proveedores.', 'Revisá costo de origen, conversión a pesos, descuentos y flete.', 'Consultá condiciones, transporte y ruta logística cuando estén cargadas.', 'Usá el resultado para decidir el proveedor del pedido.'],
+    claves: ['Las cotizaciones en dólares pueden influir en el costo final.', 'La comparativa no modifica productos hasta que confirmes una acción.']
+  },
+  {
+    id: 'mod_masiva', titulo: 'Modificación masiva', resumen: 'Actualización controlada de muchos productos a la vez.', icono: 'Edit2',
+    pasos: ['Filtrá por descripción, categoría, marca o proveedor.', 'Seleccioná los productos a modificar.', 'Elegí la operación: precios, datos, proveedor o descripciones.', 'Revisá el resumen y confirmá solo cuando los valores sean correctos.'],
+    claves: ['El sistema genera respaldos antes de cambios masivos de precios.', 'Trabajá con filtros pequeños cuando la modificación sea específica.']
+  },
+  {
+    id: 'sugerencias', titulo: 'Sugerencias de compra', resumen: 'Ranking basado en ventas para preparar pedidos.', icono: 'TrendingUp',
+    pasos: ['Elegí el período de análisis.', 'Revisá los productos más vendidos y la cantidad sugerida.', 'Seleccioná los productos y generá un pedido de compra.', 'Ajustá proveedor, cantidades y costos antes de guardarlo.'],
+    claves: ['El ranking puede reiniciarse sin borrar ventas históricas.', 'Las sugerencias son una ayuda para decidir, no una compra automática.']
+  },
+  {
+    id: 'reportes', titulo: 'Reportes y balance', resumen: 'Ingresos, egresos, cobros, retiros y flujo por medio de pago.', icono: 'BarChart2',
+    pasos: ['Elegí hoy, semana, mes o un rango personalizado.', 'Consultá ingresos, egresos, cobros, retiros y resultado neto.', 'Abrí cada indicador para ver su detalle.', 'Usá el listado de movimientos para auditar el período.'],
+    claves: ['Los pagos reales a proveedores se muestran como egresos.', 'Los retiros no reducen la ganancia neta, pero sí el efectivo disponible.', 'El rango seleccionado se aplica a todos los indicadores del reporte.']
+  },
+  {
+    id: 'rastreo', titulo: 'Rastreo', resumen: 'Búsqueda transversal de comprobantes y operaciones.', icono: 'Search',
+    pasos: ['Ingresá código, número, cliente, proveedor o descripción.', 'Revisá el origen del movimiento encontrado.', 'Abrí el registro para consultar su detalle o descargar documentos.'],
+    claves: ['Es útil para encontrar rápidamente una venta, compra, pago o comprobante sin recorrer cada menú.']
+  },
+  {
+    id: 'materiales', titulo: 'Flyer, ofertas y combos', resumen: 'Herramientas comerciales para preparar material de venta.', icono: 'ImageIcon',
+    pasos: ['Creá ofertas o combos seleccionando productos y precios.', 'Configurá título, vigencia, descuentos, imágenes y aclaraciones.', 'Previsualizá el material.', 'Descargá o imprimí el resultado.'],
+    claves: ['Estas herramientas trabajan sobre la información comercial y no reemplazan la carga de ventas.']
+  },
+  {
+    id: 'ajustes', titulo: 'Ajustes, usuarios y permisos', resumen: 'Configuración del negocio, seguridad y acceso por usuario.', icono: 'Settings',
+    pasos: ['Editá los datos propios de la empresa desde Ajustes.', 'Administrá usuarios, nombres, contraseñas y niveles de acceso.', 'Configurá historial de caja, recargos automáticos, datos de pago y preferencias.', 'Guardá cada cambio y verificá la cuenta con la que estás trabajando.'],
+    claves: ['Solo el administrador accede a la configuración general.', 'Cada empresa conserva sus propios datos y configuración.', 'No elimines el administrador principal sin crear antes un reemplazo seguro.']
+  }
 ];
 const FORM_PROVEEDOR_VACIO = {
   nombre: '',
@@ -1903,6 +1986,8 @@ function AppInterna() {
   const [reporteFechaHastaReporte, setReporteFechaHastaReporte] = useState('');
 
   const [busquedaDirectorio, setBusquedaDirectorio] = useState('');
+  const [busquedaAyuda, setBusquedaAyuda] = useState('');
+  const [seccionAyudaActiva, setSeccionAyudaActiva] = useState('inicio');
   const [mostrarSoloConSaldoPendiente, setMostrarSoloConSaldoPendiente] = useState(false);
   const [busquedaPresupuestos, setBusquedaPresupuestos] = useState('');
   const [busquedaInventario, setBusquedaInventario] = useState('');
@@ -2862,6 +2947,8 @@ function AppInterna() {
         return Boolean(usuario?.puedeVerVentas || usuario?.puedeVerCuentasCorrientes || usuario?.puedeVerReportes);
       case 'ajustes':
         return true;
+      case 'ayuda':
+        return true;
       default:
         return false;
     }
@@ -2873,7 +2960,7 @@ function AppInterna() {
   };
 
   const obtenerVistaInicialUsuario = (usuario = usuarioActual) => {
-    const vistas = ['caja', 'ventas', 'clientes', 'combos', 'flyer', 'inventario', 'mod_masiva', 'sugerencias', 'compras', 'proveedores', 'comparativa', 'presupuestos', 'reportes', 'rastreo', 'ajustes'];
+    const vistas = ['caja', 'ventas', 'clientes', 'combos', 'flyer', 'inventario', 'mod_masiva', 'sugerencias', 'compras', 'proveedores', 'comparativa', 'presupuestos', 'reportes', 'rastreo', 'ajustes', 'ayuda'];
     return vistas.find((vistaItem) => usuarioPuedeVerModulo(vistaItem, usuario)) || 'caja';
   };
 
@@ -3181,7 +3268,18 @@ function AppInterna() {
     const tieneDeuda = saldoPendiente > 0.009;
     const ticketsBasePendientes = ticketsPendientes.filter((cargo) => !esRecargoMoraMovimiento(cargo));
     const universoDias = ticketsBasePendientes.length ? ticketsBasePendientes : ticketsPendientes;
-    const recargosMovimientos = cargosProcesados.filter((cargo) => esRecargoMoraMovimiento(cargo));
+    const recargosMovimientos = tieneDeuda
+      ? cargosProcesados.filter((cargo) => {
+        if (!esRecargoMoraMovimiento(cargo)) return false;
+        const cargoOrigenId = textoSeguroTrim(cargo?.detallesPago?.cargoOrigenId, '');
+        const cargoOrigen = cargoOrigenId ? cargosPorId[cargoOrigenId] : null;
+        // El contador representa el ciclo de deuda actual. Los recargos de una cuenta
+        // ya saldada siguen visibles en el historial, pero no vuelven a contarse.
+        return cargoOrigen
+          ? Number(cargoOrigen.pendiente || 0) > 0.009
+          : Number(cargo.pendiente || 0) > 0.009;
+      })
+      : [];
     const operacionesRecargo = new Set();
     recargosMovimientos.forEach((cargo) => {
       const detalles = cargo?.detallesPago || {};
@@ -20615,6 +20713,7 @@ function obtenerCategoriaProducto(producto) {
   const puedeVerReportes = usuarioPuedeVerModulo('reportes', usuarioActual);
   const puedeVerRastreo = usuarioPuedeVerModulo('rastreo', usuarioActual);
   const puedeVerAjustes = usuarioPuedeVerModulo('ajustes', usuarioActual);
+  const puedeVerAyuda = usuarioPuedeVerModulo('ayuda', usuarioActual);
   const puedeCargarCuentaHistorica = usuarioPuedeCargarCuentaHistorica();
   const mostrarNavegacion = [
     puedeVerCaja,
@@ -20633,7 +20732,8 @@ function obtenerCategoriaProducto(producto) {
     puedeVerPresupuestos,
     puedeVerReportes,
     puedeVerRastreo,
-    puedeVerAjustes
+    puedeVerAjustes,
+    puedeVerAyuda
   ].some(Boolean);
 
   const opcionesNavegacion = [
@@ -20653,7 +20753,8 @@ function obtenerCategoriaProducto(producto) {
     { visible: puedeVerComparativa, vista: 'comparativa_paralela', etiqueta: 'Logística', Icono: Truck, color: 'violet' },
     { visible: puedeVerRastreo, vista: 'rastreo', etiqueta: 'Rastreo', Icono: Search, color: 'slate' },
     { visible: puedeVerReportes, vista: 'reportes', etiqueta: 'Reportes', Icono: BarChart2, color: 'rose' },
-    { visible: puedeVerAjustes, vista: 'ajustes', etiqueta: 'Ajustes', Icono: Settings, color: 'gray' }
+    { visible: puedeVerAjustes, vista: 'ajustes', etiqueta: 'Ajustes', Icono: Settings, color: 'gray' },
+    { visible: puedeVerAyuda, vista: 'ayuda', etiqueta: 'Ayuda', Icono: BookOpen, color: 'blue' }
   ];
 
   const proveedoresUnicosFormulario = new Set(
@@ -20701,6 +20802,36 @@ function obtenerCategoriaProducto(producto) {
     const costoTotal = costoComponentes + manoObra;
     return { compuesto, componentes, manoObra, costoComponentes, costoTotal, precioFinal, ganancia: precioFinal - costoTotal, margen: precioFinal > 0 ? ((precioFinal - costoTotal) / precioFinal) * 100 : 0 };
   })();
+
+  const seccionesAyudaFiltradas = useMemo(() => {
+    const consulta = normalizarTextoBusqueda(busquedaAyuda);
+    if (!consulta) return AYUDA_SECCIONES;
+    return AYUDA_SECCIONES.filter((seccion) => coincideBusquedaCompuesta([
+      seccion.titulo,
+      seccion.resumen,
+      seccion.pasos,
+      seccion.claves
+    ], consulta));
+  }, [busquedaAyuda]);
+  const seccionAyudaSeleccionada = AYUDA_SECCIONES.find((seccion) => seccion.id === seccionAyudaActiva)
+    || AYUDA_SECCIONES[0];
+  const iconosAyuda = {
+    BookOpen,
+    Wallet,
+    ClipboardList,
+    CreditCard,
+    FileText,
+    Package,
+    AlertCircle,
+    FileSpreadsheet,
+    Users,
+    BarChart2,
+    Edit2,
+    TrendingUp,
+    Search,
+    ImageIcon,
+    Settings
+  };
 
   // --- RENDER PRINCIPAL ---
   return (
@@ -20852,6 +20983,130 @@ function obtenerCategoriaProducto(producto) {
       </header>
 
       <main className="sf-main w-full max-w-none px-4 lg:px-6 2xl:px-8 py-6 space-y-6 print:p-0 print:m-0">
+
+        {puedeVerAyuda && vista === 'ayuda' && (
+          <section className="space-y-5 animate-in fade-in duration-300 print:hidden">
+            <div className="relative overflow-hidden rounded-3xl bg-slate-950 text-white shadow-xl">
+              <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-blue-500/20 blur-2xl" />
+              <div className="absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-indigo-500/20 blur-2xl" />
+              <div className="relative flex flex-col gap-4 p-6 lg:flex-row lg:items-center lg:justify-between lg:p-8">
+                <div className="max-w-3xl">
+                  <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-300/30 bg-blue-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">
+                    <BookOpen size={14} /> Centro de ayuda SeniorFlow
+                  </div>
+                  <h2 className="text-2xl font-black tracking-tight lg:text-3xl">Todo el sistema, explicado paso a paso</h2>
+                  <p className="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-slate-300">Consultá cómo trabajar en cada módulo, qué información modifica cada acción y cuáles son las recomendaciones para mantener los datos ordenados y seguros.</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-left lg:min-w-[220px]">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-blue-200">Empresa activa</p>
+                  <p className="mt-1 text-lg font-black">{configuracion.nombre || 'Mi negocio'}</p>
+                  <p className="mt-1 text-[11px] font-bold text-slate-300">Guía operativa para todo el equipo</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+              <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:sticky lg:top-28">
+                <div className="relative mb-3">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={busquedaAyuda}
+                    onChange={(e) => setBusquedaAyuda(e.target.value)}
+                    placeholder="Buscar en la ayuda..."
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-xs font-bold text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+                <p className="px-2 pb-2 text-[10px] font-black uppercase tracking-wider text-slate-400">Módulos del sistema</p>
+                <div className="max-h-[62vh] space-y-1 overflow-y-auto pr-1">
+                  {seccionesAyudaFiltradas.map((seccion) => {
+                    const IconoSeccion = iconosAyuda[seccion.icono] || BookOpen;
+                    const activo = seccion.id === seccionAyudaSeleccionada.id;
+                    return (
+                      <button
+                        key={`ayuda-nav-${seccion.id}`}
+                        type="button"
+                        onClick={() => setSeccionAyudaActiva(seccion.id)}
+                        className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors ${activo ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'}`}
+                      >
+                        <IconoSeccion size={16} className="shrink-0" />
+                        <span className="text-[11px] font-black leading-tight">{seccion.titulo}</span>
+                      </button>
+                    );
+                  })}
+                  {seccionesAyudaFiltradas.length === 0 && <p className="px-3 py-5 text-center text-xs font-bold text-slate-400">No encontramos un tema con esa búsqueda.</p>}
+                </div>
+              </aside>
+
+              <div className="min-w-0 space-y-5">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-xl bg-blue-600 p-2.5 text-white shadow-sm"><BookOpen size={19} /></div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-blue-700">Guía de uso</p>
+                      <p className="mt-1 text-sm font-bold leading-relaxed text-blue-950">Elegí un módulo del listado para consultar sus pasos, recomendaciones y relación con el resto del sistema.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-7">
+                  {(() => {
+                    const IconoSeccion = iconosAyuda[seccionAyudaSeleccionada.icono] || BookOpen;
+                    return (
+                      <>
+                        <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="flex items-start gap-3">
+                            <div className="rounded-2xl bg-slate-900 p-3 text-white shadow-sm"><IconoSeccion size={24} /></div>
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-600">Tutorial del módulo</p>
+                              <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-900">{seccionAyudaSeleccionada.titulo}</h3>
+                              <p className="mt-1 text-sm font-medium leading-relaxed text-slate-500">{seccionAyudaSeleccionada.resumen}</p>
+                            </div>
+                          </div>
+                          <span className="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700">Uso recomendado</span>
+                        </div>
+
+                        <div className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(260px,.85fr)]">
+                          <div>
+                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">Cómo trabajar en este módulo</h4>
+                            <ol className="mt-3 space-y-3">
+                              {seccionAyudaSeleccionada.pasos.map((paso, index) => (
+                                <li key={`ayuda-paso-${seccionAyudaSeleccionada.id}-${index}`} className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[11px] font-black text-white">{index + 1}</span>
+                                  <span className="pt-0.5 text-sm font-bold leading-relaxed text-slate-700">{paso}</span>
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+                          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                            <div className="flex items-center gap-2 text-amber-800"><AlertCircle size={17} /><h4 className="text-xs font-black uppercase tracking-wider">Puntos importantes</h4></div>
+                            <ul className="mt-3 space-y-3">
+                              {seccionAyudaSeleccionada.claves.map((clave, index) => (
+                                <li key={`ayuda-clave-${seccionAyudaSeleccionada.id}-${index}`} className="flex items-start gap-2 text-xs font-bold leading-relaxed text-amber-900"><CheckCircle size={14} className="mt-0.5 shrink-0 text-amber-600" />{clave}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </article>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {[
+                    ['Caja abierta', 'Registrá operaciones del turno desde Caja diaria.', 'caja'],
+                    ['Datos seguros', 'No compartas usuarios ni contraseñas.', 'ajustes'],
+                    ['¿Necesitás buscar algo?', 'Usá Rastreo para localizar operaciones.', 'rastreo']
+                  ].map(([titulo, texto, destino]) => (
+                    <button key={`ayuda-acceso-${destino}`} type="button" onClick={() => { setVista(destino); setSeccionAyudaActiva(destino); }} className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md">
+                      <p className="text-xs font-black text-slate-900">{titulo}</p>
+                      <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-500">{texto}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
         
         {/* MENSAJE CAJA CERRADA */}
         {cajaSegura.estado === 'cerrada' && vista === 'caja' && (
