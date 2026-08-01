@@ -20828,16 +20828,17 @@ function obtenerCategoriaProducto(producto) {
     return { compuesto, componentes, manoObra, costoComponentes, costoTotal, precioFinal, ganancia: precioFinal - costoTotal, margen: precioFinal > 0 ? ((precioFinal - costoTotal) / precioFinal) * 100 : 0 };
   })();
 
-  const seccionesAyudaFiltradas = useMemo(() => {
-    const consulta = normalizarTextoBusqueda(busquedaAyuda);
-    if (!consulta) return AYUDA_SECCIONES;
-    return AYUDA_SECCIONES.filter((seccion) => coincideBusquedaCompuesta([
+  // Es un cálculo puro porque está después de las pantallas de carga/login.
+  // No debe agregar hooks que solo se ejecuten cuando hay una sesión activa.
+  const consultaAyuda = normalizarTextoBusqueda(busquedaAyuda);
+  const seccionesAyudaFiltradas = consultaAyuda
+    ? AYUDA_SECCIONES.filter((seccion) => coincideBusquedaCompuesta([
       seccion.titulo,
       seccion.resumen,
       seccion.pasos,
       seccion.claves
-    ], consulta));
-  }, [busquedaAyuda]);
+    ], consultaAyuda))
+    : AYUDA_SECCIONES;
   const seccionAyudaSeleccionada = AYUDA_SECCIONES.find((seccion) => seccion.id === seccionAyudaActiva)
     || AYUDA_SECCIONES[0];
   const iconosAyuda = {
