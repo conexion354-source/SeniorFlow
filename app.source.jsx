@@ -11,12 +11,18 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { COMPANY_RUNTIME_CONFIG } from './company-runtime-config.js';
 
 // --- INTEGRACIÓN FIREBASE ---
 import { auth, db, storage } from './firebase-config.js?v=seniorflow-react-20260622-flyer-studio-55';
 import { signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js';
-import { collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, addDoc, increment, getDocs, arrayUnion } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js';
+import { collection as firestoreCollection, doc as firestoreDoc, setDoc, onSnapshot, deleteDoc, updateDoc, addDoc, increment, getDocs, arrayUnion } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js';
 import { ref as storageRef, uploadString, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js';
+
+// Compatibilidad con los datos existentes. La separación por empresa requiere
+// una migración explícita; no se cambia la ruta hasta copiar/verificar los datos.
+const collection = (database, ...path) => firestoreCollection(database, ...path);
+const doc = (database, ...path) => firestoreDoc(database, ...path);
 
 // --- FUNCIONES UTILITARIAS ---
 const formatearDinero = (monto) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(monto);
@@ -53,6 +59,31 @@ const parseNumeroBasico = (valor) => {
     }
   }
   return parseFloat(texto) || 0;
+};
+const obtenerStockActualProducto = (producto = {}) => parseNumeroBasico(producto?.cantidad ?? producto?.stock ?? 0);
+const obtenerStockMinimoProducto = (producto = {}) => {
+  const valor = producto?.stockMinimo ?? producto?.minimoStock ?? '';
+  if (valor === null || valor === undefined || String(valor).trim() === '') return null;
+  return Math.max(0, parseNumeroBasico(valor));
+};
+const asegurarHtmlToImage = async () => {
+  if (typeof window === 'undefined') throw new Error('La captura HTML no está disponible.');
+  if (window.htmlToImage?.toCanvas) return window.htmlToImage;
+  if (!window.__seniorflowHtmlToImagePromise) {
+    window.__seniorflowHtmlToImagePromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js';
+      script.async = true;
+      script.onload = () => window.htmlToImage?.toCanvas ? resolve(window.htmlToImage) : reject(new Error('La librería de captura no expuso htmlToImage.'));
+      script.onerror = () => reject(new Error('No se pudo cargar la librería de captura HTML.'));
+      document.head.appendChild(script);
+    });
+  }
+  return promesaConTimeout(
+    window.__seniorflowHtmlToImagePromise,
+    15000,
+    'La librería de captura tardó demasiado en cargar.'
+  );
 };
 const parseNumeroConSigno = (valor) => {
   let texto = (valor ?? '').toString().trim().replace(/[^\d,.-]/g, '');
@@ -421,7 +452,8 @@ const textoCondicionFiscalCliente = (cliente = null) => {
   );
   return condicion || 'Sin condición fiscal';
 };
-const OFERTA_TEMPLATE_BASE_URL = './oferta-template-base.jpg';
+const COMPANY_DEFAULTS = COMPANY_RUNTIME_CONFIG || {};
+const OFERTA_TEMPLATE_BASE_URL = COMPANY_DEFAULTS.ofertaTemplateBaseUrl || '';
 const FORM_USUARIO_VACIO = {
   nombre: '',
   username: '',
@@ -549,6 +581,7 @@ const crearFormularioProducto = (producto = {}) => {
   precio: producto?.precio ?? '',
   unidad: producto?.unidad ?? 'unid',
   cantidad: producto?.cantidad ?? '',
+  stockMinimo: producto?.stockMinimo ?? producto?.minimoStock ?? '',
   imagen: producto?.imagen ?? '',
   imagenes: obtenerImagenesProducto(producto),
   logoMarca: producto?.logoMarca ?? '',
@@ -641,29 +674,30 @@ const promesaConTimeout = (promesa, timeoutMs = 15000, mensaje = 'La operación 
 const esDataUrlPesada = (valor = '') => textoSeguroTrim(valor, '').startsWith('data:');
 const MS_POR_DIA = 1000 * 60 * 60 * 24;
 const CONTACTO_NEGOCIO_FALLBACK = {
-  direccion: 'Avenida San Martin 646',
-  web: 'www.mundoledchaco.com',
-  whatsapp: '3735506858',
-  correo: 'info@mundoledchaco.com'
+  direccion: COMPANY_DEFAULTS.direccion || '',
+  web: COMPANY_DEFAULTS.web || '',
+  whatsapp: COMPANY_DEFAULTS.whatsapp || '',
+  correo: COMPANY_DEFAULTS.correo || ''
 };
-const NOMBRE_EMPRESA_FALLBACK = 'MUNDOLED';
+const NOMBRE_EMPRESA_FALLBACK = COMPANY_DEFAULTS.nombre || 'MI EMPRESA';
 const CONFIG_DEFAULT = {
   nombre: NOMBRE_EMPRESA_FALLBACK,
-  logo: '',
+  logo: COMPANY_DEFAULTS.logo || '',
   direccion: CONTACTO_NEGOCIO_FALLBACK.direccion,
   web: CONTACTO_NEGOCIO_FALLBACK.web,
   whatsapp: CONTACTO_NEGOCIO_FALLBACK.whatsapp,
   correo: CONTACTO_NEGOCIO_FALLBACK.correo,
-  pagoAlias: 'mundoled1',
-  pagoCbu: '',
-  pagoTitular: 'POLINI MAURO MAXIMILIANO',
-  pagoBanco: 'Mercado Pago',
-  pagoDetalle: '',
+  pagoAlias: COMPANY_DEFAULTS.pagoAlias || '',
+  pagoCbu: COMPANY_DEFAULTS.pagoCbu || '',
+  pagoTitular: COMPANY_DEFAULTS.pagoTitular || '',
+  pagoBanco: COMPANY_DEFAULTS.pagoBanco || '',
+  pagoDetalle: COMPANY_DEFAULTS.pagoDetalle || '',
   recargoMoraPorcentaje: 0,
   recargosAutomaticosActivos: false,
   recargoMoraPorcentajeGlobal: 0,
   alertaActualizacionPreciosActiva: true,
   alertaActualizacionPreciosDias: 30,
+  mostrarHistorialCajaAUsuarios: false,
   recorteIaApiKey: '',
   ofertaIaEndpoint: '',
   ofertaIaToken: ''
@@ -684,8 +718,8 @@ const USUARIO_ADMIN_FALLBACK = {
   password: '123',
   rol: 'admin'
 };
-const LOGO_EMPRESA_FALLBACK_URL = './logo-empresa-mundoled.png';
-const LOGO_RECIBO_PREMIUM_URL = './logo-ofertas-mundoled-white.png';
+const LOGO_EMPRESA_FALLBACK_URL = COMPANY_DEFAULTS.logoEmpresaFallbackUrl || '';
+const LOGO_RECIBO_PREMIUM_URL = COMPANY_DEFAULTS.logoReciboPremiumUrl || '';
 const obtenerUrlAbsolutaAsset = (asset = '') => {
   const origen = textoSeguroTrim(asset, '');
   if (!origen || origen.startsWith('data:') || /^https?:\/\//i.test(origen)) return origen;
@@ -1736,6 +1770,7 @@ function AppInterna() {
     cobro: true,
     recargos: false,
     inventario: false,
+    historialCaja: false,
     logo: false,
     diagnostico: false
   });
@@ -1922,6 +1957,8 @@ function AppInterna() {
   const [compraDirectaActiva, setCompraDirectaActiva] = useState(false);
   const [compraDirectaMetodoPago, setCompraDirectaMetodoPago] = useState('cuenta_corriente');
   const [compraDirectaMontoPagado, setCompraDirectaMontoPagado] = useState('');
+  const [compraDirectaTipoComprobante, setCompraDirectaTipoComprobante] = useState('');
+  const [compraDirectaNumeroComprobante, setCompraDirectaNumeroComprobante] = useState('');
   const [compraDirectaComprobante, setCompraDirectaComprobante] = useState('');
   const [busquedaPedidosCompra, setBusquedaPedidosCompra] = useState('');
   const [filtroEstadoPedidosCompra, setFiltroEstadoPedidosCompra] = useState('todos');
@@ -2093,6 +2130,7 @@ function AppInterna() {
   const [productosStockSeleccionados, setProductosStockSeleccionados] = useState([]);
   const [dialogoSistema, setDialogoSistema] = useState(null);
   const [descargandoPdfVistaImpresion, setDescargandoPdfVistaImpresion] = useState(false);
+  const [descargandoPdfMovimientoId, setDescargandoPdfMovimientoId] = useState('');
   const [descargandoImagenReciboCobro, setDescargandoImagenReciboCobro] = useState(false);
   const [modoCapturaReciboWhatsapp, setModoCapturaReciboWhatsapp] = useState(false);
   const [vistaImagenRecibo, setVistaImagenRecibo] = useState(null);
@@ -2265,13 +2303,14 @@ function AppInterna() {
   useEffect(() => {
     let desmontado = false;
     let authResuelto = false;
-    const marcarErrorConexion = (razon = '') => {
-      if (desmontado) return;
-      if (razon) console.error(razon);
-      setEstadoConexion('error');
-      setFirebaseUser(null);
-      setUsuariosCargados(false);
-      setIsDBReady(false);
+    const activarModoLocal = (razon = '') => {
+      if (desmontado || authResuelto) return;
+      authResuelto = true;
+      if (razon) console.warn(razon);
+      setEstadoConexion('conectado');
+      setUsuarios((actuales) => (actuales.length ? actuales : [USUARIO_ADMIN_FALLBACK]));
+      setUsuariosCargados(true);
+      setIsDBReady(true);
     };
 
     const initAuth = async () => {
@@ -2282,25 +2321,22 @@ function AppInterna() {
           await signInAnonymously(auth);
         }
       } catch (e) {
-        marcarErrorConexion('No se pudo completar la autenticación inicial.');
+        console.error("Auth error", e);
+        activarModoLocal('No se pudo completar la autenticación inicial. Activando modo local.');
       }
     };
 
     const authTimeout = setTimeout(() => {
       if (!authResuelto) {
-        marcarErrorConexion('La autenticación tardó demasiado.');
+        activarModoLocal('La autenticación tardó demasiado. Activando modo local.');
       }
     }, 7000);
 
     initAuth();
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       authResuelto = true;
-      if (user) {
-        setFirebaseUser(user);
-        setEstadoConexion('conectando');
-      } else {
-        marcarErrorConexion('Firebase no devolvió una sesión válida.');
-      }
+      setFirebaseUser(user);
+      if (user) setEstadoConexion('conectando');
     });
     return () => {
       desmontado = true;
@@ -2310,7 +2346,7 @@ function AppInterna() {
   }, []);
 
   useEffect(() => {
-    if (!firebaseUser) return undefined;
+    if (!firebaseUser) return;
     setEstadoConexion('conectando');
     const dbReadyTimer = setTimeout(() => setIsDBReady(true), 4500);
     const marcarDBLista = () => {
@@ -2347,7 +2383,10 @@ function AppInterna() {
         if (snapshot.empty) {
             setUsuarios([USUARIO_ADMIN_FALLBACK]);
             const { id: _id, ...usuarioSemillaFirestore } = USUARIO_ADMIN_FALLBACK;
-            addDoc(collection(db, 'usuarios'), usuarioSemillaFirestore).catch((err) => console.error(err));
+            // ID fijo: si dos pestañas inicializan al mismo tiempo, ambas escriben
+            // el mismo documento en lugar de crear administradores duplicados.
+            setDoc(doc(db, 'usuarios', 'admin'), usuarioSemillaFirestore, { merge: true })
+              .catch((err) => console.error(err));
         } else {
             const loaded = []; snapshot.forEach(doc => loaded.push({ id: doc.id, ...doc.data() })); setUsuarios(loaded);
         }
@@ -2355,11 +2394,11 @@ function AppInterna() {
         setEstadoConexion('conectado');
         marcarDBLista();
       }, (err) => {
-        console.error('No se pudo cargar la colección de usuarios.', err);
-        setUsuarios([]);
-        setUsuariosCargados(false);
-        setIsDBReady(false);
-        setEstadoConexion('error');
+        console.error(err);
+        setUsuarios([USUARIO_ADMIN_FALLBACK]);
+        setUsuariosCargados(true);
+        setEstadoConexion('conectado');
+        marcarDBLista();
       });
 
     const unsubMovs = onSnapshot(collection(db, 'movimientos'), (snapshot) => {
@@ -2803,6 +2842,8 @@ function AppInterna() {
         return Boolean(usuario?.puedeUsarCombos);
       case 'inventario':
         return Boolean(usuario?.puedeVerInventario);
+      case 'stock_bajo':
+        return Boolean(usuario?.puedeVerInventario);
       case 'mod_masiva':
         return Boolean(usuario?.puedeUsarModificacionMasiva);
       case 'sugerencias':
@@ -2824,6 +2865,11 @@ function AppInterna() {
       default:
         return false;
     }
+  };
+
+  const usuarioPuedeVerHistorialCaja = (usuario = usuarioActual) => {
+    if ((usuario?.rol || '').toLowerCase() === 'admin') return true;
+    return Boolean(configuracion?.mostrarHistorialCajaAUsuarios);
   };
 
   const obtenerVistaInicialUsuario = (usuario = usuarioActual) => {
@@ -3713,6 +3759,21 @@ function AppInterna() {
     () => productosVisualizados.slice(0, limiteRenderInventario),
     [productosVisualizados, limiteRenderInventario]
   );
+
+  const productosStockBajo = useMemo(() => (
+    (productos || [])
+      .map((producto) => ({
+        producto,
+        stockActual: obtenerStockActualProducto(producto),
+        stockMinimo: obtenerStockMinimoProducto(producto)
+      }))
+      .filter(({ stockMinimo, stockActual }) => stockMinimo !== null && stockActual <= stockMinimo)
+      .sort((a, b) => {
+        const diferenciaMargen = (a.stockActual - a.stockMinimo) - (b.stockActual - b.stockMinimo);
+        if (diferenciaMargen !== 0) return diferenciaMargen;
+        return textoSeguroTrim(a.producto?.descripcion, '').localeCompare(textoSeguroTrim(b.producto?.descripcion, ''), 'es', { sensitivity: 'base', numeric: true });
+      })
+  ), [productos]);
 
   const obtenerEstadoActualizacionPrecioProducto = (producto) => {
     if (!Boolean(configuracion?.alertaActualizacionPreciosActiva)) return null;
@@ -4972,7 +5033,7 @@ function AppInterna() {
     const total = Number(opciones?.total ?? totalFormularioPuntoVenta) || 0;
     const recibido = Number(opciones?.recibido ?? recibidoEfectivoPuntoVentaNumero) || 0;
     const vuelto = Math.max(0, recibido - total);
-    const alias = textoSeguroTrim(configuracion?.pagoAlias, 'mundoled1');
+    const alias = textoSeguroTrim(configuracion?.pagoAlias, '');
     const cbu = textoSeguroTrim(configuracion?.pagoCbu, '');
     const banco = textoSeguroTrim(configuracion?.pagoBanco, '');
     const cliente = textoSeguroTrim(opciones?.clienteNombre || formPuntoVenta.clienteNombre || formPuntoVenta.busquedaCliente, 'Cliente');
@@ -5120,7 +5181,7 @@ function AppInterna() {
       : '';
     const cantidadDestacada = destacado ? `${formatearCantidad(destacado.cantidad)} ${escaparHtmlPantallaCliente(abreviarUnidadPantallaCliente(destacado.unidad || 'unid'))}` : '0 unid.';
     const subtotalDestacado = destacado ? formatearDinero(destacado.subtotal) : formatearDinero(0);
-    const nombreDisplayCliente = textoSeguroTrim(negocio, 'MUNDOLED').toUpperCase();
+    const nombreDisplayCliente = textoSeguroTrim(negocio, NOMBRE_EMPRESA_FALLBACK).toUpperCase();
     const detallePagoHtml = (() => {
       if (resumenPago.metodo === 'efectivo') {
         const falta = Math.max(0, Number(resumenPago.total || 0) - Number(resumenPago.recibido || 0));
@@ -5207,7 +5268,7 @@ function AppInterna() {
   <style>
     * { box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; }
-    body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #eef4f8; color: #0f172a; }
+    body { margin: 0; font-family: Manrope, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #eef4f8; color: #0f172a; }
     .screen { position: relative; width: 100vw; height: 100vh; overflow: hidden; display: flex; flex-direction: column; padding: clamp(12px, 2.2vw, 24px); gap: clamp(10px, 1.5vw, 16px); }
     .topbar { height: clamp(70px, 10vh, 96px); display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: clamp(10px, 1.4vw, 16px) clamp(14px, 2vw, 22px); border-radius: 20px; background: #ffffff; border: 1px solid #dbe5ee; box-shadow: 0 14px 34px rgba(15, 23, 42, .08); flex: 0 0 auto; }
     .brand { display: flex; align-items: center; min-width: 0; height: 100%; }
@@ -5604,7 +5665,7 @@ function AppInterna() {
   <title>Cuenta corriente · ${escaparHtmlPantallaCliente(clienteNombre)}</title>
   <style>
     * { box-sizing: border-box; }
-    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; font-family: Inter, Manrope, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #eef4f8; color: #0f172a; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; font-family: Manrope, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #eef4f8; color: #0f172a; }
     body { display: grid; place-items: center; padding: clamp(20px, 4vw, 54px); }
     .stage { position: absolute; inset: 0; background:
       radial-gradient(circle at 16% 18%, rgba(20,184,166,.20), transparent 28%),
@@ -5838,7 +5899,7 @@ function AppInterna() {
   <style>
     * { box-sizing: border-box; }
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
-    body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #eef4f8; color: #0f172a; }
+    body { font-family: Manrope, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #eef4f8; color: #0f172a; }
     .stage { position: relative; width: 100vw; height: 100vh; display: grid; place-items: center; overflow: hidden; padding: clamp(18px, 3vw, 42px); }
     .welcome-bg { position: absolute; inset: 0; display: grid; place-items: center; background:
       radial-gradient(circle at 20% 10%, rgba(14,165,233,.16), transparent 34%),
@@ -6910,7 +6971,7 @@ const abrirPuntoVenta = () => {
         notas: textoSeguroTrim(formPuntoVenta.notas, ''),
         efectivoRecibido: recibidoEfectivo,
         vuelto: vueltoEfectivo,
-        aliasTransferencia: metodoFormulario === 'transferencia' ? textoSeguroTrim(configuracion?.pagoAlias, 'mundoled1') : '',
+        aliasTransferencia: metodoFormulario === 'transferencia' ? textoSeguroTrim(configuracion?.pagoAlias, '') : '',
         items: itemsNormalizados
       },
       fecha: fechaMovimiento,
@@ -7158,7 +7219,7 @@ const abrirPuntoVenta = () => {
     const detalles = mov?.detallesPago || {};
     const items = Array.isArray(detalles?.items) ? detalles.items : [];
     const incluirImagenes = Boolean(detalles?.incluirImagenes);
-    const empresa = textoSeguroTrim(configuracion?.nombre, 'Mundo Led');
+    const empresa = textoSeguroTrim(configuracion?.nombre, NOMBRE_EMPRESA_FALLBACK);
     const logoEmpresa = textoSeguroTrim(
       logoEmpresaRender,
       textoSeguroTrim(logoEmpresaFallbackRender, obtenerUrlAbsolutaAsset(LOGO_EMPRESA_FALLBACK_URL))
@@ -7415,7 +7476,7 @@ const abrirPuntoVenta = () => {
           fecha: mov?.fecha,
           items: mov?.detallesPago?.items || []
         }));
-    const empresa = textoSeguroTrim(configuracion?.nombre, 'Mundo Led');
+    const empresa = textoSeguroTrim(configuracion?.nombre, NOMBRE_EMPRESA_FALLBACK);
     const logoEmpresa = textoSeguroTrim(
       logoEmpresaRender,
       textoSeguroTrim(
@@ -7693,7 +7754,7 @@ const abrirPuntoVenta = () => {
       return { ...item, cantidad, precio, descuento, subtotal };
     });
     const total = filas.reduce((acc, item) => acc + item.subtotal, 0);
-    const empresa = textoSeguroTrim(configuracion?.nombre, 'Mundo Led');
+    const empresa = textoSeguroTrim(configuracion?.nombre, NOMBRE_EMPRESA_FALLBACK);
     const logoEmpresa = textoSeguroTrim(
       logoEmpresaRender,
       textoSeguroTrim(
@@ -8915,6 +8976,18 @@ const abrirPuntoVenta = () => {
       // Compatibilidad con versiones previas
       puedeVerCuentasInstitucionales: limpiarPermiso(formUsuario.puedeVerClientesEspeciales)
     };
+    const usernameNormalizado = textoSeguro(formUsuario.username, '').trim().toLowerCase();
+    const usuarioDuplicado = usuarios.find((usuario) => (
+      usuario.id !== usuarioAEditar?.id
+      && textoSeguro(usuario.username || usuario.usuario || '', '').trim().toLowerCase() === usernameNormalizado
+    ));
+    if (usernameNormalizado && usuarioDuplicado) {
+      await notificarSistema('Ya existe otro usuario con ese nombre de acceso.', {
+        tipo: 'warning',
+        titulo: 'Usuario duplicado'
+      });
+      return;
+    }
     if (usuarioAEditar) {
       await updateDoc(doc(db, 'usuarios', usuarioAEditar.id), payloadUsuario);
     } else {
@@ -8965,6 +9038,28 @@ const abrirPuntoVenta = () => {
       limiteCuentaCorriente: Math.max(0, parseNumeroBasico(formCliente.limiteCuentaCorriente) || 0),
       plazoCuentaCorrienteDias: Math.max(0, Math.floor(parseNumeroBasico(formCliente.plazoCuentaCorrienteDias) || 0))
     };
+
+    const normalizarDatoCliente = (valor = '') => normalizarTextoBusqueda(textoSeguroTrim(valor, ''));
+    const obtenerDatosIdentidadCliente = (cliente = {}) => ({
+      nombre: normalizarDatoCliente(cliente.nombre),
+      whatsapp: normalizarDatoCliente(cliente.whatsapp || cliente.telefono),
+      documento: normalizarDatoCliente(cliente.documento || cliente.dni || cliente.cuit),
+      email: normalizarDatoCliente(cliente.email || cliente.correo),
+      direccion: normalizarDatoCliente(cliente.direccion)
+    });
+    const identidadNueva = obtenerDatosIdentidadCliente(data);
+    const clienteDuplicado = (clientes || []).find((cliente) => {
+      if (clienteAEditar?.id && cliente.id === clienteAEditar.id) return false;
+      const identidadExistente = obtenerDatosIdentidadCliente(cliente);
+      return Object.keys(identidadNueva).every((campo) => identidadExistente[campo] === identidadNueva[campo]);
+    });
+    if (clienteDuplicado) {
+      await notificarSistema(`Ya existe un cliente con el nombre y los mismos datos de contacto: ${clienteDuplicado.nombre || nombre}.`, {
+        tipo: 'warning',
+        titulo: 'Cliente duplicado'
+      });
+      return;
+    }
 
     if (clienteAEditar) {
       await updateDoc(doc(db, 'clientes', clienteAEditar.id), data);
@@ -10096,7 +10191,17 @@ const abrirPuntoVenta = () => {
   };
 
   const eliminarUsuario = async (id) => {
-    if (id === usuarioActual.id) {
+    const usuarioObjetivo = usuarios.find((usuario) => usuario.id === id);
+    const esAdministradorObjetivo = (usuarioObjetivo?.rol || '').toLowerCase() === 'admin';
+    const cantidadAdministradores = usuarios.filter((usuario) => (usuario?.rol || '').toLowerCase() === 'admin').length;
+    if (esAdministradorObjetivo && cantidadAdministradores <= 1) {
+      await notificarSistema('Debe quedar al menos un administrador activo.', {
+        tipo: 'warning',
+        titulo: 'Acción no permitida'
+      });
+      return;
+    }
+    if (id === usuarioActual.id && !esAdministradorObjetivo) {
       await notificarSistema('No puedes eliminar tu propio usuario mientras estás conectado.', {
         tipo: 'warning',
         titulo: 'Acción no permitida'
@@ -10110,6 +10215,10 @@ const abrirPuntoVenta = () => {
     });
     if (!confirmar) return;
     await deleteDoc(doc(db, 'usuarios', id));
+    if (id === usuarioActual.id) {
+      setUsuarioActual(null);
+      setLoginForm({ username: '', password: '', error: '' });
+    }
   };
 
   const imprimirReporte = () => { window.print(); };
@@ -10171,8 +10280,10 @@ const abrirPuntoVenta = () => {
 
   const descargarPdfVistaImpresion = async () => {
     if (typeof window === 'undefined') return;
-    const htmlToImageApi = window.htmlToImage;
-    if (!htmlToImageApi?.toCanvas) {
+    let htmlToImageApi;
+    try {
+      htmlToImageApi = await asegurarHtmlToImage();
+    } catch (error) {
       await notificarSistema('No se pudo iniciar la descarga PDF porque falta la librería de captura.', {
         tipo: 'warning',
         titulo: 'Descarga no disponible'
@@ -10269,8 +10380,7 @@ const abrirPuntoVenta = () => {
 
   const generarPdfDesdeNodosCapturados = async (nodos = [], nombreArchivo = 'documento.pdf') => {
     if (typeof window === 'undefined') throw new Error('La exportación PDF no está disponible.');
-    const htmlToImageApi = window.htmlToImage;
-    if (!htmlToImageApi?.toCanvas) throw new Error('Falta la librería de captura HTML.');
+    const htmlToImageApi = await asegurarHtmlToImage();
     if (!Array.isArray(nodos) || !nodos.length) throw new Error('No hay páginas para exportar.');
 
     let pdf = null;
@@ -10347,37 +10457,181 @@ const abrirPuntoVenta = () => {
         paginasRecibo.length ? paginasRecibo : [contenedorRecibo],
         obtenerNombreArchivoReciboCobro(resumen, true)
       );
+    } catch (error) {
+      console.error('No se pudo descargar el PDF del recibo', error);
+      await notificarSistema('No se pudo descargar el PDF del recibo. Probá nuevamente.', {
+        tipo: 'error',
+        titulo: 'Error al descargar'
+      });
     } finally {
       setDescargandoPdfVistaImpresion(false);
     }
   };
 
-  const descargarPdfVentaDocumentoDesdePreview = async (mov = null) => {
-    setDescargandoPdfVistaImpresion(true);
-    try {
-      if (!mov) throw new Error('Comprobante no disponible');
-      let iframe = ventaPreviewIframeRef.current;
-      let temporal = null;
-      try {
-        const coincideVista = iframe
-          && ventaDocumentoSeleccionado?.id
-          && ventaDocumentoSeleccionado.id === mov.id;
-        if (!coincideVista) {
-          temporal = await crearIframeTemporalParaPdf(construirHtmlVentaDocumento(mov, false));
-          iframe = temporal;
-        } else {
-          await esperarContenidoIframeListo(iframe);
-        }
+  const generarPdfVentaDocumentoDirecto = (mov = null) => {
+    if (!mov) throw new Error('Comprobante no disponible');
+    const detalles = mov?.detallesPago || {};
+    const items = Array.isArray(detalles?.items) ? detalles.items : [];
+    const tipoComprobante = detalles?.tipoComprobante || (detalles?.origen === 'remito_r' ? 'remito_r' : 'remito_x');
+    const etiqueta = OPCIONES_COMPROBANTE_VENTA.find((op) => op.value === tipoComprobante)?.label
+      || (tipoComprobante === 'remito_r' ? 'Remito R' : 'Comprobante');
+    const numero = textoSeguroTrim(detalles?.numeroComprobante, textoSeguroTrim(mov?.id, '-'));
+    const cliente = textoSeguroTrim(detalles?.cliente || detalles?.clienteNombre, 'Consumidor final');
+    const empresa = textoSeguroTrim(configuracion?.nombre, NOMBRE_EMPRESA_FALLBACK);
+    const filas = items.map((item) => {
+      const cantidad = Math.max(0, parseNumeroBasico(item?.cantidad) || 0);
+      const precio = Math.max(0, parseNumeroBasico(item?.precio) || 0);
+      const descuento = Math.min(100, Math.max(0, parseNumeroBasico(item?.descuento) || 0));
+      const bruto = cantidad * precio;
+      const subtotal = Math.max(0, bruto - (bruto * descuento / 100));
+      return [
+        textoSeguroTrim(item?.codigo, '-'),
+        textoSeguroTrim(item?.descripcion, 'Ítem'),
+        formatearCantidad(cantidad),
+        textoSeguroTrim(item?.unidad, 'unid'),
+        formatearDinero(precio),
+        descuento > 0 ? `${formatearCantidad(descuento)}%` : '-',
+        formatearDinero(subtotal)
+      ];
+    });
+    if (!filas.length) {
+      filas.push(['-', textoSeguroTrim(mov?.descripcion, 'Comprobante de venta'), '-', '-', '-', '-', formatearDinero(Math.abs(Number(mov?.monto || 0)))]);
+    }
+    const totalItems = items.reduce((total, item) => {
+      const cantidad = Math.max(0, parseNumeroBasico(item?.cantidad) || 0);
+      const precio = Math.max(0, parseNumeroBasico(item?.precio) || 0);
+      const descuento = Math.min(100, Math.max(0, parseNumeroBasico(item?.descuento) || 0));
+      const bruto = cantidad * precio;
+      return total + Math.max(0, bruto - (bruto * descuento / 100));
+    }, 0);
+    const total = totalItems > 0 ? totalItems : Math.abs(Number(mov?.monto || 0));
+    const docPdf = crearPdfA4('portrait', { titulo: `${etiqueta} ${numero}` });
+    docPdf.setFillColor(15, 23, 42);
+    docPdf.roundedRect(14, 10, 182, 24, 2, 2, 'F');
+    docPdf.setFont('helvetica', 'bold');
+    docPdf.setFontSize(14);
+    docPdf.setTextColor(255, 255, 255);
+    docPdf.text(empresa.toUpperCase(), 18, 19);
+    docPdf.setFontSize(8);
+    docPdf.setTextColor(203, 213, 225);
+    docPdf.text('COMPROBANTE DE VENTA', 18, 26);
+    docPdf.setFontSize(13);
+    docPdf.setTextColor(52, 211, 153);
+    docPdf.text(`${etiqueta} N° ${numero}`, 192, 22, { align: 'right' });
+    docPdf.setFont('helvetica', 'normal');
+    docPdf.setFontSize(8.5);
+    docPdf.setTextColor(71, 85, 105);
+    docPdf.text(`Fecha: ${formatearFecha(mov?.fecha)} ${formatearHora(mov?.fecha)}`, 14, 42);
+    docPdf.text(`Forma de pago: ${obtenerEtiquetaMetodoPago(mov?.metodoPago)}`, 14, 48);
+    docPdf.setFont('helvetica', 'bold');
+    docPdf.setTextColor(15, 23, 42);
+    docPdf.text('Cliente', 110, 42);
+    docPdf.setFont('helvetica', 'normal');
+    docPdf.text(cliente, 110, 48, { maxWidth: 86 });
+    autoTable(docPdf, {
+      startY: 58,
+      head: [['Código', 'Detalle', 'Cant.', 'Unidad', 'Precio U.', 'Desc.', 'Subtotal']],
+      body: filas,
+      theme: 'grid',
+      margin: { left: 14, right: 14 },
+      styles: { fontSize: 8, cellPadding: 2, textColor: [30, 41, 59], lineColor: [226, 232, 240], valign: 'top' },
+      headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
+      columnStyles: {
+        0: { cellWidth: 25 },
+        1: { cellWidth: 68 },
+        2: { cellWidth: 18, halign: 'right' },
+        3: { cellWidth: 19 },
+        4: { cellWidth: 25, halign: 'right' },
+        5: { cellWidth: 18, halign: 'right' },
+        6: { cellWidth: 28, halign: 'right', fontStyle: 'bold' }
+      }
+    });
+    const totalY = Math.min((docPdf.lastAutoTable?.finalY || 70) + 12, 270);
+    docPdf.setFillColor(236, 253, 245);
+    docPdf.setDrawColor(134, 239, 172);
+    docPdf.roundedRect(125, totalY, 71, 20, 2, 2, 'FD');
+    docPdf.setFont('helvetica', 'bold');
+    docPdf.setFontSize(8);
+    docPdf.setTextColor(4, 120, 87);
+    docPdf.text('TOTAL', 192, totalY + 7, { align: 'right' });
+    docPdf.setFontSize(16);
+    docPdf.text(formatearDinero(total), 192, totalY + 15, { align: 'right' });
+    const notas = textoSeguroTrim(detalles?.notas, '');
+    if (notas) {
+      docPdf.setFont('helvetica', 'normal');
+      docPdf.setFontSize(8);
+      docPdf.setTextColor(71, 85, 105);
+      docPdf.text(`Notas: ${notas}`, 14, Math.min(totalY + 8, 276), { maxWidth: 105 });
+    }
+    const blob = docPdf.output('blob');
+    return new File([blob], obtenerNombreArchivoComprobanteVenta(mov, true), { type: 'application/pdf' });
+  };
 
-        const docFrame = iframe?.contentDocument;
-        const paginas = Array.from(docFrame?.querySelectorAll?.('.sheet') || []);
-        if (!paginas.length) throw new Error('No se encontraron páginas del comprobante.');
-        await generarPdfDesdeNodosCapturados(paginas, obtenerNombreArchivoComprobanteVenta(mov, true));
-      } finally {
-        if (temporal?.parentNode) temporal.parentNode.removeChild(temporal);
+  const prepararVentaDocumentoParaPdf = async (mov = null) => {
+    if (!mov || typeof document === 'undefined') throw new Error('Comprobante no disponible');
+    const html = construirHtmlVentaDocumento(mov, false);
+    const documento = new DOMParser().parseFromString(html, 'text/html');
+    const contenedor = document.createElement('div');
+    contenedor.setAttribute('aria-hidden', 'true');
+    contenedor.style.position = 'fixed';
+    contenedor.style.left = '-20000px';
+    contenedor.style.top = '0';
+    contenedor.style.width = '210mm';
+    contenedor.style.background = '#ffffff';
+    contenedor.style.fontFamily = 'Arial, sans-serif';
+    const estilos = Array.from(documento.querySelectorAll('style'))
+      .map((estilo) => estilo.textContent || '')
+      .join('\n');
+    const hojaEstilos = document.createElement('style');
+    hojaEstilos.textContent = estilos;
+    contenedor.appendChild(hojaEstilos);
+    const cuerpo = document.createElement('div');
+    cuerpo.innerHTML = documento.body?.innerHTML || '';
+    contenedor.appendChild(cuerpo);
+    document.body.appendChild(contenedor);
+    try {
+      await esperarImagenesNodo(contenedor);
+      await esperarFrame();
+      const paginas = Array.from(contenedor.querySelectorAll('.sheet'));
+      if (!paginas.length) throw new Error('No se encontraron páginas del comprobante.');
+      return { contenedor, paginas };
+    } catch (error) {
+      if (contenedor.parentNode) contenedor.parentNode.removeChild(contenedor);
+      throw error;
+    }
+  };
+
+  const descargarPdfVentaDocumentoDesdePreview = async (mov = null) => {
+    const movimientoId = textoSeguroTrim(mov?.id, textoSeguroTrim(ventaDocumentoSeleccionado?.id, 'preview'));
+    setDescargandoPdfMovimientoId(movimientoId);
+    let vistaPdf = null;
+    try {
+      vistaPdf = await promesaConTimeout(
+        prepararVentaDocumentoParaPdf(mov),
+        12000,
+        'La vista del comprobante tardó demasiado en prepararse.'
+      );
+      await promesaConTimeout(
+        generarPdfDesdeNodosCapturados(vistaPdf.paginas, obtenerNombreArchivoComprobanteVenta(mov, true)),
+        30000,
+        'La generación del PDF tardó demasiado.'
+      );
+    } catch (error) {
+      console.error('No se pudo descargar el PDF del comprobante', error);
+      try {
+        // Respaldo: mantiene la descarga disponible si el navegador bloquea
+        // la captura visual del HTML original.
+        descargarArchivoTemporal(generarPdfVentaDocumentoDirecto(mov));
+      } catch (fallbackError) {
+        console.error('Tampoco se pudo generar el PDF directo', fallbackError);
+        void notificarSistema('No se pudo descargar el PDF rápido. Probá nuevamente.', {
+          tipo: 'error',
+          titulo: 'Error al descargar'
+        });
       }
     } finally {
-      setDescargandoPdfVistaImpresion(false);
+      if (vistaPdf?.contenedor?.parentNode) vistaPdf.contenedor.parentNode.removeChild(vistaPdf.contenedor);
+      setDescargandoPdfMovimientoId((actual) => actual === movimientoId ? '' : actual);
     }
   };
 
@@ -12236,6 +12490,49 @@ const abrirPuntoVenta = () => {
     return docPdf;
   };
 
+  const sincronizarMovimientoPagoProveedor = async ({ pagoId = '', pago = null, eliminar = false } = {}) => {
+    if (!pagoId) return;
+    const movimientoExistente = (movimientos || []).find((mov) => (
+      textoSeguroTrim(mov?.pagoProveedorId || mov?.detallesPago?.pagoProveedorId, '') === pagoId
+    ));
+    const movimientoRef = movimientoExistente?.id ? doc(db, 'movimientos', movimientoExistente.id) : null;
+    const metodoPago = normalizarMetodoPago(pago?.metodoPago || '');
+    const noEsPagoReal = ['pendiente', 'cuenta_corriente', 'pago_realizado'].includes(metodoPago);
+    if (eliminar || !pago || noEsPagoReal || Math.max(0, parseNumeroBasico(pago?.monto) || 0) <= 0) {
+      if (movimientoRef) await deleteDoc(movimientoRef);
+      return;
+    }
+    const monto = Math.max(0, parseNumeroBasico(pago?.monto) || 0);
+    const payloadMovimiento = limpiarDatoFirestore({
+      tipo: 'gasto',
+      monto,
+      metodoPago,
+      descripcion: `Pago a proveedor: ${textoSeguroTrim(pago?.proveedor, 'Proveedor')}`,
+      categoria: 'Pago a proveedor',
+      proveedorId: textoSeguroTrim(pago?.proveedorId, ''),
+      proveedor: textoSeguroTrim(pago?.proveedor, ''),
+      pagoProveedorId: pagoId,
+      noImpactaCaja: false,
+      fecha: textoSeguroTrim(pago?.fecha, new Date().toISOString()),
+      fechaCreacion: textoSeguroTrim(pago?.fechaCreacion, new Date().toISOString()),
+      usuario: textoSeguroTrim(pago?.usuario, usuarioActual?.nombre || ''),
+      detallesPago: {
+        origen: 'pago_proveedor',
+        pagoProveedorId: pagoId,
+        proveedorId: textoSeguroTrim(pago?.proveedorId, ''),
+        proveedor: textoSeguroTrim(pago?.proveedor, ''),
+        numeroComprobante: textoSeguroTrim(pago?.numeroComprobante, ''),
+        pedidoCompraId: textoSeguroTrim(pago?.pedidoCompraId, ''),
+        pedidoCompraNumero: textoSeguroTrim(pago?.pedidoCompraNumero, '')
+      }
+    });
+    if (movimientoRef) {
+      await updateDoc(movimientoRef, payloadMovimiento);
+    } else {
+      await addDoc(collection(db, 'movimientos'), payloadMovimiento);
+    }
+  };
+
   const guardarPagoProveedor = async (e) => {
     e.preventDefault();
     const proveedor = textoSeguroTrim(formPagoProveedor?.proveedor, '');
@@ -12280,6 +12577,7 @@ const abrirPuntoVenta = () => {
       const pagoRef = await addDoc(collection(db, 'pagos_proveedores'), payloadPagoProveedor);
       pagoId = pagoRef.id;
     }
+    await sincronizarMovimientoPagoProveedor({ pagoId, pago: { id: pagoId, ...payloadPagoProveedor } });
     await construirPdfPagoProveedor({ id: pagoId, ...payloadPagoProveedor });
 
     if (pedidoCompraId) {
@@ -12528,6 +12826,7 @@ const abrirPuntoVenta = () => {
           totalFactura: totalRecibido
         });
         const pagoRef = await addDoc(collection(db, 'pagos_proveedores'), payloadPagoCompra);
+        await sincronizarMovimientoPagoProveedor({ pagoId: pagoRef.id, pago: { id: pagoRef.id, ...payloadPagoCompra } });
         await construirPdfPagoProveedor({ id: pagoRef.id, ...payloadPagoCompra });
         await updateDoc(doc(db, 'pedidos_compra', recepcionCompraPedido.id), {
           pagoRegistradoProveedor: true,
@@ -12559,6 +12858,7 @@ const abrirPuntoVenta = () => {
     });
     if (!confirmar) return;
     await deleteDoc(doc(db, 'pagos_proveedores', pago.id));
+    await sincronizarMovimientoPagoProveedor({ pagoId: pago.id, eliminar: true });
   };
 
   const imprimirCuentaProveedor = async (proveedor = null) => {
@@ -13752,6 +14052,10 @@ const abrirPuntoVenta = () => {
       ].filter(Boolean)));
       const fechaActualizacionProducto = new Date().toISOString();
       const cantidadProductoFormulario = parseNumeroBasico(formProducto.cantidad);
+      const stockMinimoTexto = textoSeguroTrim(formProducto.stockMinimo, '');
+      const stockMinimoFormulario = stockMinimoTexto === ''
+        ? null
+        : Math.max(0, parseNumeroBasico(stockMinimoTexto));
       const cantidadProductoAnterior = productoAEditar ? parseNumeroBasico(productoAEditar.cantidad) : null;
       const esProductoCompuesto = Boolean(formProducto.esProductoCompuesto);
       const stockFueControlado = !esProductoCompuesto && (!productoAEditar || cantidadProductoFormulario !== cantidadProductoAnterior);
@@ -13797,6 +14101,7 @@ const abrirPuntoVenta = () => {
         precio: precioFinal,
         unidad: formProducto.unidad || 'unid',
         cantidad: esProductoCompuesto ? 0 : cantidadProductoFormulario,
+        stockMinimo: esProductoCompuesto ? null : stockMinimoFormulario,
         imagen: imagenProductoFinal || '',
         imagenes: imagenesProductoFinal,
         logoMarca: logoMarcaFinal,
@@ -16296,18 +16601,47 @@ function obtenerCategoriaProducto(producto) {
     return '';
   };
 
+  const obtenerCostoBaseProductoParaPedidoCompra = (producto = {}, proveedor = '') => {
+    const costo = producto?.costoOriginal ?? producto?.costo ?? '';
+    const moneda = ['ARS', 'USD_BNA', 'USD_BLUE'].includes(producto?.monedaCosto) ? producto.monedaCosto : 'ARS';
+    return {
+      proveedor: textoSeguroTrim(proveedor, textoSeguroTrim(producto?.proveedor, '')),
+      codigoProveedor: textoSeguroTrim(producto?.proveedor, '') === textoSeguroTrim(proveedor, '') ? textoSeguroTrim(producto?.codigoProveedor, '') : '',
+      costo,
+      moneda,
+      costoPesos: Math.max(0, convertirCostoProveedorAPesos({ costo, moneda }, producto))
+    };
+  };
+
+  const obtenerCostoProveedorParaPedidoCompra = (producto = {}, proveedor = '', costoPreferido = null) => {
+    const costos = obtenerCostosProveedorProducto(producto)
+      .map((costo) => ({ ...costo, costoPesos: convertirCostoProveedorAPesos(costo, producto) }));
+    if (costoPreferido) {
+      const costoExacto = costos.find((costo) => (
+        normalizarTextoBusqueda(costo?.proveedor || '') === normalizarTextoBusqueda(costoPreferido?.proveedor || '')
+        && (!costoPreferido?.codigoProveedor || normalizarTextoBusqueda(costo?.codigoProveedor || '') === normalizarTextoBusqueda(costoPreferido?.codigoProveedor || ''))
+      ));
+      if (costoExacto) return costoExacto;
+    }
+    if (proveedor) {
+      const costoDelProveedor = costos.find((costo) => normalizarTextoBusqueda(costo?.proveedor || '') === normalizarTextoBusqueda(proveedor));
+      if (costoDelProveedor) return costoDelProveedor;
+      // El proveedor puede comprar cualquier producto aunque todavía no tenga un costo individual cargado.
+      return obtenerCostoBaseProductoParaPedidoCompra(producto, proveedor);
+    }
+    const costoConImporte = costos
+      .filter((costo) => costo.costoPesos > 0)
+      .sort((a, b) => a.costoPesos - b.costoPesos)[0];
+    return costoConImporte || obtenerCostoBaseProductoParaPedidoCompra(producto, '');
+  };
+
   const recalcularProveedorItemPedidoCompra = (item = {}, proveedorElegido = '') => {
     const producto = obtenerProductoParaPedidoCompra(item);
-    const costos = obtenerCostosProveedorProducto(producto)
-      .map((costo) => ({ ...costo, costoPesos: convertirCostoProveedorAPesos(costo) }))
-      .filter((costo) => costo.costoPesos > 0);
-    const costoProveedor = proveedorElegido
-      ? costos.find((costo) => normalizarTextoBusqueda(costo?.proveedor) === normalizarTextoBusqueda(proveedorElegido))
-      : (costos[0] || null);
-    if (!costoProveedor) return item;
+    const costoProveedor = obtenerCostoProveedorParaPedidoCompra(producto, proveedorElegido);
+    if (!costoProveedor || (!producto && !textoSeguroTrim(item?.descripcion, ''))) return { ...item, proveedor: proveedorElegido };
     return {
       ...item,
-      proveedor: costoProveedor.proveedor || '',
+      proveedor: proveedorElegido || costoProveedor.proveedor || '',
       codigoProveedor: costoProveedor.codigoProveedor || '',
       costo: costoProveedor.costo ?? '',
       moneda: costoProveedor.moneda || 'ARS',
@@ -16320,6 +16654,8 @@ function obtenerCategoriaProducto(producto) {
     setCompraDirectaActiva(false);
     setCompraDirectaMetodoPago('cuenta_corriente');
     setCompraDirectaMontoPagado('');
+    setCompraDirectaTipoComprobante('');
+    setCompraDirectaNumeroComprobante('');
     setCompraDirectaComprobante('');
     setItemsPedidoCompra([]);
     setBusquedaProductosPedidoCompra('');
@@ -16346,6 +16682,8 @@ function obtenerCategoriaProducto(producto) {
     setCompraDirectaActiva(true);
     setCompraDirectaMetodoPago('cuenta_corriente');
     setCompraDirectaMontoPagado('');
+    setCompraDirectaTipoComprobante('');
+    setCompraDirectaNumeroComprobante('');
     setCompraDirectaComprobante('');
     setItemsPedidoCompra([]);
     setBusquedaProductosPedidoCompra('');
@@ -16373,6 +16711,8 @@ function obtenerCategoriaProducto(producto) {
     setCompraDirectaActiva(false);
     setCompraDirectaMetodoPago('cuenta_corriente');
     setCompraDirectaMontoPagado('');
+    setCompraDirectaTipoComprobante(textoSeguroTrim(pedido?.tipoComprobanteProveedor, ''));
+    setCompraDirectaNumeroComprobante(textoSeguroTrim(pedido?.numeroComprobanteProveedor, ''));
     setCompraDirectaComprobante('');
     const items = (pedido?.items || []).map((item, index) => normalizarItemPedidoCompra(item, index));
     setItemsPedidoCompra(items);
@@ -16472,30 +16812,14 @@ function obtenerCategoriaProducto(producto) {
   };
 
   const agregarProductoAPedidoCompra = (producto = {}, costoProveedorPreferido = null) => {
-    const costos = obtenerCostosProveedorProducto(producto)
-      .map((costo) => ({ ...costo, costoPesos: convertirCostoProveedorAPesos(costo) }))
-      .filter((costo) => costo.costoPesos > 0)
-      .sort((a, b) => a.costoPesos - b.costoPesos);
-    const costoProveedor = costoProveedorPreferido
-      ? costos.find((costo) => (
-          normalizarTextoBusqueda(costo?.proveedor || '') === normalizarTextoBusqueda(costoProveedorPreferido?.proveedor || '')
-          && normalizarTextoBusqueda(costo?.codigoProveedor || '') === normalizarTextoBusqueda(costoProveedorPreferido?.codigoProveedor || '')
-        ))
-      : (proveedorCompraSeleccionado
-      ? costos.find((costo) => normalizarTextoBusqueda(costo.proveedor) === normalizarTextoBusqueda(proveedorCompraSeleccionado))
-      : costos[0]);
-    if (!costoProveedor) {
-      notificarSistema('Este producto no tiene costo cargado para el proveedor elegido.', {
-        tipo: 'warning',
-        titulo: 'Sin costo proveedor'
-      });
-      return;
-    }
+    const costoProveedor = obtenerCostoProveedorParaPedidoCompra(producto, proveedorCompraSeleccionado, costoProveedorPreferido);
+    if (!costoProveedor) return;
     setItemsPedidoCompra((prev) => {
-      const existente = prev.find((item) => item.productoId === producto.id && item.proveedor === costoProveedor.proveedor);
+      const proveedorItem = proveedorCompraSeleccionado || costoProveedor.proveedor || '';
+      const existente = prev.find((item) => item.productoId === producto.id && item.proveedor === proveedorItem);
       if (existente) {
         return prev.map((item) => (
-          item.productoId === producto.id && item.proveedor === costoProveedor.proveedor
+          item.productoId === producto.id && item.proveedor === proveedorItem
             ? { ...item, cantidad: (parseNumeroPresupuesto(item.cantidad) || 1) + 1 }
             : item
         ));
@@ -16508,7 +16832,7 @@ function obtenerCategoriaProducto(producto) {
           descripcion: producto.descripcion || '',
           unidad: producto.unidad || 'unid',
           cantidad: 1,
-          proveedor: costoProveedor.proveedor || '',
+          proveedor: proveedorItem,
           codigoProveedor: costoProveedor.codigoProveedor || '',
           costo: costoProveedor.costo ?? '',
           moneda: costoProveedor.moneda || 'ARS',
@@ -16764,6 +17088,10 @@ function obtenerCategoriaProducto(producto) {
     const costoActualizadoAhora = compraImpactaInventario && estadoPedido === 'recibido'
       ? await actualizarCostosProveedorDesdeRecepcion(itemsAjustados)
       : false;
+    const comprobanteProveedor = [
+      textoSeguroTrim(compraDirectaTipoComprobante, ''),
+      textoSeguroTrim(compraDirectaNumeroComprobante, '')
+    ].filter(Boolean).join(' ') || textoSeguroTrim(compraDirectaComprobante, '');
     const payload = {
       numero: pedidoCompraEditandoId
         ? textoSeguroTrim((pedidosCompra || []).find((p) => p.id === pedidoCompraEditandoId)?.numero, generarNumeroPedidoCompra())
@@ -16800,7 +17128,9 @@ function obtenerCategoriaProducto(producto) {
       ajusteMonto,
       totalEstimado,
       tipoRegistro: compraDirectaActiva ? 'compra_directa' : 'pedido_compra',
-      remitoProveedor: compraDirectaActiva ? textoSeguroTrim(compraDirectaComprobante, '') : (pedidoAnterior?.remitoProveedor || ''),
+      tipoComprobanteProveedor: compraDirectaActiva ? textoSeguroTrim(compraDirectaTipoComprobante, '') : (pedidoAnterior?.tipoComprobanteProveedor || ''),
+      numeroComprobanteProveedor: compraDirectaActiva ? textoSeguroTrim(compraDirectaNumeroComprobante, '') : (pedidoAnterior?.numeroComprobanteProveedor || ''),
+      remitoProveedor: compraDirectaActiva ? comprobanteProveedor : (pedidoAnterior?.remitoProveedor || ''),
       fechaRecepcion: compraDirectaActiva ? combinarFechaInputConHoraReferenciaISO(pedidoCompraFechaPedido || obtenerFechaInputLocal(), new Date()) : (pedidoAnterior?.fechaRecepcion || ''),
       actualizarStock: Boolean(compraImpactaInventario),
       actualizarCostos: Boolean(compraImpactaInventario),
@@ -16817,7 +17147,7 @@ function obtenerCategoriaProducto(producto) {
       pagoRegistradoProveedorEn: compraDirectaActiva && requierePagoDirecto ? new Date().toISOString() : (pedidoAnterior?.pagoRegistradoProveedorEn || ''),
       pagoRegistradoProveedorMonto: compraDirectaActiva && requierePagoDirecto ? montoPagadoDirecto : (pedidoAnterior?.pagoRegistradoProveedorMonto || 0),
       pagoRegistradoProveedorMetodo: compraDirectaActiva && requierePagoDirecto ? metodoPagoDirecto : (pedidoAnterior?.pagoRegistradoProveedorMetodo || ''),
-      pagoRegistradoProveedorComprobante: compraDirectaActiva && requierePagoDirecto ? textoSeguroTrim(compraDirectaComprobante, '') : (pedidoAnterior?.pagoRegistradoProveedorComprobante || ''),
+      pagoRegistradoProveedorComprobante: compraDirectaActiva && requierePagoDirecto ? comprobanteProveedor : (pedidoAnterior?.pagoRegistradoProveedorComprobante || ''),
       pagoRegistradoProveedorPedidoEstado: compraDirectaActiva && requierePagoDirecto ? 'recibido' : (pedidoAnterior?.pagoRegistradoProveedorPedidoEstado || ''),
       usuario: usuarioActual?.nombre || '',
       fechaActualizacion: new Date().toISOString()
@@ -16843,7 +17173,7 @@ function obtenerCategoriaProducto(producto) {
           proveedor: proveedorPrincipal,
           monto: montoPagadoDirecto,
           metodoPago: metodoPagoDirecto,
-          numeroComprobante: textoSeguroTrim(compraDirectaComprobante, ''),
+          numeroComprobante: comprobanteProveedor,
           notas: textoSeguroTrim(pedidoCompraNotas, ''),
           fecha: combinarFechaInputConHoraReferenciaISO(pedidoCompraFechaPedido || obtenerFechaInputLocal(), new Date()),
           fechaCreacion: new Date().toISOString(),
@@ -16853,7 +17183,8 @@ function obtenerCategoriaProducto(producto) {
           pedidoCompraEstado: 'recibido',
           totalFactura: totalEstimado
         });
-        await addDoc(collection(db, 'pagos_proveedores'), payloadPago);
+        const pagoRef = await addDoc(collection(db, 'pagos_proveedores'), payloadPago);
+        await sincronizarMovimientoPagoProveedor({ pagoId: pagoRef.id, pago: { id: pagoRef.id, ...payloadPago } });
       }
     }
 
@@ -18046,8 +18377,7 @@ function obtenerCategoriaProducto(producto) {
     const resumen = construirResumenReciboCobro(mov);
     if (!resumen) throw new Error('Recibo no disponible');
     if (typeof window === 'undefined') throw new Error('Captura no disponible');
-    const htmlToImageApi = window.htmlToImage;
-    if (!htmlToImageApi?.toCanvas) throw new Error('Falta librería de captura');
+    const htmlToImageApi = await asegurarHtmlToImage();
 
     let nodo = opciones?.nodo || reciboCobroPreviewRef.current;
     if (!nodo) {
@@ -19235,7 +19565,7 @@ function obtenerCategoriaProducto(producto) {
       } else {
         ctx.fillStyle = '#111827';
         ctx.font = '900 76px Manrope, system-ui, sans-serif';
-        ctx.fillText((configuracion.nombre || 'MUNDOLED').toString().toUpperCase(), width / 2, 315);
+        ctx.fillText((configuracion.nombre || NOMBRE_EMPRESA_FALLBACK).toString().toUpperCase(), width / 2, 315);
       }
 
       if (mostrarFlashOferta) {
@@ -19368,7 +19698,7 @@ function obtenerCategoriaProducto(producto) {
 
       ctx.fillStyle = '#111827';
       ctx.font = '900 58px Manrope, system-ui, sans-serif';
-      ctx.fillText((configuracion.nombre || 'MUNDOLED').toString().toUpperCase(), width / 2, 3545);
+      ctx.fillText((configuracion.nombre || NOMBRE_EMPRESA_FALLBACK).toString().toUpperCase(), width / 2, 3545);
 
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.95));
       if (!blob) continue;
@@ -19745,7 +20075,7 @@ function obtenerCategoriaProducto(producto) {
     const dias = Number.isFinite(estado?.diasDeuda) ? estado.diasDeuda : (estadoDetallado?.diasDeuda ?? 0);
     const saldoPendiente = Math.max(0, Number(estado?.saldoPendiente ?? cliente.saldo ?? 0), saldoPendienteTickets);
     const nombreCliente = textoSeguroTrim(cliente?.nombre, 'Cliente');
-    const aliasPago = textoSeguroTrim(configuracion?.pagoAlias, 'mundoled1');
+    const aliasPago = textoSeguroTrim(configuracion?.pagoAlias, '');
     const cbuPago = textoSeguroTrim(configuracion?.pagoCbu, '');
     const titularPago = textoSeguroTrim(configuracion?.pagoTitular, 'POLINI MAURO MAXIMILIANO');
     const bancoPago = textoSeguroTrim(configuracion?.pagoBanco, 'Mercado Pago');
@@ -19760,7 +20090,7 @@ function obtenerCategoriaProducto(producto) {
     const lineasMensaje = [
       `Hola *${nombreCliente}*, ¿cómo estás?`,
       '',
-      `Te escribimos desde *${configuracion.nombre || 'MundoLED'}* para acompañarte con tu cuenta.`,
+      `Te escribimos desde *${configuracion.nombre || NOMBRE_EMPRESA_FALLBACK}* para acompañarte con tu cuenta.`,
       `Tu saldo pendiente actual es de *${formatearDinero(saldoPendiente)}*.`,
       dias > 0 ? `Ya pasaron *${formatearTextoDias(dias)}* desde la venta pendiente más antigua.` : '',
       '',
@@ -20265,6 +20595,7 @@ function obtenerCategoriaProducto(producto) {
   };
 
   const esAdminActual = usuarioActualSeguro.rol === 'admin';
+  const cantidadAdministradores = usuarios.filter((usuario) => (usuario?.rol || '').toLowerCase() === 'admin').length;
   const puedeVerSistema = cajaSegura.estado === 'abierta' || esAdminActual;
   const puedeVerClientes = usuarioPuedeVerModulo('clientes', usuarioActual);
   const puedeVerVentas = usuarioPuedeVerModulo('ventas', usuarioActual);
@@ -20274,6 +20605,7 @@ function obtenerCategoriaProducto(producto) {
   const puedeUsarFlyer = usuarioPuedeVerModulo('flyer', usuarioActual);
   const puedeUsarCombos = usuarioPuedeVerModulo('combos', usuarioActual);
   const puedeVerInventario = usuarioPuedeVerModulo('inventario', usuarioActual);
+  const puedeVerStockBajo = usuarioPuedeVerModulo('stock_bajo', usuarioActual);
   const puedeVerModMasiva = usuarioPuedeVerModulo('mod_masiva', usuarioActual);
   const puedeVerSugerencias = usuarioPuedeVerModulo('sugerencias', usuarioActual);
   const puedeVerCompras = usuarioPuedeVerModulo('compras', usuarioActual);
@@ -20292,6 +20624,7 @@ function obtenerCategoriaProducto(producto) {
     puedeUsarCombos,
     puedeUsarFlyer,
     puedeVerInventario,
+    puedeVerStockBajo,
     puedeVerModMasiva,
     puedeVerSugerencias,
     puedeVerCompras,
@@ -20311,6 +20644,7 @@ function obtenerCategoriaProducto(producto) {
     { visible: puedeUsarCombos, vista: 'combos', etiqueta: 'Presupuesto combo', Icono: FileText, color: 'indigo' },
     { visible: puedeUsarFlyer, vista: 'flyer', etiqueta: 'Flyer', Icono: ImageIcon, color: 'fuchsia' },
     { visible: puedeVerInventario, vista: 'inventario', etiqueta: 'Inventario', Icono: Package, color: 'violet' },
+    { visible: puedeVerStockBajo, vista: 'stock_bajo', etiqueta: 'Stock bajo', Icono: AlertCircle, color: 'rose' },
     { visible: puedeVerCompras, vista: 'compras', etiqueta: 'Compras', Icono: FileSpreadsheet, color: 'orange' },
     { visible: puedeVerProveedores, vista: 'proveedores', etiqueta: 'Proveedores', Icono: Users, color: 'sky' },
     { visible: puedeVerModMasiva, vista: 'mod_masiva', etiqueta: 'Modificación masiva', Icono: Edit2, color: 'fuchsia' },
@@ -20384,9 +20718,77 @@ function obtenerCategoriaProducto(producto) {
         .sf-app-shell table th {
           vertical-align: middle;
         }
+        .sf-modal-fullscreen {
+          height: min(96vh, calc(100vh - 1.5rem));
+        }
+        .sf-modal-fullscreen .sf-modal-body {
+          min-height: 0;
+        }
         .sf-app-shell label {
           line-height: 1.2;
         }
+        .sf-app-shell .card {
+          position: relative;
+          background: #fff;
+          border: 1px solid #e5e7eb;
+          border-radius: 1rem;
+          box-shadow: 0 1px 3px rgba(15, 23, 42, .06);
+        }
+        .sf-app-shell .btn {
+          min-height: 42px;
+          border: 1px solid transparent;
+          border-radius: .75rem;
+          padding: .65rem 1rem;
+          font-size: .875rem;
+          line-height: 1.25rem;
+          cursor: pointer;
+          user-select: none;
+        }
+        .sf-app-shell .btn-sm {
+          min-height: 36px;
+          padding: .5rem .75rem;
+          font-size: .75rem;
+        }
+        .sf-app-shell .btn-primary {
+          background: #4f46e5;
+          color: #fff;
+          border-color: #4f46e5;
+          box-shadow: 0 4px 10px rgba(79, 70, 229, .18);
+        }
+        .sf-app-shell .btn-primary:hover { background: #4338ca; border-color: #4338ca; }
+        .sf-app-shell .btn-secondary {
+          background: #fff;
+          color: #475569;
+          border-color: #dbe3ef;
+        }
+        .sf-app-shell .btn-secondary:hover { background: #f8fafc; border-color: #cbd5e1; }
+        .sf-app-shell .btn-ghost { background: transparent; color: #475569; }
+        .sf-app-shell .btn-danger { background: #dc2626; color: #fff; border-color: #dc2626; }
+        .sf-app-shell .btn-soft { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
+        .sf-app-shell .btn:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
+        .sf-app-shell .label {
+          display: block;
+          color: #475569;
+          font-size: .7rem;
+          font-weight: 900;
+          line-height: 1.1;
+          text-transform: uppercase;
+          letter-spacing: .08em;
+        }
+        .sf-app-shell .input {
+          width: 100%;
+          border: 1px solid #dbe3ef;
+          border-radius: .75rem;
+          background: #fff;
+          color: #0f172a;
+          padding: .65rem .75rem;
+          font-size: .875rem;
+          font-weight: 700;
+          outline: none;
+        }
+        .sf-app-shell .input:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99, 102, 241, .18); }
+        .sf-punto-venta-items { height: clamp(220px, 38vh, 430px); }
+        @media (max-width: 640px) { .sf-punto-venta-items { height: min(40vh, 340px); } }
       `}</style>
       
       {/* HEADER PRINCIPAL */}
@@ -20463,7 +20865,7 @@ function obtenerCategoriaProducto(producto) {
           </div>
         )}
 
-        {cajaSegura.estado === 'cerrada' && vista === 'caja' && historialCaja.length > 0 && (
+        {cajaSegura.estado === 'cerrada' && vista === 'caja' && usuarioPuedeVerHistorialCaja() && historialCaja.length > 0 && (
           <div className="max-w-3xl mx-auto mt-6 bg-white border border-gray-200 rounded-2xl shadow-sm p-5 print:hidden">
             <div className="flex items-center justify-between gap-3 mb-3">
               <h3 className="font-black text-gray-900 uppercase tracking-wider text-sm">Historial de cierres</h3>
@@ -23168,6 +23570,70 @@ function obtenerCategoriaProducto(producto) {
           </div>
         )}
 
+        {/* --- VISTA: STOCK BAJO --- */}
+        {puedeVerStockBajo && vista === 'stock_bajo' && (
+          <div className="space-y-6 animate-in fade-in duration-300 print:hidden">
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-rose-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-rose-600 p-2.5 rounded-xl shadow-sm"><AlertCircle size={20} className="text-white" /></div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 tracking-tight">Stock Bajo</h2>
+                  <p className="text-xs font-bold text-rose-700 uppercase tracking-wider">{productosStockBajo.length} producto{productosStockBajo.length === 1 ? '' : 's'} para reponer</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setVista('inventario')} className="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-bold py-2.5 px-4 rounded-xl shadow-sm transition-all text-sm uppercase tracking-wider">
+                Ver inventario
+              </button>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              {productosStockBajo.length === 0 ? (
+                <div className="p-14 text-center text-gray-500">
+                  <CheckCircle size={42} className="mx-auto mb-3 text-emerald-500" />
+                  <p className="font-black text-lg text-gray-700">No hay productos con stock bajo.</p>
+                  <p className="text-sm mt-1">Cuando el stock llegue al mínimo configurado aparecerá aquí.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[720px] text-left text-sm">
+                    <thead className="bg-rose-50 text-rose-800 uppercase text-xs font-black tracking-wider border-b border-rose-100">
+                      <tr>
+                        <th className="px-5 py-3">Producto</th>
+                        <th className="px-5 py-3">Código</th>
+                        <th className="px-5 py-3 text-right">Stock actual</th>
+                        <th className="px-5 py-3 text-right">Stock mínimo</th>
+                        <th className="px-5 py-3 text-right">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {productosStockBajo.map(({ producto, stockActual, stockMinimo }) => (
+                        <tr key={producto.id} className="hover:bg-rose-50/40">
+                          <td className="px-5 py-3">
+                            <p className="font-black text-gray-900">{producto.descripcion || 'Producto sin descripción'}</p>
+                            {producto.marca && <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{producto.marca}</p>}
+                          </td>
+                          <td className="px-5 py-3 font-mono text-gray-600">{producto.codigo || producto.codigoInterno || '-'}</td>
+                          <td className="px-5 py-3 text-right font-black text-rose-700">{formatearCantidad(stockActual)} {producto.unidad || 'unid.'}</td>
+                          <td className="px-5 py-3 text-right font-black text-amber-700">{formatearCantidad(stockMinimo)} {producto.unidad || 'unid.'}</td>
+                          <td className="px-5 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => { setCampoPrecioProductoPreferido('precio'); setBusquedaComponenteCompuesto(''); setProductoAEditar(producto); setFormProducto(crearFormularioProducto({ ...producto, generarCodigoAutomatico: false })); limpiarEdicionTaxonomias(); setModalActivo('nuevo_producto'); }}
+                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-black uppercase tracking-wider"
+                            >
+                              <Edit2 size={14} /> Editar
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* --- VISTA: INVENTARIO (NUEVO DISEÑO CORPORATIVO Y LIMPIO) --- */}
         {puedeVerInventario && vista === 'inventario' && (
           <div className="h-[calc(100vh-13rem)] min-h-[520px] flex flex-col gap-4 overflow-hidden animate-in fade-in duration-300 print:hidden">
@@ -24931,6 +25397,35 @@ function obtenerCategoriaProducto(producto) {
                     </div>
                   )}
                 </div>
+                <div className="border border-violet-200 rounded-xl overflow-hidden">
+                  <button type="button" onClick={() => alternarSeccionConfiguracion('historialCaja')} className="w-full px-4 py-3 bg-violet-50 flex items-center justify-between">
+                    <span className="text-xs font-black text-violet-800 uppercase tracking-wider">Historial de caja</span>
+                    <span className="text-base font-black text-violet-700">{seccionesConfiguracionAbiertas.historialCaja ? '-' : '+'}</span>
+                  </button>
+                  {seccionesConfiguracionAbiertas.historialCaja && (
+                    <div className="bg-violet-50 border-t border-violet-200 p-3 space-y-2.5">
+                      <label className="flex items-center justify-between gap-3 cursor-pointer">
+                        <div>
+                          <p className="text-xs font-bold text-violet-800 uppercase tracking-wider">Permitir historial a usuarios no administradores</p>
+                          <p className="text-[11px] font-bold text-violet-700 mt-0.5">El administrador siempre puede verlo. Esta opción solo puede modificarla un administrador.</p>
+                        </div>
+                        <span className="relative inline-flex items-center shrink-0">
+                          <input
+                            type="checkbox"
+                            disabled={!editandoConfiguracion}
+                            checked={Boolean(configuracion.mostrarHistorialCajaAUsuarios)}
+                            onChange={(e) => setConfiguracion({
+                              ...configuracion,
+                              mostrarHistorialCajaAUsuarios: e.target.checked
+                            })}
+                            className="sr-only peer"
+                          />
+                          <span className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-violet-600 peer-disabled:opacity-60 peer-disabled:cursor-not-allowed after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></span>
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                </div>
                 <div className="border border-blue-200 rounded-xl overflow-hidden">
                   <button type="button" onClick={() => alternarSeccionConfiguracion('diagnostico')} className="w-full px-4 py-3 bg-blue-50 flex items-center justify-between">
                     <span className="text-xs font-black text-blue-800 uppercase tracking-wider">Diagnóstico Firebase</span>
@@ -24992,7 +25487,7 @@ function obtenerCategoriaProducto(producto) {
                         </td>
                         <td className="px-5 py-3 text-right flex justify-end gap-2">
                           <button type="button" onClick={() => abrirFormularioUsuario(u)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-all" title="Editar"><Edit2 size={16} /></button>
-                          <button onClick={() => eliminarUsuario(u.id)} disabled={u.id === usuarioActual.id} className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-all disabled:opacity-30 disabled:bg-transparent" title="Eliminar"><Trash2 size={16} /></button>
+                          <button onClick={() => eliminarUsuario(u.id)} disabled={u.id === usuarioActual.id && ((u.rol || '').toLowerCase() !== 'admin' || cantidadAdministradores <= 1)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-all disabled:opacity-30 disabled:bg-transparent" title="Eliminar"><Trash2 size={16} /></button>
                         </td>
                       </tr>
                     ))}
@@ -25034,7 +25529,7 @@ function obtenerCategoriaProducto(producto) {
           customWidth="max-w-6xl"
           onClose={() => { setModalActivo(null); setProductoCompuestoDetalle(null); }}
         >
-          <div className="space-y-4">
+          <div className="sf-cuenta-detalle-body space-y-3">
             <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-4 rounded-2xl border border-fuchsia-200 bg-fuchsia-50/60 p-4">
               <div className="flex justify-center">
                 <div className="w-40 h-40 rounded-2xl overflow-hidden border-2 border-white bg-white shadow-sm flex items-center justify-center">
@@ -27286,17 +27781,27 @@ function obtenerCategoriaProducto(producto) {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[9px] font-black text-emerald-800 uppercase tracking-wider mb-0.5">Comprobante / referencia</label>
+                      <label className="block text-[9px] font-black text-emerald-800 uppercase tracking-wider mb-0.5">Tipo de comprobante</label>
                       <select
-                        value={compraDirectaComprobante}
-                        onChange={(e) => setCompraDirectaComprobante(e.target.value)}
+                        value={compraDirectaTipoComprobante}
+                        onChange={(e) => setCompraDirectaTipoComprobante(e.target.value)}
                         className="w-full px-2 py-1.5 rounded-lg border border-emerald-200 bg-white text-[11px] font-bold outline-none focus:ring-2 focus:ring-emerald-500"
                       >
-                        <option value="">Seleccionar comprobante</option>
+                        <option value="">Sin comprobante</option>
                         <option value="Factura A">Factura A</option>
                         <option value="Factura B">Factura B</option>
+                        <option value="Factura C">Factura C</option>
                         <option value="Remito X">Remito X</option>
                       </select>
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-black text-emerald-800 uppercase tracking-wider mb-0.5">Número de comprobante</label>
+                      <input
+                        value={compraDirectaNumeroComprobante}
+                        onChange={(e) => setCompraDirectaNumeroComprobante(e.target.value)}
+                        className="w-full px-2 py-1.5 rounded-lg border border-emerald-200 bg-white text-[11px] font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                        placeholder="Ej.: 0001-00001234"
+                      />
                     </div>
                   </div>
                 )}
@@ -27875,6 +28380,11 @@ function obtenerCategoriaProducto(producto) {
               <div className="sm:col-span-1">
                 <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Stock Inicial</label>
                 <input type="text" inputMode="decimal" value={formProducto.cantidad} onChange={(e) => setFormProducto({...formProducto, cantidad: e.target.value.replace(',', '.')})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm font-bold text-center" placeholder="Opcional"/>
+              </div>
+              <div className="sm:col-span-1">
+                <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Stock mínimo</label>
+                <input type="text" inputMode="decimal" value={formProducto.stockMinimo ?? ''} onChange={(e) => setFormProducto({...formProducto, stockMinimo: e.target.value.replace(',', '.')})} className="w-full px-3 py-2 bg-white border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-sm font-bold text-center" placeholder="Sin alerta"/>
+                <p className="mt-1 text-[10px] font-semibold text-amber-700">Avisa cuando el stock sea igual o menor.</p>
               </div>
               <div className="sm:col-span-3">
                 <label className="inline-flex items-start gap-2 text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
@@ -29751,7 +30261,7 @@ function obtenerCategoriaProducto(producto) {
                   <p className="font-bold text-sm text-gray-500">Este cliente todavía no tiene movimientos en cuenta corriente.</p>
                 </div>
               ) : (
-                <div className="max-h-[50vh] overflow-y-auto divide-y divide-gray-100">
+                <div className="max-h-[46vh] overflow-y-auto divide-y divide-gray-100">
                   {movimientosClienteSeleccionadoVisibles.map((mov) => {
                     const esCobro = mov.tipo === 'cobro';
                     const esCargo = esMovimientoCargoCuentaCorriente(mov);
@@ -30081,7 +30591,7 @@ function obtenerCategoriaProducto(producto) {
                                     <button
                                       type="button"
                                       onClick={() => descargarPdfVentaDocumentoDesdePreview(mov)}
-                                      disabled={descargandoPdfVistaImpresion}
+                                      disabled={descargandoPdfMovimientoId === mov.id}
                                       className="px-2 py-1 rounded-md border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors text-[10px] font-black uppercase tracking-wider flex items-center gap-1"
                                       title="Descargar Remito R en PDF"
                                     >
@@ -30099,11 +30609,11 @@ function obtenerCategoriaProducto(producto) {
                                   <button
                                     type="button"
                                     onClick={() => descargarPdfVentaDocumentoDesdePreview(mov)}
-                                    disabled={descargandoPdfVistaImpresion}
+                                    disabled={descargandoPdfMovimientoId === mov.id}
                                     className="p-1.5 rounded-md border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
                                     title="Descargar comprobante PDF"
                                   >
-                                    {descargandoPdfVistaImpresion ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                                    {descargandoPdfMovimientoId === mov.id ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                                   </button>
                                 </>
                               )}
@@ -31499,7 +32009,7 @@ function obtenerCategoriaProducto(producto) {
                 <div className="min-h-[24px]">
                   <p className={`h-6 overflow-hidden truncate whitespace-nowrap text-[10px] font-black text-emerald-800 uppercase tracking-wider bg-white/70 border border-emerald-100 rounded-lg px-2 py-1 ${['efectivo', 'transferencia'].includes(normalizarMetodoPago(formPuntoVenta.metodoPago)) ? '' : 'invisible'}`}>
                     {normalizarMetodoPago(formPuntoVenta.metodoPago) === 'transferencia'
-                      ? `Alias: ${textoSeguroTrim(configuracion?.pagoAlias, 'mundoled1')}`
+                      ? `Alias: ${textoSeguroTrim(configuracion?.pagoAlias, '')}`
                       : 'Al guardar se confirma efectivo y cambio.'}
                   </p>
                 </div>
@@ -31553,7 +32063,7 @@ function obtenerCategoriaProducto(producto) {
               </div>
             </div>
 
-            <div className="card p-3 overflow-hidden flex-1 min-h-0 flex flex-col">
+            <div className="card sf-punto-venta-items p-3 overflow-hidden flex-none min-h-0 flex flex-col">
               <div className="flex items-center justify-between gap-3 mb-1.5 shrink-0">
                 <h3 className="font-bold text-lg text-gray-900">Ítems de la venta</h3>
               </div>
@@ -31815,7 +32325,7 @@ function obtenerCategoriaProducto(producto) {
                       </div>
                       <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
                         <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Alias</p>
-                        <p className="text-3xl font-black text-emerald-900 break-words">{textoSeguroTrim(configuracion?.pagoAlias, 'mundoled1')}</p>
+                        <p className="text-3xl font-black text-emerald-900 break-words">{textoSeguroTrim(configuracion?.pagoAlias, '')}</p>
                       </div>
                       {textoSeguroTrim(configuracion?.pagoCbu, '') && (
                         <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
@@ -32339,10 +32849,10 @@ function obtenerCategoriaProducto(producto) {
               <button
                 type="button"
                 onClick={() => descargarPdfVentaDocumentoDesdePreview(ventaDocumentoSeleccionado)}
-                disabled={descargandoPdfVistaImpresion}
+                disabled={descargandoPdfMovimientoId === ventaDocumentoSeleccionado?.id}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
               >
-                {descargandoPdfVistaImpresion ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />} PDF
+                {descargandoPdfMovimientoId === ventaDocumentoSeleccionado?.id ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />} PDF
               </button>
               <button
                 type="button"
