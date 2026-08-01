@@ -1728,6 +1728,24 @@ const ImagenProductoPreview = ({ imagen = '', logoMarca = '', alt = 'Producto', 
   );
 };
 
+const recargarSistemaSinCache = async () => {
+  try {
+    if (typeof caches !== 'undefined') {
+      const claves = await caches.keys();
+      await Promise.all(claves.map((clave) => caches.delete(clave)));
+    }
+    if (typeof navigator !== 'undefined' && navigator.serviceWorker?.getRegistrations) {
+      const registros = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registros.map((registro) => registro.unregister()));
+    }
+  } catch (error) {
+    console.warn('No se pudo limpiar toda la caché antes de recargar.', error);
+  }
+  const url = new URL(window.location.href);
+  url.searchParams.set('_sf_reload', String(Date.now()));
+  window.location.replace(url.toString());
+};
+
 class AppErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -1767,6 +1785,13 @@ class AppErrorBoundary extends React.Component {
                     className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-5 rounded-xl"
                   >
                     Recargar sistema
+                  </button>
+                  <button
+                    type="button"
+                    onClick={recargarSistemaSinCache}
+                    className="bg-white hover:bg-slate-50 text-slate-700 font-bold py-3 px-5 rounded-xl border border-slate-200"
+                  >
+                    Recargar sin caché
                   </button>
                 </div>
               </div>
