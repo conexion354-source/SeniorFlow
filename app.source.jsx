@@ -575,6 +575,29 @@ const AYUDA_SECCIONES = [
     claves: ['Solo el administrador accede a la configuración general.', 'Cada empresa conserva sus propios datos y configuración.', 'No elimines el administrador principal sin crear antes un reemplazo seguro.']
   }
 ];
+
+const obtenerDetallePasoAyuda = (seccion, paso, index) => {
+  const accionesPorModulo = {
+    inicio: 'Usá el menú principal para entrar al módulo correspondiente y verificá que el nombre de la empresa sea el correcto antes de guardar cambios.',
+    caja: 'Abrí el módulo Caja, completá los campos solicitados, revisá el resumen de importes y confirmá. Antes de cerrar el turno compará el efectivo físico con el total informado.',
+    ventas: 'Completá los datos de la venta, revisá cliente, comprobante, cantidades, precios y forma de pago. Guardá solo después de controlar el total final.',
+    clientes: 'Buscá el cliente, abrí su ficha y revisá el saldo antes de registrar cualquier operación. Después del cobro verificá que el saldo y los comprobantes pendientes sean correctos.',
+    presupuestos: 'Cargá primero el cliente y luego los ítems. Revisá precios, descuentos, notas y estado; finalmente guardá o descargá el comprobante desde las acciones del presupuesto.',
+    inventario: 'Desde Inventario elegí Nuevo producto o Editar. Completá código, descripción, unidad, costos, precios, stock y stock mínimo; guardá y confirmá que el producto aparezca en el listado.',
+    stock_bajo: 'Compará el stock actual con el mínimo indicado. Actualizá el producto desde Inventario o registrá una compra y volvé a revisar el listado cuando termine la operación.',
+    compras: 'Seleccioná proveedor, agregá cualquier producto del inventario y completá cantidades, costos y comprobante. Revisá el total y confirmá la recepción cuando corresponda.',
+    proveedores: 'Abrí el proveedor, completá sus datos y guardá. Para pagar, entrá a su cuenta corriente, cargá medio, importe y comprobante, y revisá que el saldo y el gasto queden registrados.',
+    comparativa: 'Elegí los productos y proveedores que querés comparar. Revisá costos, descuentos, flete y moneda antes de tomar una decisión o crear el pedido.',
+    mod_masiva: 'Aplicá filtros antes de seleccionar productos. Revisá la vista previa y el respaldo disponible; confirmá únicamente cuando los valores nuevos sean los esperados.',
+    sugerencias: 'Elegí el período, revisá el ranking y ajustá las cantidades sugeridas según el stock actual. Luego pasá los seleccionados a un pedido y controlá el resultado.',
+    reportes: 'Elegí el período y revisá cada indicador. Abrí el detalle para comprobar los movimientos que forman el balance antes de usarlo para una decisión.',
+    rastreo: 'Usá el campo de búsqueda con número, cliente, proveedor o descripción. Abrí el resultado encontrado para consultar su detalle y descargar el documento disponible.',
+    materiales: 'Seleccioná los productos, configurá título, fechas, precios e imágenes, y usá la vista previa antes de descargar o imprimir el material.',
+    ajustes: 'Entrá a la sección correspondiente, modificá solo los campos necesarios y guardá. Cerrá sesión y verificá con el usuario afectado cuando cambies permisos.'
+  };
+  const accion = accionesPorModulo[seccion?.id] || 'Seguí las indicaciones de este paso, revisá la información antes de guardar y confirmá que el resultado aparezca en el listado correspondiente.';
+  return `Paso ${index + 1}: ${paso} ${accion}`;
+};
 const FORM_PROVEEDOR_VACIO = {
   nombre: '',
   cuit: '',
@@ -20839,7 +20862,8 @@ function obtenerCategoriaProducto(producto) {
       seccion.claves
     ], consultaAyuda))
     : AYUDA_SECCIONES;
-  const seccionAyudaSeleccionada = AYUDA_SECCIONES.find((seccion) => seccion.id === seccionAyudaActiva)
+  const seccionAyudaSeleccionada = seccionesAyudaFiltradas.find((seccion) => seccion.id === seccionAyudaActiva)
+    || seccionesAyudaFiltradas[0]
     || AYUDA_SECCIONES[0];
   const iconosAyuda = {
     BookOpen,
@@ -21036,6 +21060,7 @@ function obtenerCategoriaProducto(producto) {
                 <div className="relative mb-3">
                   <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
+                    data-ayuda-search="true"
                     value={busquedaAyuda}
                     onChange={(e) => setBusquedaAyuda(e.target.value)}
                     placeholder="Buscar en la ayuda..."
@@ -21094,14 +21119,20 @@ function obtenerCategoriaProducto(producto) {
                         <div className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(260px,.85fr)]">
                           <div>
                             <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">Cómo trabajar en este módulo</h4>
-                            <ol className="mt-3 space-y-3">
+                            <div className="mt-3 space-y-3">
                               {seccionAyudaSeleccionada.pasos.map((paso, index) => (
-                                <li key={`ayuda-paso-${seccionAyudaSeleccionada.id}-${index}`} className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-                                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[11px] font-black text-white">{index + 1}</span>
-                                  <span className="pt-0.5 text-sm font-bold leading-relaxed text-slate-700">{paso}</span>
-                                </li>
+                                <details key={`ayuda-paso-${seccionAyudaSeleccionada.id}-${index}`} className="group rounded-xl border border-slate-100 bg-slate-50/70 open:border-blue-200 open:bg-blue-50/50">
+                                  <summary className="flex cursor-pointer list-none items-start gap-3 p-3 [&::-webkit-details-marker]:hidden">
+                                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[11px] font-black text-white group-open:bg-blue-700">{index + 1}</span>
+                                    <span className="flex-1 pt-0.5 text-sm font-bold leading-relaxed text-slate-700">{paso}</span>
+                                    <ChevronDown size={16} className="mt-1 shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
+                                  </summary>
+                                  <div className="border-t border-blue-100 px-3 pb-3 pt-2 pl-12 text-xs font-semibold leading-relaxed text-blue-950">
+                                    {obtenerDetallePasoAyuda(seccionAyudaSeleccionada, paso, index)}
+                                  </div>
+                                </details>
                               ))}
-                            </ol>
+                            </div>
                           </div>
                           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                             <div className="flex items-center gap-2 text-amber-800"><AlertCircle size={17} /><h4 className="text-xs font-black uppercase tracking-wider">Puntos importantes</h4></div>
@@ -21117,18 +21148,6 @@ function obtenerCategoriaProducto(producto) {
                   })()}
                 </article>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  {[
-                    ['Caja abierta', 'Registrá operaciones del turno desde Caja diaria.', 'caja'],
-                    ['Datos seguros', 'No compartas usuarios ni contraseñas.', 'ajustes'],
-                    ['¿Necesitás buscar algo?', 'Usá Rastreo para localizar operaciones.', 'rastreo']
-                  ].map(([titulo, texto, destino]) => (
-                    <button key={`ayuda-acceso-${destino}`} type="button" onClick={() => { setVista(destino); setSeccionAyudaActiva(destino); }} className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md">
-                      <p className="text-xs font-black text-slate-900">{titulo}</p>
-                      <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-500">{texto}</p>
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
           </section>
