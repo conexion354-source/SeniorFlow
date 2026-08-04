@@ -60,6 +60,31 @@ const parseNumeroBasico = (valor) => {
   }
   return parseFloat(texto) || 0;
 };
+// Importes de caja: un punto o una coma seguido de tres dígitos es separador
+// de miles (por ejemplo, "35.000" debe ser 35000).
+const parseImporteCajaHistorico = (valor) => {
+  const textoOriginal = (valor ?? '').toString().trim();
+  if (!textoOriginal) return 0;
+  const textoAnalisis = textoOriginal.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const multiplicador = textoAnalisis.includes('millon') ? 1000000 : textoAnalisis.includes('mil') ? 1000 : 1;
+  const texto = textoOriginal.replace(/\s+/g, '').replace(/\$/g, '').replace(/[^\d.,-]/g, '');
+  const tieneComa = texto.includes(',');
+  const tienePunto = texto.includes('.');
+  let normalizado = texto;
+  if (tieneComa && tienePunto) {
+    normalizado = texto.lastIndexOf(',') > texto.lastIndexOf('.')
+      ? texto.replace(/\./g, '').replace(',', '.')
+      : texto.replace(/,/g, '');
+  } else if (tieneComa) {
+    const partes = texto.split(',');
+    normalizado = partes.length > 2 || (partes[1] || '').length === 3 ? texto.replace(/,/g, '') : texto.replace(',', '.');
+  } else if (tienePunto) {
+    const partes = texto.split('.');
+    normalizado = partes.length > 2 || (partes[1] || '').length === 3 ? texto.replace(/\./g, '') : texto;
+  }
+  const numero = parseFloat(normalizado);
+  return Number.isFinite(numero) ? numero * multiplicador : 0;
+};
 const obtenerStockActualProducto = (producto = {}) => parseNumeroBasico(producto?.cantidad ?? producto?.stock ?? 0);
 const obtenerStockMinimoProducto = (producto = {}) => {
   const valor = producto?.stockMinimo ?? producto?.minimoStock ?? '';
@@ -2834,7 +2859,7 @@ function AppInterna() {
     return calcularTotalesMovimientosCaja(movimientosVisualizados);
   }, [movimientosVisualizados, fechaDesde, fechaHasta, filtroTipo, totales]);
 
-  const saldoActual = caja.efectivoInicial + totales.balanceEfectivo;
+  const saldoActual = parseImporteCajaHistorico(caja.efectivoInicial) + parseImporteCajaHistorico(totales.balanceEfectivo);
 
   const datosReporte = useMemo(() => {
     const ahora = new Date(); ahora.setHours(23,59,59,999);
@@ -7900,6 +7925,37 @@ const abrirPuntoVenta = () => {
       return { ...item, cantidad, precio, descuento, subtotal };
     });
     const total = filas.reduce((acc, item) => acc + item.subtotal, 0);
+    const resumenRecargoRemito = (() => {
+      const esCuentaCorriente = normalizarMetodoPago(mov?.metodoPago) === 'cuenta_corriente';
+      const clienteId = textoSeguroTrim(detalles?.clienteId, '');
+      if (!esCuentaCorriente || !clienteId) return null;
+      const cliente = clientes.find((item) => item.id === clienteId);
+      if (!cliente) return null;
+      const estado = calcularEstadoCuentaCliente(cliente);
+      const cargo = (estado?.cargosProcesados || []).find((item) => item.id === mov.id);
+      if (!cargo || Number(cargo.pendiente || 0) <= 0.009) return null;
+      const recargosRelacionados = (estado?.cargosProcesados || [])
+        .filter((item) => esRecargoMoraMovimiento(item) && textoSeguroTrim(item?.detallesPago?.cargoOrigenId, '') === mov.id);
+      const recargoPendienteRegistrado = recargosRelacionados.reduce((acumulado, item) => acumulado + Math.max(0, Number(item.pendiente || 0)), 0);
+      const porcentaje = obtenerPorcentajeRecargoConfigurado(configuracion);
+      const calculo = calcularRecargoMoraTicket({
+        montoBase: cargo.montoOriginal,
+        fecha: cargo.fecha,
+        porcentajePorTramo: porcentaje
+      });
+      const recargoEstimado = Boolean(configuracion?.recargosAutomaticosActivos) && recargoPendienteRegistrado <= 0.009
+        ? calculo.recargo
+        : 0;
+      const recargo = recargoPendienteRegistrado > 0.009 ? recargoPendienteRegistrado : recargoEstimado;
+      if (recargo <= 0.009) return null;
+      return {
+        diasImpago: calculo.diasImpago,
+        basePendiente: Math.max(0, Number(cargo.pendiente || 0)),
+        recargo,
+        totalActualizado: Math.max(0, Number(cargo.pendiente || 0)) + recargo,
+        esEstimado: recargoEstimado > 0.009
+      };
+    })();
     const empresa = textoSeguroTrim(configuracion?.nombre, NOMBRE_EMPRESA_FALLBACK);
     const logoEmpresa = textoSeguroTrim(
       logoEmpresaRender,
@@ -8048,13 +8104,25 @@ const abrirPuntoVenta = () => {
               </div>
             `}
             ${renderTabla(filasPagina)}
-            ${esUltima ? `
+              ${esUltima ? `
               <div class="tot-wrap">
                 <div class="tot-box">
                   <div class="tot-label">Total</div>
                   <div class="tot-value">${formatearDinero(total)}</div>
                 </div>
               </div>
+              ${resumenRecargoRemito ? `
+                <div class="mora-box">
+                  <div class="mora-title">Cuenta corriente · importe actualizado</div>
+                  <div class="mora-grid">
+                    <div>Importe pendiente del remito <b>${formatearDinero(resumenRecargoRemito.basePendiente)}</b></div>
+                    <div>Días impagos <b>${resumenRecargoRemito.diasImpago}</b></div>
+                    <div>Recargo por mora${resumenRecargoRemito.esEstimado ? ' estimado' : ''} <b>+ ${formatearDinero(resumenRecargoRemito.recargo)}</b></div>
+                    <div class="mora-total">Total a la fecha <b>${formatearDinero(resumenRecargoRemito.totalActualizado)}</b></div>
+                  </div>
+                  <div class="mora-note">El precio de los productos y el total original del remito no se modifican. El recargo se informa por separado y se calcula según la fecha de emisión.</div>
+                </div>
+              ` : ''}
               ${notas ? `<div class="note"><b>Notas:</b> ${notas}</div>` : ''}
             ` : '<div class="continuacion-spacer"></div>'}
             <div class="foot">Documento generado por SeniorFlow</div>
@@ -8107,6 +8175,12 @@ const abrirPuntoVenta = () => {
           .tot-box { min-width:220px; border:1px solid #86efac; background:#ecfdf5; border-radius:10px; padding:8px 12px; text-align:right; }
           .tot-label { font-size:10px; font-weight:900; text-transform:uppercase; color:#047857; }
           .tot-value { font-size:24px; font-weight:900; color:#047857; line-height:1.1; }
+          .mora-box { margin-top:8px; border:1px solid #fcd34d; background:#fffbeb; border-radius:10px; padding:8px 10px; color:#78350f; }
+          .mora-title { font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.6px; color:#b45309; }
+          .mora-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px 14px; margin-top:5px; font-size:10px; }
+          .mora-grid b { float:right; font-weight:900; }
+          .mora-total { color:#92400e; font-weight:900; }
+          .mora-note { margin-top:5px; font-size:8.5px; line-height:1.25; color:#92400e; }
           .note { margin-top:8px; font-size:11px; color:#475569; white-space:pre-wrap; border:1px dashed #cbd5e1; border-radius:10px; padding:8px 10px; }
           .continuacion-spacer { flex:1; }
           .foot { margin-top:auto; padding:10px 2px 2px; font-size:10px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
@@ -8474,8 +8548,8 @@ const abrirPuntoVenta = () => {
   const obtenerUltimoCierreCaja = () => {
     const ultimoHistorial = historialCaja[0];
     return {
-      efectivo: Number(ultimoHistorial?.efectivoCierre ?? caja?.ultimoCierreEfectivo ?? caja?.efectivoInicial ?? 0),
-      cheques: Number(ultimoHistorial?.chequesCierre ?? caja?.ultimoCierreCheques ?? caja?.chequesInicial ?? 0)
+      efectivo: parseImporteCajaHistorico(ultimoHistorial?.efectivoCierre ?? caja?.ultimoCierreEfectivo ?? caja?.efectivoInicial ?? 0),
+      cheques: parseImporteCajaHistorico(ultimoHistorial?.chequesCierre ?? caja?.ultimoCierreCheques ?? caja?.chequesInicial ?? 0)
     };
   };
 
@@ -8545,11 +8619,11 @@ const abrirPuntoVenta = () => {
       await addDoc(collection(db, 'historial_caja'), {
         aperturaFecha: caja.fechaApertura || ahora,
         cierreFecha: ahora,
-        efectivoApertura: Number(caja.efectivoInicial || 0),
-        chequesApertura: Number(caja.chequesInicial || 0),
-        efectivoEsperado: Number(saldoActual || 0),
+        efectivoApertura: parseImporteCajaHistorico(caja.efectivoInicial),
+        chequesApertura: parseImporteCajaHistorico(caja.chequesInicial),
+        efectivoEsperado: parseImporteCajaHistorico(saldoActual),
         efectivoCierre: cierreReal,
-        chequesCierre: Number(caja.chequesInicial || 0),
+        chequesCierre: parseImporteCajaHistorico(caja.chequesInicial),
         diferencia,
         usuarioCierre: usuarioActual?.nombre || usuarioActual?.username || 'Sistema'
       });
@@ -8558,8 +8632,8 @@ const abrirPuntoVenta = () => {
         estado: 'cerrada',
         fechaApertura: null,
         ultimoCierreEfectivo: cierreReal,
-        ultimoCierreCheques: Number(caja.chequesInicial || 0),
-        ultimoCierreEsperado: Number(saldoActual || 0),
+        ultimoCierreCheques: parseImporteCajaHistorico(caja.chequesInicial),
+        ultimoCierreEsperado: parseImporteCajaHistorico(saldoActual),
         ultimoCierreDiferencia: diferencia,
         ultimoCierreFecha: ahora
       });
