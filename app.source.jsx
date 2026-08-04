@@ -2091,7 +2091,9 @@ function AppInterna() {
     plazoDias: '',
     pedidoCompraId: '',
     pedidoCompraNumero: '',
-    pedidoCompraEstado: ''
+    pedidoCompraEstado: '',
+    tipoAplicacion: 'general',
+    pedidoCompraIds: []
   });
   const [pagoProveedorAEditar, setPagoProveedorAEditar] = useState(null);
   const [busquedaMarcas, setBusquedaMarcas] = useState('');
@@ -4743,17 +4745,26 @@ function AppInterna() {
 
     pagos.forEach((pago) => {
       let restante = Math.max(0, Number(pago.monto || 0));
-      cargosProcesados.forEach((cargo) => {
+      const idsObjetivo = Array.isArray(pago?.pedidoCompraIds) && pago.pedidoCompraIds.length
+        ? pago.pedidoCompraIds
+        : (pago?.pedidoCompraId ? [pago.pedidoCompraId] : []);
+      const cargosObjetivo = idsObjetivo.length
+        ? cargosProcesados.filter((cargo) => idsObjetivo.includes(cargo.pedidoId))
+        : cargosProcesados;
+      cargosObjetivo.forEach((cargo) => {
         if (restante <= 0 || cargo.pendiente <= 0) return;
         const aplicado = Math.min(restante, cargo.pendiente);
         cargo.pendiente = Math.max(0, cargo.pendiente - aplicado);
+        cargo.pagosAplicados = [...(cargo.pagosAplicados || []), { id: pago.id, fecha: pago.fecha, monto: aplicado, pendienteDespues: cargo.pendiente }];
         restante -= aplicado;
       });
+      pago.saldoFavorGenerado = Math.max(0, restante);
     });
 
     const totalCompras = cargosProcesados.reduce((acc, cargo) => acc + (cargo.imputableSaldo ? Number(cargo.monto || 0) : 0), 0);
     const totalPagos = pagos.reduce((acc, pago) => acc + Number(pago.monto || 0), 0);
     const saldoPendiente = Math.max(0, cargosProcesados.reduce((acc, cargo) => acc + Number(cargo.pendiente || 0), 0));
+    const saldoFavor = pagos.reduce((acc, pago) => acc + Math.max(0, Number(pago.saldoFavorGenerado || 0)), 0);
     const movimientosDesc = [
       ...cargosProcesados.map((cargo) => ({ ...cargo, tipoMovimiento: 'compra' })),
       ...pagos.map((pago) => ({ ...pago, tipoMovimiento: 'pago' }))
@@ -4766,7 +4777,8 @@ function AppInterna() {
       movimientosDesc,
       totalCompras,
       totalPagos,
-      saldoPendiente
+      saldoPendiente,
+      saldoFavor
     };
   }
 
@@ -4811,6 +4823,12 @@ function AppInterna() {
     });
     return mapa;
   }, [proveedoresConCuentaCorriente, pedidosCompra, pagosProveedores]);
+
+  const cargosPendientesPagoProveedor = useMemo(() => {
+    if (!formPagoProveedor?.proveedor) return [];
+    return (calcularEstadoCuentaProveedor(formPagoProveedor.proveedor).cargosProcesados || [])
+      .filter((cargo) => Number(cargo.pendiente || 0) > 0.009);
+  }, [formPagoProveedor?.proveedor, pedidosCompra, pagosProveedores]);
 
   const marcasVisualizadas = useMemo(() => {
     return (marcas || []).filter((marca) => {
@@ -12544,7 +12562,11 @@ const abrirPuntoVenta = () => {
       plazoDias: textoSeguroTrim(pagoBase?.plazoDias, plazoProveedor ? String(plazoProveedor) : ''),
       pedidoCompraId: textoSeguroTrim(pagoBase?.pedidoCompraId || pedidoCompra?.id, ''),
       pedidoCompraNumero: textoSeguroTrim(pagoBase?.pedidoCompraNumero || pedidoCompra?.numero, ''),
-      pedidoCompraEstado: textoSeguroTrim(pagoBase?.pedidoCompraEstado || pedidoCompra?.estado, '')
+      pedidoCompraEstado: textoSeguroTrim(pagoBase?.pedidoCompraEstado || pedidoCompra?.estado, ''),
+      tipoAplicacion: textoSeguroTrim(pagoBase?.tipoAplicacion, (pagoBase?.pedidoCompraId || pedidoCompra?.id) ? 'ticket' : 'general'),
+      pedidoCompraIds: Array.isArray(pagoBase?.pedidoCompraIds)
+        ? [...pagoBase.pedidoCompraIds]
+        : (pagoBase?.pedidoCompraId ? [pagoBase.pedidoCompraId] : (pedidoCompra?.id ? [pedidoCompra.id] : []))
     });
     setModalActivo('pago_proveedor');
   };
@@ -12593,8 +12615,9 @@ const abrirPuntoVenta = () => {
       textoSeguroTrim(configuracion?.logoCorporativo, LOGO_EMPRESA_FALLBACK_URL)
     );
     const logoEmpresa = logoFuente ? (logoFuente.startsWith('data:') ? logoFuente : await srcADataUrl(logoFuente)) : '';
-    docPdf.setFillColor(15, 23, 42);
-    docPdf.rect(0, 0, 210, 32, 'F');
+    docPdf.setFillColor(255, 255, 255);
+    docPdf.setDrawColor(219, 227, 239);
+    docPdf.roundedRect(10, 8, 190, 24, 2, 2, 'FD');
     if (logoEmpresa) {
       try {
         const propsLogo = docPdf.getImageProperties(logoEmpresa);
@@ -12614,7 +12637,7 @@ const abrirPuntoVenta = () => {
       }
     }
     docPdf.setFont('helvetica', 'bold');
-    docPdf.setTextColor(255, 255, 255);
+    docPdf.setTextColor(15, 23, 42);
     docPdf.setFontSize(11);
     docPdf.text('RECIBO DE PAGO A PROVEEDOR', 14, 26);
     docPdf.setFontSize(9);
@@ -12768,7 +12791,15 @@ const abrirPuntoVenta = () => {
     const fechaPago = formPagoProveedor.fecha
       ? new Date(`${formPagoProveedor.fecha}T12:00:00`).toISOString()
       : new Date().toISOString();
-    const pedidoCompraId = textoSeguroTrim(formPagoProveedor?.pedidoCompraId || pagoProveedorAEditar?.pedidoCompraId, '');
+    const tipoAplicacion = textoSeguroTrim(formPagoProveedor?.tipoAplicacion, 'general');
+    const pedidoCompraIds = tipoAplicacion === 'general'
+      ? []
+      : (Array.isArray(formPagoProveedor?.pedidoCompraIds) ? formPagoProveedor.pedidoCompraIds.filter(Boolean) : []);
+    if (tipoAplicacion !== 'general' && !pedidoCompraIds.length) {
+      await notificarSistema('Seleccioná al menos un remito pendiente para aplicar el pago.', { tipo: 'warning', titulo: 'Remitos requeridos' });
+      return;
+    }
+    const pedidoCompraId = pedidoCompraIds.length === 1 ? pedidoCompraIds[0] : '';
     const payloadPagoProveedor = limpiarDatoFirestore({
       proveedorId: proveedorDoc?.id || '',
       proveedor,
@@ -12787,7 +12818,9 @@ const abrirPuntoVenta = () => {
       usuario: usuarioActual?.nombre || '',
       pedidoCompraId,
       pedidoCompraNumero: textoSeguroTrim(formPagoProveedor?.pedidoCompraNumero || pagoProveedorAEditar?.pedidoCompraNumero, ''),
-      pedidoCompraEstado: textoSeguroTrim(formPagoProveedor?.pedidoCompraEstado || pagoProveedorAEditar?.pedidoCompraEstado, '')
+      pedidoCompraEstado: textoSeguroTrim(formPagoProveedor?.pedidoCompraEstado || pagoProveedorAEditar?.pedidoCompraEstado, ''),
+      tipoAplicacion,
+      pedidoCompraIds
     });
 
     let pagoId = pagoProveedorAEditar?.id || '';
@@ -13094,8 +13127,9 @@ const abrirPuntoVenta = () => {
       textoSeguroTrim(configuracion?.logoCorporativo, LOGO_EMPRESA_FALLBACK_URL)
     );
     const logoEmpresa = logoFuente ? (logoFuente.startsWith('data:') ? logoFuente : await srcADataUrl(logoFuente)) : '';
-    docPdf.setFillColor(15, 23, 42);
-    docPdf.rect(0, 0, pageWidth, 34, 'F');
+    docPdf.setFillColor(255, 255, 255);
+    docPdf.setDrawColor(219, 227, 239);
+    docPdf.roundedRect(10, 8, pageWidth - 20, 24, 2, 2, 'FD');
     if (logoEmpresa) {
       try {
         const propsLogo = docPdf.getImageProperties(logoEmpresa);
@@ -13115,7 +13149,7 @@ const abrirPuntoVenta = () => {
       }
     }
     docPdf.setFont('helvetica', 'bold');
-    docPdf.setTextColor(255, 255, 255);
+    docPdf.setTextColor(15, 23, 42);
     docPdf.setFontSize(11);
     docPdf.text('CUENTA CORRIENTE DE PROVEEDOR', 14, 26);
     docPdf.setFontSize(9);
@@ -13140,6 +13174,10 @@ const abrirPuntoVenta = () => {
     docPdf.text(`Pagos registrados: ${formatearDinero(estado.totalPagos)}`, 78, 64);
     docPdf.setTextColor(153, 27, 27);
     docPdf.text(`Saldo pendiente: ${formatearDinero(estado.saldoPendiente)}`, pageWidth - 14, 64, { align: 'right' });
+    if (Number(estado.saldoFavor || 0) > 0.009) {
+      docPdf.setTextColor(180, 83, 9);
+      docPdf.text(`Saldo a favor: ${formatearDinero(estado.saldoFavor)}`, pageWidth - 14, 70, { align: 'right' });
+    }
     docPdf.setTextColor(15, 23, 42);
 
     autoTable(docPdf, {
@@ -13153,14 +13191,14 @@ const abrirPuntoVenta = () => {
           esPago ? formatearFecha(mov.fecha || mov.fechaCreacion) : (mov.fechaPago ? formatearFecha(mov.fechaPago) : '-'),
           esPago ? 'Pago' : 'Compra',
           esPago
-            ? `${mov.numeroComprobante ? `${mov.numeroComprobante} - ` : ''}${mov.notas || 'Pago a proveedor'}`
+            ? `${mov.numeroComprobante ? `${mov.numeroComprobante} - ` : ''}${mov.notas || 'Pago a proveedor'}${Array.isArray(mov.pedidoCompraIds) && mov.pedidoCompraIds.length ? ` · Aplicado a ${mov.pedidoCompraIds.map((id) => `PC-${(estado.cargosProcesados.find((cargo) => cargo.pedidoId === id)?.numero || '000000')}`).join(', ')}` : ''}`
             : `${mov.descripcion || 'Pedido'}${mov.items?.length ? ` (${mov.items.length} ítems)` : ''}${Number(mov.impuestoProvincial || 0) || Number(mov.otrosImpuestos || 0) ? ` · Imp.: ${formatearDinero(Number(mov.impuestoProvincial || 0) + Number(mov.otrosImpuestos || 0))}` : ''}`,
           esPago
             ? `${obtenerEtiquetaMetodoPago(mov.metodoPago || 'transferencia')}${mov.numeroComprobante ? ` · ${mov.numeroComprobante}` : ''}`
             : (mov.metodoPago ? `${obtenerEtiquetaMetodoPago(mov.metodoPago)}${mov.numeroComprobante ? ` · ${mov.numeroComprobante}` : ''}` : '-'),
           esPago ? '-' : formatearDinero(Number(mov.monto || 0)),
           esPago ? formatearDinero(Number(mov.monto || 0)) : '-',
-          esPago ? '-' : formatearDinero(Number(mov.pendiente || 0))
+          esPago ? (Number(mov.saldoFavorGenerado || 0) > 0.009 ? `A favor ${formatearDinero(mov.saldoFavorGenerado)}` : '-') : formatearDinero(Number(mov.pendiente || 0))
         ];
       }),
       styles: { fontSize: 7.5, cellPadding: 1.6, overflow: 'linebreak' },
@@ -23691,7 +23729,7 @@ function obtenerCategoriaProducto(producto) {
                             </button>
                           </div>
                         </div>
-                        <div className="grid grid-cols-3 gap-2 w-full xl:w-[520px]">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 w-full xl:w-[680px]">
                           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                             <p className="text-[10px] font-black uppercase text-slate-500">Compras</p>
                             <p className="text-sm font-black text-slate-900">{formatearDinero(estadoProveedor.totalCompras)}</p>
@@ -23703,6 +23741,10 @@ function obtenerCategoriaProducto(producto) {
                           <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2">
                             <p className="text-[10px] font-black uppercase text-red-700">Saldo</p>
                             <p className="text-sm font-black text-red-800">{formatearDinero(estadoProveedor.saldoPendiente)}</p>
+                          </div>
+                          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                            <p className="text-[10px] font-black uppercase text-amber-700">A favor</p>
+                            <p className="text-sm font-black text-amber-800">{formatearDinero(estadoProveedor.saldoFavor || 0)}</p>
                           </div>
                         </div>
                         {proveedorActivo && (
@@ -26209,6 +26251,17 @@ function obtenerCategoriaProducto(producto) {
                 </p>
               </div>
             )}
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3 space-y-2">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-emerald-800">Aplicar pago</label>
+              <select value={formPagoProveedor.tipoAplicacion || 'general'} onChange={(e) => setFormPagoProveedor((prev) => ({ ...prev, tipoAplicacion: e.target.value, pedidoCompraIds: e.target.value === 'general' ? [] : (prev.pedidoCompraIds?.length ? prev.pedidoCompraIds : (cargosPendientesPagoProveedor[0]?.pedidoId ? [cargosPendientesPagoProveedor[0].pedidoId] : [])) }))} className="w-full px-3 py-2.5 rounded-xl border border-emerald-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="general">Pago general a la cuenta corriente</option>
+                <option value="ticket" disabled={!cargosPendientesPagoProveedor.length}>Aplicar a un remito pendiente</option>
+                <option value="ticket_multi" disabled={!cargosPendientesPagoProveedor.length}>Aplicar a remitos seleccionados</option>
+              </select>
+              {formPagoProveedor.tipoAplicacion === 'ticket' && <select value={formPagoProveedor.pedidoCompraIds?.[0] || ''} onChange={(e) => { const cargo = cargosPendientesPagoProveedor.find((item) => item.pedidoId === e.target.value); setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: e.target.value ? [e.target.value] : [], monto: cargo ? cargo.pendiente.toFixed(2) : prev.monto })); }} className="w-full px-3 py-2.5 rounded-xl border border-emerald-200 bg-white font-bold text-xs outline-none focus:ring-2 focus:ring-emerald-500">{cargosPendientesPagoProveedor.map((cargo) => <option key={`pago-prov-remito-${cargo.pedidoId}`} value={cargo.pedidoId}>{formatearFecha(cargo.fecha)} · PC-{cargo.numero} · Pendiente {formatearDinero(cargo.pendiente)}</option>)}</select>}
+              {formPagoProveedor.tipoAplicacion === 'ticket_multi' && <div className="max-h-44 overflow-y-auto divide-y divide-emerald-100 rounded-xl border border-emerald-100 bg-white"><div className="flex justify-end px-3 py-2"><button type="button" onClick={() => setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: cargosPendientesPagoProveedor.map((cargo) => cargo.pedidoId) }))} className="text-[10px] font-black uppercase text-emerald-700">Todos</button></div>{cargosPendientesPagoProveedor.map((cargo) => { const seleccionado = (formPagoProveedor.pedidoCompraIds || []).includes(cargo.pedidoId); return <label key={`pago-prov-remito-multi-${cargo.pedidoId}`} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-emerald-50"><input type="checkbox" checked={seleccionado} onChange={(e) => setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: e.target.checked ? Array.from(new Set([...(prev.pedidoCompraIds || []), cargo.pedidoId])) : (prev.pedidoCompraIds || []).filter((id) => id !== cargo.pedidoId) }))} className="w-4 h-4 text-emerald-600 rounded border-emerald-300" /><span className="text-xs font-bold text-slate-700">PC-{cargo.numero} · {formatearFecha(cargo.fecha)} · Pendiente {formatearDinero(cargo.pendiente)}</span></label>; })}</div>}
+              <p className="text-[10px] font-bold text-emerald-700">Si el importe supera lo pendiente, la diferencia queda registrada como saldo a favor del proveedor.</p>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] font-black text-gray-600 uppercase tracking-wider mb-1">Proveedor</label>
