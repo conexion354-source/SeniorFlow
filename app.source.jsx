@@ -2265,6 +2265,7 @@ function AppInterna() {
   const [modoPantallaClientePuntoVenta, setModoPantallaClientePuntoVenta] = useState('carrito');
   const [efectivoRecibidoPuntoVenta, setEfectivoRecibidoPuntoVenta] = useState('');
   const [pagoPendientePuntoVenta, setPagoPendientePuntoVenta] = useState(null);
+  const guardandoPuntoVentaRef = useRef(false);
   const [cierrePantallaClientePuntoVenta, setCierrePantallaClientePuntoVenta] = useState(null);
   const pantallaClientePuntoVentaRef = useRef(null);
   const pantallaClientePuntoVentaActivaRef = useRef(false);
@@ -7115,6 +7116,12 @@ const abrirPuntoVenta = () => {
       }
     }
 
+    // Evita que doble clic o doble confirmación creen comprobantes duplicados.
+    if (guardandoPuntoVentaRef.current) return;
+    guardandoPuntoVentaRef.current = true;
+    const liberarBloqueoVenta = () => { guardandoPuntoVentaRef.current = false; };
+    setTimeout(liberarBloqueoVenta, 5000);
+
     if (esCuentaCorriente && clienteId && !esNotaCredito) {
       const limiteCuentaCorriente = Math.max(0, Number(clienteDestino?.limiteCuentaCorriente || 0));
       const saldoActual = saldoBaseClienteDestino === null
@@ -7152,6 +7159,7 @@ const abrirPuntoVenta = () => {
         cliente: clienteNombre,
         whatsapp: clienteWhatsapp,
         presupuestoId: textoSeguroTrim(formPuntoVenta.origenPresupuestoId, ''),
+        comboId: textoSeguroTrim(formPuntoVenta.origenComboId, ''),
         presupuestoNumero: textoSeguroTrim(formPuntoVenta.presupuestoNumero, ''),
         tipoComprobante: tipoComp,
         numeroComprobante,
@@ -7199,6 +7207,7 @@ const abrirPuntoVenta = () => {
     setEfectivoRecibidoPuntoVenta('');
     setModalActivo(null);
     refrescarPantallaClientePuntoVentaPronto();
+    liberarBloqueoVenta();
   };
 
   const obtenerImagenItemRemitoR = (item = {}) => {
@@ -10125,7 +10134,7 @@ const abrirPuntoVenta = () => {
     }
   };
 
-  const abrirVentaDesdePresupuesto = async (presupuesto = null) => {
+  const abrirVentaDesdePresupuesto = async (presupuesto = null, opciones = {}) => {
     if (!presupuesto) return;
     const itemsPresupuesto = Array.isArray(presupuesto?.items) ? presupuesto.items : [];
     const items = itemsPresupuesto
@@ -10180,20 +10189,26 @@ const abrirPuntoVenta = () => {
     setCierrePantallaClientePuntoVenta(null);
     setFormPuntoVenta({
       ...crearFormularioPuntoVentaVacio(),
-      modoCliente: clienteVinculado?.id ? 'existente' : 'nuevo',
+      modoCliente: clienteVinculado?.id ? 'existente' : (opciones?.tipo === 'combo' ? 'existente' : 'nuevo'),
       clienteId: clienteVinculado?.id || '',
       busquedaCliente: nombreCliente,
       clienteNombre: nombreCliente,
       whatsapp: whatsappCliente,
-      origenPresupuestoId: presupuesto.id || '',
-      presupuestoNumero: numeroPresupuesto,
+      origenPresupuestoId: opciones?.tipo === 'combo' ? '' : (presupuesto.id || ''),
+      origenComboId: opciones?.tipo === 'combo' ? (presupuesto.id || '') : '',
+      presupuestoNumero: opciones?.tipo === 'combo' ? textoSeguroTrim(presupuesto?.titulo, 'Combo') : numeroPresupuesto,
       numeroComprobante: obtenerSiguienteNumeroComprobanteVenta('remito_x'),
       numeroComprobanteManual: false,
       metodoPago: 'cuenta_corriente',
-      notas: textoSeguroTrim(presupuesto?.notas, `Venta desde presupuesto ${numeroPresupuesto}`),
+      notas: textoSeguroTrim(presupuesto?.notas, opciones?.tipo === 'combo' ? `Venta desde combo ${textoSeguroTrim(presupuesto?.titulo, 'Combo')}` : `Venta desde presupuesto ${numeroPresupuesto}`),
       items
     });
     setModalActivo('punto_venta');
+  };
+
+  const abrirVentaDesdeCombo = async (combo = null) => {
+    if (!combo) return;
+    await abrirVentaDesdePresupuesto({ ...combo, clienteId: '', clienteNombre: 'Consumidor Final', whatsapp: '', notas: `Venta desde combo ${textoSeguroTrim(combo?.titulo, 'Combo')}` }, { tipo: 'combo' });
   };
 
   const abrirRecargosCliente = (cliente) => {
@@ -20917,6 +20932,28 @@ function obtenerCategoriaProducto(producto) {
     { visible: puedeVerAyuda, vista: 'ayuda', etiqueta: 'Ayuda', Icono: BookOpen, color: 'blue' }
   ];
 
+  const proteccionAccionesRef = useRef({ elemento: null, formulario: null, instante: 0 });
+  const esAccionPersistente = (elemento) => {
+    const texto = `${elemento?.textContent || ''} ${elemento?.getAttribute?.('title') || ''}`.toLowerCase();
+    return elemento?.type === 'submit' || elemento?.dataset?.protegerDobleClick === 'true'
+      || /(guardar|confirmar|registrar|cargar|pagar|pago|venta|borrar|eliminar|convertir|generar|abrir caja|cerrar|finalizar|actualizar|descargar|imprimir)/.test(texto);
+  };
+  const protegerDobleClick = (e) => {
+    const elemento = e.target instanceof Element ? e.target.closest('button') : null;
+    if (!elemento || elemento.disabled || !esAccionPersistente(elemento)) return;
+    const ahora = Date.now();
+    const mismaAccion = proteccionAccionesRef.current.elemento === elemento && ahora - proteccionAccionesRef.current.instante < 900;
+    if (mismaAccion) { e.preventDefault(); e.stopPropagation(); return; }
+    proteccionAccionesRef.current = { ...proteccionAccionesRef.current, elemento, instante: ahora };
+  };
+  const protegerDobleEnvio = (e) => {
+    const formulario = e.target;
+    if (!(formulario instanceof HTMLFormElement)) return;
+    const ahora = Date.now();
+    if (proteccionAccionesRef.current.formulario === formulario && ahora - proteccionAccionesRef.current.instante < 900) { e.preventDefault(); e.stopPropagation(); return; }
+    proteccionAccionesRef.current = { ...proteccionAccionesRef.current, formulario, instante: ahora };
+  };
+
   const proveedoresUnicosFormulario = new Set(
     (formProducto.proveedoresCostos || [])
       .map((costo) => normalizarTextoBusqueda(costo?.proveedor || ''))
@@ -20997,7 +21034,7 @@ function obtenerCategoriaProducto(producto) {
 
   // --- RENDER PRINCIPAL ---
   return (
-    <div className={`sf-app-shell sf-screen-${perfilPantalla.tipo} sf-density-${perfilPantalla.densidad} min-h-screen bg-slate-50 font-sans pb-28 md:pb-8 print:bg-white print:pb-0`}>
+    <div onClickCapture={protegerDobleClick} onSubmitCapture={protegerDobleEnvio} className={`sf-app-shell sf-screen-${perfilPantalla.tipo} sf-density-${perfilPantalla.densidad} min-h-screen bg-slate-50 font-sans pb-28 md:pb-8 print:bg-white print:pb-0`}>
       <style>{`
         .sf-app-shell table thead th {
           white-space: nowrap;
@@ -25162,7 +25199,7 @@ function obtenerCategoriaProducto(producto) {
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {combosVisualizados.map((combo) => (
-                        <tr key={combo.id} className="hover:bg-indigo-50/40 transition-colors">
+                        <tr key={combo.id} onContextMenu={(e) => { e.preventDefault(); setMenuContextualPresupuesto({ x: e.clientX, y: e.clientY, combo }); }} className="hover:bg-indigo-50/40 transition-colors">
                           <td className="px-5 py-3">
                             <p className="font-bold text-gray-900">{combo.titulo || 'Combo Especial'}</p>
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">
@@ -26008,6 +26045,11 @@ function obtenerCategoriaProducto(producto) {
             type="button"
             className="w-full text-left px-3 py-2 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-100"
             onClick={() => {
+              if (menuContextualPresupuesto?.combo) {
+                abrirVentaDesdeCombo(menuContextualPresupuesto.combo);
+                setMenuContextualPresupuesto(null);
+                return;
+              }
               if (!menuContextualPresupuesto?.presupuesto) return;
               setMenuContextualPresupuesto(null);
               setPresupuestoSeleccionado(menuContextualPresupuesto.presupuesto);
@@ -26017,11 +26059,11 @@ function obtenerCategoriaProducto(producto) {
               setModalActivo('opciones_presupuesto');
             }}
           >
-            Ver opciones
+            {menuContextualPresupuesto?.combo ? 'Convertir en venta' : 'Ver opciones'}
           </button>
           <button
             type="button"
-            className="w-full text-left px-3 py-2 rounded-lg text-sm font-bold text-emerald-700 hover:bg-emerald-50"
+            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-bold text-emerald-700 hover:bg-emerald-50 ${menuContextualPresupuesto?.combo ? 'hidden' : ''}`}
             onClick={() => {
               if (!menuContextualPresupuesto?.presupuesto) return;
               abrirPedidoCompraDesdePresupuesto(menuContextualPresupuesto.presupuesto);
@@ -26032,7 +26074,7 @@ function obtenerCategoriaProducto(producto) {
           </button>
           <button
             type="button"
-            className="w-full text-left px-3 py-2 rounded-lg text-sm font-bold text-amber-700 hover:bg-amber-50"
+            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-bold text-amber-700 hover:bg-amber-50 ${menuContextualPresupuesto?.combo ? 'hidden' : ''}`}
             onClick={() => {
               if (!menuContextualPresupuesto?.presupuesto) return;
               abrirRemitoRDesdePresupuesto(menuContextualPresupuesto.presupuesto, menuContextualPresupuesto.presupuesto?.estado === 'pendiente_entrega');
