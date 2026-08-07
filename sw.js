@@ -1,14 +1,14 @@
-const CACHE_NAME = 'seniorflow-shared-20260807193000';
+const CACHE_NAME = 'seniorflow-shared-20260807201000';
 const ASSETS = [
   './',
   './index.html',
   './stock-app.html',
-  './stock-app.js?v=seniorflow-shared-20260807193000',
-  './app.js?v=seniorflow-shared-20260807193000',
+  './stock-app.js?v=seniorflow-stock-mobile-20260807-04',
+  './app.js?v=seniorflow-shared-20260807201000',
   './firebase-config.js?v=seniorflow-react-20260715-pdf-pagination-06',
   './manifest.json',
   './manifest-stock-app.json',
-  './sw-stock-app.js?v=seniorflow-shared-20260807193000',
+  './sw-stock-app.js?v=seniorflow-stock-mobile-20260807-04',
   './ofertas.html?v=seniorflow-react-20260715-pdf-pagination-06',
   './oferta-template-base.jpg',
   './logo-empresa-mundoled.png',

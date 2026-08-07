@@ -1,4 +1,4 @@
-import { auth, db, storage } from './firebase-config.js?v=seniorflow-stock-mobile-20260807-03';
+import { auth, db, storage } from './firebase-config.js?v=seniorflow-stock-mobile-20260807-04';
 import { signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js';
 import { collection as firestoreCollection, doc as firestoreDoc, onSnapshot, updateDoc } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js';
 import { ref as storageRef, uploadString, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js';
@@ -204,6 +204,7 @@ const actualizarProductoSeleccionado = async (event) => {
   }
 
   const codigoBarrasNuevo = els.codigoBarrasNuevo.value.trim();
+  const codigoProveedorNuevo = els.codigoProveedorLectura.value.trim();
   const codigoBarrasNuevoNorm = normalizarCodigo(codigoBarrasNuevo);
   const codigosActualesProducto = [
     productoSeleccionado.codigo,
@@ -251,6 +252,9 @@ const actualizarProductoSeleccionado = async (event) => {
     }
   };
   if (codigoBarrasNuevo && !codigoNuevoYaEsDelProducto) payload.codigoBarras = codigoBarrasNuevo;
+  if (codigoProveedorNuevo !== obtenerCodigoProveedorLectura(productoSeleccionado)) {
+    payload.codigoProveedor = codigoProveedorNuevo;
+  }
 
   els.saveBtn.disabled = true;
   els.saveBtn.textContent = 'Actualizando...';
@@ -489,7 +493,7 @@ const iniciarDatos = async () => {
 };
 
 if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
-  navigator.serviceWorker.register('./sw-stock-app.js?v=seniorflow-stock-mobile-20260807-03').catch(console.warn);
+  navigator.serviceWorker.register('./sw-stock-app.js?v=seniorflow-stock-mobile-20260807-04').catch(console.warn);
 }
 
 window.addEventListener('beforeinstallprompt', (event) => {
