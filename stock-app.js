@@ -1,4 +1,4 @@
-import { auth, db, storage } from './firebase-config.js?v=seniorflow-stock-mobile-20260807-01';
+import { auth, db, storage } from './firebase-config.js?v=seniorflow-stock-mobile-20260807-02';
 import { signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js';
 import { collection as firestoreCollection, doc as firestoreDoc, onSnapshot, updateDoc } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js';
 import { ref as storageRef, uploadString, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js';
@@ -18,7 +18,7 @@ const els = {
   logoutBtn: $('logoutBtn'),
   searchInput: $('searchInput'),
   scanBtn: $('scanBtn'),
-  providerSelect: $('providerSelect'),
+  scanBarcodeBtn: $('scanBarcodeBtn'),
   cameraPanel: $('cameraPanel'),
   video: $('video'),
   cameraStatus: $('cameraStatus'),
@@ -33,22 +33,20 @@ const els = {
   photoPreview: $('photoPreview'),
   stockForm: $('stockForm'),
   qtyInput: $('qtyInput'),
-  codigoNuevo: $('codigoNuevo'),
-  codigoProveedorNuevo: $('codigoProveedorNuevo'),
-  nota: $('nota'),
+  codigoBarrasNuevo: $('codigoBarrasNuevo'),
   saveBtn: $('saveBtn'),
   changeProductBtn: $('changeProductBtn'),
   status: $('status')
 };
 
 let productos = [];
-let proveedores = [];
 let configuracion = null;
 let usuarioActual = { nombre: 'Control de stock' };
 let productoSeleccionado = null;
 let deferredPrompt = null;
 let scannerCodigo = null;
 let fotoNuevaDataUrl = '';
+let destinoEscaner = 'buscar';
 
 const normalizarTexto = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 const normalizarCodigo = (value) => String(value || '').replace(/[\s\-_.]/g, '').toUpperCase().trim();
@@ -66,12 +64,6 @@ const escapar = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
   "'": '&#39;'
 }[char]));
 
-const obtenerCostos = (producto) => {
-  if (Array.isArray(producto?.proveedoresCostos)) return producto.proveedoresCostos;
-  if (Array.isArray(producto?.costosProveedores)) return producto.costosProveedores;
-  return [];
-};
-
 const obtenerImagen = (producto) => {
   if (producto?.imagen) return producto.imagen;
   if (Array.isArray(producto?.imagenes) && producto.imagenes[0]) return producto.imagenes[0];
@@ -79,51 +71,27 @@ const obtenerImagen = (producto) => {
   return '';
 };
 
-const nombreProveedor = (item) => item?.proveedor || item?.nombre || item?.proveedorNombre || '';
-
-const leerCodigoProveedor = (producto, proveedorElegido = '') => {
-  const costos = obtenerCostos(producto);
-  const proveedorNorm = normalizarTexto(proveedorElegido);
-  const costo = proveedorNorm
-    ? costos.find((c) => normalizarTexto(nombreProveedor(c)) === proveedorNorm)
-    : costos.find((c) => c?.codigoProveedor);
-  return costo?.codigoProveedor || producto?.codigoProveedor || '';
-};
-
 const camposProducto = (producto) => {
-  const costos = obtenerCostos(producto);
   return [
     producto?.descripcion,
     producto?.detalle,
     producto?.codigo,
     producto?.codigoInterno,
     producto?.codigoBarras,
-    producto?.codigoProveedor,
     producto?.marca,
-    producto?.categoria,
-    ...costos.flatMap((c) => [nombreProveedor(c), c?.codigoProveedor])
+    producto?.categoria
   ];
 };
 
 const tokensBusqueda = (query) => normalizarTexto(query).split(/\s+/).filter(Boolean);
 
-const productoCoincide = (producto, query, proveedorElegido) => {
+const productoCoincide = (producto, query) => {
   const texto = normalizarTexto(query);
   const codigo = normalizarCodigo(query);
   if (!texto && !codigo) return false;
   const tokens = tokensBusqueda(query);
   const campos = camposProducto(producto);
   const textoCompuesto = normalizarTexto(campos.join(' '));
-
-  if (proveedorElegido) {
-    const proveedorNorm = normalizarTexto(proveedorElegido);
-    const costosProveedor = obtenerCostos(producto).filter((c) => normalizarTexto(nombreProveedor(c)) === proveedorNorm);
-    if (costosProveedor.length === 0) return false;
-    return costosProveedor.some((c) => {
-      const codigoProv = normalizarCodigo(c?.codigoProveedor);
-      return codigoProv && codigoProv.includes(codigo);
-    }) || tokens.every((token) => textoCompuesto.includes(token));
-  }
 
   return tokens.every((token) => textoCompuesto.includes(token)) || campos.some((campo) => {
     const textField = normalizarTexto(campo);
@@ -137,26 +105,8 @@ const renderStatus = (message, tone = 'slate') => {
   els.status.className = `min-h-6 text-center text-sm font-black ${tone === 'ok' ? 'text-emerald-700' : tone === 'error' ? 'text-rose-600' : 'text-slate-600'}`;
 };
 
-const renderProviders = () => {
-  const selected = els.providerSelect.value;
-  const nombres = new Set(proveedores.map((p) => p?.nombre || p).filter(Boolean));
-  productos.forEach((producto) => obtenerCostos(producto).forEach((c) => {
-    const nombre = nombreProveedor(c);
-    if (nombre) nombres.add(nombre);
-  }));
-  els.providerSelect.innerHTML = '<option value="">Cualquier proveedor</option>';
-  [...nombres].sort((a, b) => a.localeCompare(b, 'es')).forEach((nombre) => {
-    const option = document.createElement('option');
-    option.value = nombre;
-    option.textContent = nombre;
-    els.providerSelect.appendChild(option);
-  });
-  els.providerSelect.value = [...nombres].includes(selected) ? selected : '';
-};
-
 const renderResults = () => {
   const query = els.searchInput.value.trim();
-  const proveedor = els.providerSelect.value;
   els.results.innerHTML = '';
   els.results.classList.remove('hidden');
   if (query.length < 2) {
@@ -164,7 +114,7 @@ const renderResults = () => {
     return;
   }
   const matches = productos
-    .filter((producto) => productoCoincide(producto, query, proveedor))
+    .filter((producto) => productoCoincide(producto, query))
     .sort((a, b) => String(a.descripcion || '').localeCompare(String(b.descripcion || ''), 'es'))
     .slice(0, 12);
 
@@ -184,7 +134,6 @@ const renderResults = () => {
       <div class="min-w-0 flex-1">
         <p class="text-sm font-black text-slate-950 leading-tight">${escapar(producto.descripcion || 'Producto sin nombre')}</p>
         <p class="text-xs font-bold text-slate-500 mt-1">Cod. ${escapar(producto.codigo || '-')} · Stock ${escapar(producto.cantidad ?? producto.stock ?? 0)} ${escapar(producto.unidad || 'unid.')}</p>
-        <p class="text-[11px] font-bold text-cyan-700 mt-1 truncate">${leerCodigoProveedor(producto, proveedor) ? `Cod. prov. ${escapar(leerCodigoProveedor(producto, proveedor))}` : 'Sin codigo proveedor seleccionado'}</p>
       </div>
       <span class="text-[11px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-2 py-1">Abrir</span>
     `;
@@ -196,20 +145,17 @@ const renderResults = () => {
 const seleccionarProducto = (producto) => {
   productoSeleccionado = producto;
   const stock = numero(producto.cantidad ?? producto.stock ?? 0);
-  const proveedor = els.providerSelect.value;
   els.productImage.src = obtenerImagen(producto) || '';
   els.productImage.style.display = obtenerImagen(producto) ? 'block' : 'none';
   els.productTitle.textContent = producto.descripcion || 'Producto sin nombre';
   els.productMeta.textContent = `Codigo ${producto.codigo || '-'} · ${producto.categoria || 'Sin categoria'}`;
   els.productStock.textContent = `Stock actual: ${stock} ${producto.unidad || 'unid.'}`;
-  els.codigoNuevo.value = producto.codigo || producto.codigoInterno || producto.codigoBarras || '';
+  els.codigoBarrasNuevo.value = producto.codigoBarras || '';
   els.qtyInput.value = String(stock);
-  els.codigoProveedorNuevo.value = leerCodigoProveedor(producto, proveedor);
   fotoNuevaDataUrl = '';
   els.photoInput.value = '';
   els.photoPreview.src = obtenerImagen(producto) || '';
   els.photoPreview.classList.toggle('hidden', !obtenerImagen(producto));
-  els.codigoProveedorNuevo.disabled = !proveedor;
   els.results.classList.add('hidden');
   els.selectedCard.classList.remove('hidden');
   renderStatus('');
@@ -222,9 +168,7 @@ const volverAlBuscadorStock = (mensaje = '') => {
   els.results.classList.remove('hidden');
   els.searchInput.value = '';
   els.qtyInput.value = '0';
-  els.codigoNuevo.value = '';
-  els.codigoProveedorNuevo.value = '';
-  els.nota.value = '';
+  els.codigoBarrasNuevo.value = '';
   fotoNuevaDataUrl = '';
   els.photoInput.value = '';
   els.photoPreview.src = '';
@@ -243,36 +187,23 @@ const actualizarProductoSeleccionado = async (event) => {
     return;
   }
 
-  const codigoNuevo = els.codigoNuevo.value.trim();
-  const codigoNuevoNorm = normalizarCodigo(codigoNuevo);
+  const codigoBarrasNuevo = els.codigoBarrasNuevo.value.trim();
+  const codigoBarrasNuevoNorm = normalizarCodigo(codigoBarrasNuevo);
   const codigosActualesProducto = [
     productoSeleccionado.codigo,
     productoSeleccionado.codigoInterno,
     productoSeleccionado.codigoBarras
   ].map((codigo) => normalizarCodigo(codigo)).filter(Boolean);
-  const codigoNuevoYaEsDelProducto = codigoNuevoNorm && codigosActualesProducto.includes(codigoNuevoNorm);
-  if (codigoNuevoNorm && !codigoNuevoYaEsDelProducto) {
+  const codigoNuevoYaEsDelProducto = codigoBarrasNuevoNorm && codigosActualesProducto.includes(codigoBarrasNuevoNorm);
+  if (codigoBarrasNuevoNorm && !codigoNuevoYaEsDelProducto) {
     const duplicado = productos.find((producto) => producto.id !== productoSeleccionado.id && [
       producto.codigo,
       producto.codigoInterno,
       producto.codigoBarras
-    ].some((codigo) => normalizarCodigo(codigo) === codigoNuevoNorm));
+    ].some((codigo) => normalizarCodigo(codigo) === codigoBarrasNuevoNorm));
     if (duplicado) {
-      renderStatus(`Ese codigo ya esta usado por: ${duplicado.descripcion || duplicado.codigo}`, 'error');
+      renderStatus(`Ese código de barras ya está usado por: ${duplicado.descripcion || duplicado.codigo}`, 'error');
       return;
-    }
-  }
-
-  const proveedor = els.providerSelect.value;
-  const codigoProveedorNuevo = els.codigoProveedorNuevo.value.trim();
-  let proveedoresCostos = obtenerCostos(productoSeleccionado).map((c) => ({ ...c }));
-  if (proveedor && codigoProveedorNuevo) {
-    const proveedorNorm = normalizarTexto(proveedor);
-    const index = proveedoresCostos.findIndex((c) => normalizarTexto(nombreProveedor(c)) === proveedorNorm);
-    if (index >= 0) {
-      proveedoresCostos[index] = { ...proveedoresCostos[index], proveedor, codigoProveedor: codigoProveedorNuevo };
-    } else {
-      proveedoresCostos.push({ proveedor, codigoProveedor: codigoProveedorNuevo, costo: 0, moneda: 'ARS' });
     }
   }
 
@@ -290,24 +221,20 @@ const actualizarProductoSeleccionado = async (event) => {
       fecha,
       cantidad: variacionStock,
       usuario: usuarioActual?.nombre || usuarioActual?.usuario || '',
-      nota: els.nota.value.trim(),
-      proveedor: proveedor || ''
+      nota: '',
+      proveedor: ''
     },
     ultimoControlStock: {
       fecha,
       cantidad: nuevoStock,
       ingreso: variacionStock,
       usuario: usuarioActual?.nombre || usuarioActual?.usuario || '',
-      nota: els.nota.value.trim(),
-      proveedor: proveedor || '',
+      nota: '',
+      proveedor: '',
       origen: 'stock_app'
     }
   };
-  if (codigoNuevo && !codigoNuevoYaEsDelProducto) {
-    payload.codigo = codigoNuevo;
-    payload.codigoInterno = codigoNuevo;
-  }
-  if (proveedoresCostos.length > 0) payload.proveedoresCostos = proveedoresCostos;
+  if (codigoBarrasNuevo && !codigoNuevoYaEsDelProducto) payload.codigoBarras = codigoBarrasNuevo;
 
   els.saveBtn.disabled = true;
   els.saveBtn.textContent = 'Actualizando...';
@@ -439,10 +366,15 @@ const iniciarCamara = async () => {
     const onScanSuccess = async (decodedText) => {
       const codigo = String(decodedText || '').trim();
       if (!codigo) return;
-      els.searchInput.value = codigo;
       await detenerCamara();
-      renderResults();
-      renderStatus('Codigo detectado. Elegi el producto para actualizar.', 'ok');
+      if (destinoEscaner === 'codigo_barras' && productoSeleccionado) {
+        els.codigoBarrasNuevo.value = codigo;
+        renderStatus('Código de barras leído. Guardá para aplicarlo al producto.', 'ok');
+      } else {
+        els.searchInput.value = codigo;
+        renderResults();
+        renderStatus('Código detectado. Elegí el producto para actualizar.', 'ok');
+      }
     };
     scannerCodigo = new window.Html5Qrcode('reader');
     try {
@@ -520,22 +452,17 @@ const iniciarDatos = async () => {
     onSnapshot(collection(db, 'productos'), (snapshot) => {
       productos = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
       els.syncStatus.textContent = `${productos.length} productos sincronizados`;
-      renderProviders();
       renderResults();
     }, (error) => {
       console.error(error);
       els.syncStatus.textContent = 'Error leyendo inventario';
       renderStatus('No pude leer productos. Revisa reglas de Firebase.', 'error');
     });
-    onSnapshot(collection(db, 'proveedores'), (snapshot) => {
-      proveedores = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
-      renderProviders();
-    }, () => {});
   });
 };
 
 if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
-  navigator.serviceWorker.register('./sw-stock-app.js?v=seniorflow-react-20260711-stock-app-05').catch(console.warn);
+  navigator.serviceWorker.register('./sw-stock-app.js?v=seniorflow-stock-mobile-20260807-02').catch(console.warn);
 }
 
 window.addEventListener('beforeinstallprompt', (event) => {
@@ -557,11 +484,8 @@ els.searchInput.addEventListener('input', () => {
   els.results.classList.remove('hidden');
   renderResults();
 });
-els.providerSelect.addEventListener('change', () => {
-  if (productoSeleccionado) seleccionarProducto(productoSeleccionado);
-  renderResults();
-});
-els.scanBtn.addEventListener('click', iniciarCamara);
+els.scanBtn.addEventListener('click', () => { destinoEscaner = 'buscar'; iniciarCamara(); });
+els.scanBarcodeBtn.addEventListener('click', () => { destinoEscaner = 'codigo_barras'; iniciarCamara(); });
 els.stopScanBtn.addEventListener('click', detenerCamara);
 els.stockForm.addEventListener('submit', actualizarProductoSeleccionado);
 els.changeProductBtn.addEventListener('click', () => volverAlBuscadorStock(''));
