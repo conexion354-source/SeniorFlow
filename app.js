@@ -810,12 +810,12 @@ Resultado: ${ue(Cn.neto)}`}}[n];A&&await Ue(A.mensaje,{tipo:"info",titulo:A.titu
           .img { width:23px; height:23px; object-fit:contain; border:1px solid #e2e8f0; border-radius:6px; background:#fff; }
           .note { margin-top:6px; font-size:10px; color:#475569; white-space:pre-wrap; border:1px dashed #cbd5e1; border-radius:10px; padding:6px 8px; }
           .content-spacer { flex:1; }
-          .signature-block { margin-top:auto; padding-top:6px; border-top:1px solid #dbe3ef; }
+          .signature-block { margin-top:auto; padding-top:6px; border-top:1px solid #dbe3ef; flex-shrink:0; }
           .sign { display:grid; grid-template-columns:1fr 1fr; gap:16px; font-size:9px; color:#475569; font-weight:700; }
           .line { border-top:1px solid #94a3b8; text-align:center; padding-top:4px; }
           .conforme { margin-top:6px; border:1px solid #dbe3ef; border-radius:8px; padding:4px 8px; font-size:9px; color:#334155; font-weight:800; }
-          .foot { margin-top:auto; padding:8px 2px 2px; color:#64748b; }
-          .foot-note { font-size:8px; line-height:1.25; text-align:center; font-weight:700; }
+          .foot { margin-top:auto; padding:8px 2px 2px; color:#64748b; flex-shrink:0; }
+          .foot-note { font-size:10px; line-height:1.3; text-align:center; font-weight:700; }
           .tabla-principal { margin-top:0; }
           .tabla-continuacion { margin-top:0; }
           @media print { body { background:#fff; } .sheet { border-radius:0; border:0; width:calc(${Sa.widthMm}mm - ${Sa.marginMm*2}mm); max-width:calc(${Sa.widthMm}mm - ${Sa.marginMm*2}mm); height:calc(${Sa.heightMm}mm - ${Sa.marginMm*2}mm); min-height:calc(${Sa.heightMm}mm - ${Sa.marginMm*2}mm); margin:0 auto ${Sa.marginMm}mm; } }
@@ -916,7 +916,6 @@ Resultado: ${ue(Cn.neto)}`}}[n];A&&await Ue(A.mensaje,{tipo:"info",titulo:A.titu
             `}
             ${Se(mt)}
             <div class="foot">
-              <span>Documento generado por SeniorFlow</span>
               <span>Control de cantidades pendientes de entrega</span>
             </div>
           </div>
@@ -1081,7 +1080,7 @@ Resultado: ${ue(Cn.neto)}`}}[n];A&&await Ue(A.mensaje,{tipo:"info",titulo:A.titu
               `:""}
               ${G?`<div class="note"><b>Notas:</b> ${G}</div>`:""}
             `:'<div class="continuacion-spacer"></div>'}
-            <div class="foot"><div class="foot-note">Para cuidar el valor de su compra, los saldos pendientes pueden actualizarse luego de 30 d\xEDas seg\xFAn las condiciones de la cuenta corriente. Gracias por su comprensi\xF3n.</div><div>Documento generado por SeniorFlow</div></div>
+            <div class="foot"><div class="foot-note">Para cuidar el valor de su compra, los saldos pendientes pueden actualizarse luego de 30 d\xEDas seg\xFAn las condiciones de la cuenta corriente. Gracias por su comprensi\xF3n.</div></div>
           </div>
         </div>
       `};return`
@@ -1138,7 +1137,7 @@ Resultado: ${ue(Cn.neto)}`}}[n];A&&await Ue(A.mensaje,{tipo:"info",titulo:A.titu
           .note { margin-top:8px; font-size:11px; color:#475569; white-space:pre-wrap; border:1px dashed #cbd5e1; border-radius:10px; padding:8px 10px; }
           .continuacion-spacer { flex:1; }
           .foot { margin-top:auto; padding:8px 2px 2px; font-size:10px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
-          .foot-note { margin-bottom:4px; font-size:8px; line-height:1.25; text-align:center; text-transform:none; letter-spacing:0; font-weight:700; color:#64748b; }
+          .foot-note { font-size:10px; line-height:1.3; text-align:center; text-transform:none; letter-spacing:0; font-weight:700; color:#64748b; }
           @media print {
             body { background:#fff; }
             .sheet { border-radius:0; border:0; width:calc(${Sa.widthMm}mm - ${Sa.marginMm*2}mm); max-width:calc(${Sa.widthMm}mm - ${Sa.marginMm*2}mm); height:calc(${Sa.heightMm}mm - ${Sa.marginMm*2}mm); min-height:calc(${Sa.heightMm}mm - ${Sa.marginMm*2}mm); margin:0 auto ${Sa.marginMm}mm; }
