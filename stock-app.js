@@ -1,14 +1,17 @@
-import { auth, db } from './firebase-config.js?v=seniorflow-react-20260711-stock-app-05';
+import { auth, db, storage } from './firebase-config.js?v=seniorflow-stock-mobile-20260807-01';
 import { signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js';
-import { collection, doc, onSnapshot, updateDoc } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js';
+import { collection as firestoreCollection, doc as firestoreDoc, onSnapshot, updateDoc } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js';
+import { ref as storageRef, uploadString, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js';
+
+const collection = (database, ...path) => firestoreCollection(database, ...path);
+const doc = (database, ...path) => firestoreDoc(database, ...path);
 
 const $ = (id) => document.getElementById(id);
 const els = {
   loginScreen: $('loginScreen'),
   appScreen: $('appScreen'),
   loginForm: $('loginForm'),
-  username: $('username'),
-  password: $('password'),
+  accessCode: $('accessCode'),
   loginStatus: $('loginStatus'),
   syncStatus: $('syncStatus'),
   installBtn: $('installBtn'),
@@ -26,6 +29,8 @@ const els = {
   productTitle: $('productTitle'),
   productMeta: $('productMeta'),
   productStock: $('productStock'),
+  photoInput: $('photoInput'),
+  photoPreview: $('photoPreview'),
   stockForm: $('stockForm'),
   qtyInput: $('qtyInput'),
   codigoNuevo: $('codigoNuevo'),
@@ -37,12 +42,13 @@ const els = {
 };
 
 let productos = [];
-let usuarios = [];
 let proveedores = [];
-let usuarioActual = null;
+let configuracion = null;
+let usuarioActual = { nombre: 'Control de stock' };
 let productoSeleccionado = null;
 let deferredPrompt = null;
 let scannerCodigo = null;
+let fotoNuevaDataUrl = '';
 
 const normalizarTexto = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 const normalizarCodigo = (value) => String(value || '').replace(/[\s\-_.]/g, '').toUpperCase().trim();
@@ -197,7 +203,12 @@ const seleccionarProducto = (producto) => {
   els.productMeta.textContent = `Codigo ${producto.codigo || '-'} · ${producto.categoria || 'Sin categoria'}`;
   els.productStock.textContent = `Stock actual: ${stock} ${producto.unidad || 'unid.'}`;
   els.codigoNuevo.value = producto.codigo || producto.codigoInterno || producto.codigoBarras || '';
+  els.qtyInput.value = String(stock);
   els.codigoProveedorNuevo.value = leerCodigoProveedor(producto, proveedor);
+  fotoNuevaDataUrl = '';
+  els.photoInput.value = '';
+  els.photoPreview.src = obtenerImagen(producto) || '';
+  els.photoPreview.classList.toggle('hidden', !obtenerImagen(producto));
   els.codigoProveedorNuevo.disabled = !proveedor;
   els.results.classList.add('hidden');
   els.selectedCard.classList.remove('hidden');
@@ -210,10 +221,14 @@ const volverAlBuscadorStock = (mensaje = '') => {
   els.selectedCard.classList.add('hidden');
   els.results.classList.remove('hidden');
   els.searchInput.value = '';
-  els.qtyInput.value = '1';
+  els.qtyInput.value = '0';
   els.codigoNuevo.value = '';
   els.codigoProveedorNuevo.value = '';
   els.nota.value = '';
+  fotoNuevaDataUrl = '';
+  els.photoInput.value = '';
+  els.photoPreview.src = '';
+  els.photoPreview.classList.add('hidden');
   renderResults();
   renderStatus(mensaje, mensaje ? 'ok' : 'slate');
   els.searchInput.focus();
@@ -222,9 +237,9 @@ const volverAlBuscadorStock = (mensaje = '') => {
 const actualizarProductoSeleccionado = async (event) => {
   event.preventDefault();
   if (!productoSeleccionado?.id) return;
-  const cantidadIngreso = numero(els.qtyInput.value);
-  if (cantidadIngreso <= 0) {
-    renderStatus('Ingresa una cantidad mayor a cero.', 'error');
+  const nuevoStockIngresado = numero(els.qtyInput.value);
+  if (nuevoStockIngresado < 0) {
+    renderStatus('El stock final no puede ser negativo.', 'error');
     return;
   }
 
@@ -262,7 +277,8 @@ const actualizarProductoSeleccionado = async (event) => {
   }
 
   const stockActual = numero(productoSeleccionado.cantidad ?? productoSeleccionado.stock ?? 0);
-  const nuevoStock = stockActual + cantidadIngreso;
+  const nuevoStock = nuevoStockIngresado;
+  const variacionStock = nuevoStock - stockActual;
   const fecha = ahoraIso();
   const payload = {
     cantidad: nuevoStock,
@@ -272,7 +288,7 @@ const actualizarProductoSeleccionado = async (event) => {
     ultimaModificacion: fecha,
     ultimoIngresoStockRapido: {
       fecha,
-      cantidad: cantidadIngreso,
+      cantidad: variacionStock,
       usuario: usuarioActual?.nombre || usuarioActual?.usuario || '',
       nota: els.nota.value.trim(),
       proveedor: proveedor || ''
@@ -280,7 +296,7 @@ const actualizarProductoSeleccionado = async (event) => {
     ultimoControlStock: {
       fecha,
       cantidad: nuevoStock,
-      ingreso: cantidadIngreso,
+      ingreso: variacionStock,
       usuario: usuarioActual?.nombre || usuarioActual?.usuario || '',
       nota: els.nota.value.trim(),
       proveedor: proveedor || '',
@@ -296,6 +312,17 @@ const actualizarProductoSeleccionado = async (event) => {
   els.saveBtn.disabled = true;
   els.saveBtn.textContent = 'Actualizando...';
   try {
+    if (fotoNuevaDataUrl) {
+      els.saveBtn.textContent = 'Subiendo foto...';
+      const rutaFoto = `productos/${productoSeleccionado.id}/stock-app-${Date.now()}.jpg`;
+      const referenciaFoto = storageRef(storage, rutaFoto);
+      await uploadString(referenciaFoto, fotoNuevaDataUrl, 'data_url');
+      const fotoUrl = await getDownloadURL(referenciaFoto);
+      payload.imagen = fotoUrl;
+      payload.imagenPrincipal = fotoUrl;
+      payload.imagenes = [fotoUrl, ...(Array.isArray(productoSeleccionado.imagenes) ? productoSeleccionado.imagenes : []).filter((imagen) => imagen && imagen !== fotoUrl)].slice(0, 8);
+      els.saveBtn.textContent = 'Actualizando...';
+    }
     await updateDoc(doc(db, 'productos', productoSeleccionado.id), payload);
     volverAlBuscadorStock(`Listo. Nuevo stock: ${nuevoStock} ${productoSeleccionado.unidad || 'unid.'}`);
   } catch (error) {
@@ -309,41 +336,52 @@ const actualizarProductoSeleccionado = async (event) => {
 
 const iniciarSesion = (event) => {
   event.preventDefault();
-  const usuario = normalizarTexto(els.username.value);
-  const password = String(els.password.value || '').trim();
-  const encontrado = usuarios.find((item) => {
-    const userOk = normalizarTexto(item.usuario || item.username || item.nombre) === usuario;
-    const passOk = String(item.password || item.contrasena || item.clave || '').trim() === password;
-    return userOk && passOk;
-  });
-  if (!encontrado) {
-    els.loginStatus.textContent = 'Usuario o contraseña incorrectos.';
+  const codigo = String(els.accessCode.value || '').trim();
+  if (configuracion?.stockAppActiva === false) {
+    els.loginStatus.textContent = 'La app móvil de stock está desactivada desde Ajustes.';
     return;
   }
-  usuarioActual = encontrado;
-  sessionStorage.setItem('stockAppUser', JSON.stringify({ id: encontrado.id, usuario: encontrado.usuario || encontrado.nombre }));
+  if (!configuracion?.codigoAccesoStock) {
+    els.loginStatus.textContent = 'Todavía no se definió el código de acceso. Configuralo en Ajustes > Inventario.';
+    return;
+  }
+  if (codigo !== String(configuracion.codigoAccesoStock)) {
+    els.loginStatus.textContent = 'El código de acceso no es correcto.';
+    return;
+  }
+  sessionStorage.setItem('stockAppAccessCode', codigo);
   els.loginScreen.classList.add('hidden');
   els.appScreen.classList.remove('hidden');
   els.searchInput.focus();
 };
 
 const cerrarSesion = () => {
-  sessionStorage.removeItem('stockAppUser');
-  usuarioActual = null;
+  sessionStorage.removeItem('stockAppAccessCode');
   els.appScreen.classList.add('hidden');
   els.loginScreen.classList.remove('hidden');
-  els.password.value = '';
+  els.accessCode.value = '';
 };
 
 const restaurarSesion = () => {
-  const raw = sessionStorage.getItem('stockAppUser');
-  if (!raw) return;
-  try {
-    const sesion = JSON.parse(raw);
-    usuarioActual = sesion;
+  const codigo = sessionStorage.getItem('stockAppAccessCode');
+  if (codigo && configuracion?.stockAppActiva !== false && codigo === String(configuracion?.codigoAccesoStock || '')) {
     els.loginScreen.classList.add('hidden');
     els.appScreen.classList.remove('hidden');
-  } catch {}
+  }
+};
+
+const leerFotoNueva = (archivo) => {
+  if (!archivo) return;
+  if (!archivo.type.startsWith('image/')) { renderStatus('Elegí una imagen válida.', 'error'); return; }
+  if (archivo.size > 8 * 1024 * 1024) { renderStatus('La foto es demasiado grande. Elegí una de hasta 8 MB.', 'error'); return; }
+  const lector = new FileReader();
+  lector.onload = () => {
+    fotoNuevaDataUrl = String(lector.result || '');
+    els.photoPreview.src = fotoNuevaDataUrl;
+    els.photoPreview.classList.remove('hidden');
+    renderStatus('Foto lista para guardar junto con el cambio.', 'ok');
+  };
+  lector.readAsDataURL(archivo);
 };
 
 const cargarLectorCodigos = () => new Promise((resolve, reject) => {
@@ -472,12 +510,12 @@ const iniciarDatos = async () => {
     console.warn('Auth anonima no disponible, intento continuar con sesion existente.', error);
   }
   onAuthStateChanged(auth, () => {
-    onSnapshot(collection(db, 'usuarios'), (snapshot) => {
-      usuarios = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+    onSnapshot(doc(db, 'sistema', 'configuracion'), (snapshot) => {
+      configuracion = snapshot.exists() ? snapshot.data() : {};
       restaurarSesion();
     }, (error) => {
       console.error(error);
-      els.loginStatus.textContent = 'No pude leer usuarios. Revisa Firebase.';
+      els.loginStatus.textContent = 'No pude leer la configuración de acceso. Revisá Firebase.';
     });
     onSnapshot(collection(db, 'productos'), (snapshot) => {
       productos = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
@@ -527,6 +565,7 @@ els.scanBtn.addEventListener('click', iniciarCamara);
 els.stopScanBtn.addEventListener('click', detenerCamara);
 els.stockForm.addEventListener('submit', actualizarProductoSeleccionado);
 els.changeProductBtn.addEventListener('click', () => volverAlBuscadorStock(''));
+els.photoInput.addEventListener('change', (event) => leerFotoNueva(event.target.files?.[0]));
 els.installBtn.addEventListener('click', instalarApp);
 renderInstallButton();
 renderResults();
