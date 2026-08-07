@@ -1,8 +1,8 @@
-const STOCK_APP_CACHE = 'seniorflow-stock-app-20260807-06';
+const STOCK_APP_CACHE = 'seniorflow-stock-app-20260807-07';
 const STOCK_APP_ASSETS = [
   './stock-app.html',
-  './stock-app.js?v=seniorflow-stock-mobile-20260807-06',
-  './firebase-config.js?v=seniorflow-stock-mobile-20260807-06',
+  './stock-app.js?v=seniorflow-stock-mobile-20260807-07',
+  './firebase-config.js?v=seniorflow-stock-mobile-20260807-07',
   './manifest-stock-app.json',
   './icons/stock-app.svg',
   './icons/stock-app-192.png',

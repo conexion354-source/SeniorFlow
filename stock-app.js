@@ -1,4 +1,4 @@
-import { auth, db, storage } from './firebase-config.js?v=seniorflow-stock-mobile-20260807-06';
+import { auth, db, storage } from './firebase-config.js?v=seniorflow-stock-mobile-20260807-07';
 import { signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js';
 import { collection as firestoreCollection, doc as firestoreDoc, onSnapshot, updateDoc } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js';
 import { ref as storageRef, uploadString, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js';
@@ -370,11 +370,28 @@ const iniciarCamara = async () => {
         return;
       }
     } catch {}
-    const pruebaCamara = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-      audio: false
-    });
+    // Android puede rechazar una configuración de resolución concreta aunque
+    // la cámara exista. Pedimos permiso con alternativas simples y usamos el
+    // identificador real de la cámara que el propio teléfono abrió.
+    let pruebaCamara;
+    let errorPrueba;
+    const intentosPermiso = [
+      { video: { facingMode: { ideal: 'environment' } }, audio: false },
+      { video: true, audio: false }
+    ];
+    for (const restricciones of intentosPermiso) {
+      try {
+        pruebaCamara = await navigator.mediaDevices.getUserMedia(restricciones);
+        break;
+      } catch (error) {
+        errorPrueba = error;
+      }
+    }
+    if (!pruebaCamara) throw errorPrueba || new Error('No se pudo abrir la cámara.');
+    const idCamaraActiva = pruebaCamara.getVideoTracks?.()[0]?.getSettings?.().deviceId || '';
     pruebaCamara.getTracks().forEach((track) => track.stop());
+    // Algunos equipos Android tardan un instante en liberar la cámara.
+    await new Promise((resolve) => window.setTimeout(resolve, 180));
     await cargarLectorCodigos();
     await detenerCamara();
     els.cameraPanel.classList.remove('hidden');
@@ -405,22 +422,27 @@ const iniciarCamara = async () => {
         renderStatus('Código detectado. Elegí el producto para actualizar.', 'ok');
       }
     };
-    const cameras = await window.Html5Qrcode.getCameras().catch(() => []);
-    const backCamera = cameras.find((cam) => /back|rear|environment|trasera|traseira/i.test(cam.label || '')) || cameras[0];
     scannerCodigo = new window.Html5Qrcode('reader');
-    try {
-      if (backCamera?.id) {
-        await scannerCodigo.start(backCamera.id, config, onScanSuccess, () => {});
-      } else {
-        await scannerCodigo.start({ facingMode: { ideal: 'environment' } }, config, onScanSuccess, () => {});
-      }
-    } catch {
+    // No dependemos de getCameras(): en algunos Android devuelve una lista
+    // vacía aun después de conceder el permiso. Probamos la cámara que acabamos
+    // de abrir y, si hace falta, las alternativas estándar.
+    const fuentes = [
+      ...(idCamaraActiva ? [idCamaraActiva] : []),
+      { facingMode: { ideal: 'environment' } },
+      { facingMode: 'user' }
+    ];
+    let ultimoError;
+    let iniciada = false;
+    for (const fuente of fuentes) {
       try {
-        await scannerCodigo.start({ facingMode: { ideal: 'environment' } }, config, onScanSuccess, () => {});
-      } catch {
-        await scannerCodigo.start({ facingMode: 'user' }, config, onScanSuccess, () => {});
+        await scannerCodigo.start(fuente, config, onScanSuccess, () => {});
+        iniciada = true;
+        break;
+      } catch (error) {
+        ultimoError = error;
       }
     }
+    if (!iniciada) throw ultimoError || new Error('No se pudo iniciar el lector.');
   } catch (error) {
     console.error(error);
     await detenerCamara();
@@ -501,7 +523,7 @@ const iniciarDatos = async () => {
 };
 
 if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
-  navigator.serviceWorker.register('./sw-stock-app.js?v=seniorflow-stock-mobile-20260807-06').catch(console.warn);
+  navigator.serviceWorker.register('./sw-stock-app.js?v=seniorflow-stock-mobile-20260807-07').catch(console.warn);
 }
 
 window.addEventListener('beforeinstallprompt', (event) => {
