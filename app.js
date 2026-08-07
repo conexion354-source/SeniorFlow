@@ -1314,6 +1314,48 @@ ${p.nombre}`,A=null;try{A=await z6(n)}catch(B){console.error("No se pudo generar
         .sf-enterprise-shell .badge { border-radius:999px; font-weight:900; letter-spacing:.02em; }
         .sf-enterprise-shell .table-container { border:1px solid var(--sf-border); border-radius:1rem; box-shadow:0 2px 8px rgba(15,34,67,.04); background:#fff; }
         .sf-enterprise-shell .table-container table { background:#fff; }
+        .sf-enterprise-shell .sf-main h1 { color:#142441; letter-spacing:-.035em; }
+        .sf-enterprise-shell .sf-main h2 { color:#172844; letter-spacing:-.025em; }
+        .sf-enterprise-shell .sf-main h3 { color:#1d2e49; }
+        .sf-enterprise-shell .sf-main > section, .sf-enterprise-shell .sf-main > .card { border-color:var(--sf-border); }
+        .sf-enterprise-shell .sf-main .bg-white.border.rounded-xl,
+        .sf-enterprise-shell .sf-main .bg-white.border.rounded-2xl,
+        .sf-enterprise-shell .sf-main .bg-white.border.rounded-3xl { border-color:var(--sf-border); box-shadow:0 2px 8px rgba(15,34,67,.045); }
+        .sf-enterprise-shell .sf-main .bg-gray-50.border,
+        .sf-enterprise-shell .sf-main .bg-slate-50.border { border-color:#e2e9f2; }
+        .sf-enterprise-shell .sf-main .bg-slate-900 { background:#10284f; }
+        .sf-enterprise-shell .sf-main .bg-gray-900 { background:#152b50; }
+        .sf-enterprise-shell .sf-main .text-gray-900, .sf-enterprise-shell .sf-main .text-slate-900 { color:#172844; }
+        .sf-enterprise-shell .sf-main .text-gray-700, .sf-enterprise-shell .sf-main .text-slate-700 { color:#40516b; }
+        .sf-enterprise-shell .sf-main .text-gray-500, .sf-enterprise-shell .sf-main .text-slate-500 { color:#718098; }
+        .sf-enterprise-shell .sf-main button[class*="rounded-xl"], .sf-enterprise-shell .sf-main button[class*="rounded-lg"] { transition:transform .16s ease,box-shadow .16s ease,background .16s ease; }
+        .sf-enterprise-shell .sf-main button[class*="rounded-xl"]:hover, .sf-enterprise-shell .sf-main button[class*="rounded-lg"]:hover { box-shadow:0 3px 9px rgba(15,34,67,.09); }
+        .sf-enterprise-shell .sf-main .rounded-3xl { border-radius:1.15rem; }
+        .sf-enterprise-shell .sf-main .rounded-2xl { border-radius:1rem; }
+        .sf-enterprise-shell .sf-main .rounded-xl { border-radius:.75rem; }
+        .sf-enterprise-shell .sf-main label.block { color:#53637b; }
+        .sf-enterprise-shell .sf-main .uppercase { letter-spacing:.055em; }
+        .sf-enterprise-shell .sf-main .shadow-sm { box-shadow:0 2px 8px rgba(15,34,67,.05); }
+        .sf-enterprise-shell .sf-main .shadow-md, .sf-enterprise-shell .sf-main .shadow-lg { box-shadow:0 8px 22px rgba(15,34,67,.09); }
+        .sf-enterprise-shell .sf-main input[type="checkbox"] { accent-color:var(--sf-green); }
+        .sf-enterprise-shell .sf-main .divide-y > * { border-color:#edf1f6; }
+        .sf-enterprise-shell .sf-main .sticky.top-0 { background:#f7f9fc; }
+        .sf-enterprise-shell .sf-main .bg-emerald-50 { background:#effaf6; }
+        .sf-enterprise-shell .sf-main .bg-blue-50 { background:#eff6ff; }
+        .sf-enterprise-shell .sf-main .bg-purple-50 { background:#f5f2ff; }
+        .sf-enterprise-shell .sf-main .bg-amber-50 { background:#fff9eb; }
+        .sf-enterprise-shell .sf-main .bg-red-50 { background:#fff3f3; }
+        .sf-enterprise-shell .sf-main .border-emerald-200 { border-color:#b8ead8; }
+        .sf-enterprise-shell .sf-main .border-blue-200 { border-color:#c4dcfa; }
+        .sf-enterprise-shell .sf-main .border-purple-200 { border-color:#ddd1ff; }
+        .sf-enterprise-shell .sf-main .border-amber-200 { border-color:#f4ddb0; }
+        .sf-enterprise-shell .sf-main .border-red-200 { border-color:#f4caca; }
+        .sf-enterprise-shell .sf-modal-body table thead { background:#f7f9fc; color:#5c6d85; }
+        .sf-enterprise-shell .sf-modal-body .bg-slate-900 { background:#10284f; }
+        .sf-enterprise-shell .sf-modal-body button.bg-blue-600, .sf-enterprise-shell .sf-modal-body button.bg-indigo-600 { background:#1769d5; }
+        .sf-enterprise-shell .sf-modal-body button.bg-emerald-600, .sf-enterprise-shell .sf-modal-body button.bg-green-600 { background:#079669; }
+        .sf-enterprise-shell .sf-modal-body button.bg-purple-600, .sf-enterprise-shell .sf-modal-body button.bg-violet-600 { background:#6546d9; }
+        .sf-enterprise-shell .sf-modal-body button.bg-red-600 { background:#d64545; }
         @media (max-width:767px) {
           .sf-enterprise-shell .sf-sidebar { display:none; }
           .sf-enterprise-shell .sf-mobile-nav { display:flex; }
