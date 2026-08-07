@@ -1,4 +1,4 @@
-import { auth, db, storage } from './firebase-config.js?v=seniorflow-stock-mobile-20260807-04';
+import { auth, db, storage } from './firebase-config.js?v=seniorflow-stock-mobile-20260807-05';
 import { signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js';
 import { collection as firestoreCollection, doc as firestoreDoc, onSnapshot, updateDoc } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js';
 import { ref as storageRef, uploadString, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js';
@@ -493,7 +493,7 @@ const iniciarDatos = async () => {
 };
 
 if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
-  navigator.serviceWorker.register('./sw-stock-app.js?v=seniorflow-stock-mobile-20260807-04').catch(console.warn);
+  navigator.serviceWorker.register('./sw-stock-app.js?v=seniorflow-stock-mobile-20260807-05').catch(console.warn);
 }
 
 window.addEventListener('beforeinstallprompt', (event) => {
