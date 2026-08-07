@@ -1,4 +1,4 @@
-import { auth, db, storage } from './firebase-config.js?v=seniorflow-stock-mobile-20260807-05';
+import { auth, db, storage } from './firebase-config.js?v=seniorflow-stock-mobile-20260807-06';
 import { signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js';
 import { collection as firestoreCollection, doc as firestoreDoc, onSnapshot, updateDoc } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js';
 import { ref as storageRef, uploadString, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js';
@@ -370,6 +370,11 @@ const iniciarCamara = async () => {
         return;
       }
     } catch {}
+    const pruebaCamara = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    });
+    pruebaCamara.getTracks().forEach((track) => track.stop());
     await cargarLectorCodigos();
     await detenerCamara();
     els.cameraPanel.classList.remove('hidden');
@@ -383,7 +388,7 @@ const iniciarCamara = async () => {
       fps: 14,
       qrbox: { width: 300, height: 180 },
       aspectRatio: 1.777778,
-      rememberLastUsedCamera: true,
+      rememberLastUsedCamera: false,
       experimentalFeatures: { useBarCodeDetectorIfSupported: true },
       formatsToSupport: formatosSoportados.length ? formatosSoportados : undefined
     };
@@ -400,17 +405,20 @@ const iniciarCamara = async () => {
         renderStatus('Código detectado. Elegí el producto para actualizar.', 'ok');
       }
     };
+    const cameras = await window.Html5Qrcode.getCameras().catch(() => []);
+    const backCamera = cameras.find((cam) => /back|rear|environment|trasera|traseira/i.test(cam.label || '')) || cameras[0];
     scannerCodigo = new window.Html5Qrcode('reader');
     try {
-      await scannerCodigo.start({ facingMode: { exact: 'environment' } }, config, onScanSuccess, () => {});
+      if (backCamera?.id) {
+        await scannerCodigo.start(backCamera.id, config, onScanSuccess, () => {});
+      } else {
+        await scannerCodigo.start({ facingMode: { ideal: 'environment' } }, config, onScanSuccess, () => {});
+      }
     } catch {
       try {
-        await scannerCodigo.start({ facingMode: 'environment' }, config, onScanSuccess, () => {});
+        await scannerCodigo.start({ facingMode: { ideal: 'environment' } }, config, onScanSuccess, () => {});
       } catch {
-        const cameras = await window.Html5Qrcode.getCameras();
-        const backCamera = cameras.find((cam) => /back|rear|environment|trasera|traseira/i.test(cam.label || '')) || cameras[0];
-        if (!backCamera) throw new Error('No hay camaras disponibles.');
-        await scannerCodigo.start(backCamera.id, config, onScanSuccess, () => {});
+        await scannerCodigo.start({ facingMode: 'user' }, config, onScanSuccess, () => {});
       }
     }
   } catch (error) {
@@ -493,7 +501,7 @@ const iniciarDatos = async () => {
 };
 
 if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
-  navigator.serviceWorker.register('./sw-stock-app.js?v=seniorflow-stock-mobile-20260807-05').catch(console.warn);
+  navigator.serviceWorker.register('./sw-stock-app.js?v=seniorflow-stock-mobile-20260807-06').catch(console.warn);
 }
 
 window.addEventListener('beforeinstallprompt', (event) => {
