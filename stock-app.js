@@ -1,4 +1,4 @@
-import { auth, db, storage } from './firebase-config.js?v=seniorflow-stock-mobile-20260807-02';
+import { auth, db, storage } from './firebase-config.js?v=seniorflow-stock-mobile-20260807-03';
 import { signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js';
 import { collection as firestoreCollection, doc as firestoreDoc, onSnapshot, updateDoc } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js';
 import { ref as storageRef, uploadString, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js';
@@ -11,12 +11,14 @@ const els = {
   loginScreen: $('loginScreen'),
   appScreen: $('appScreen'),
   loginForm: $('loginForm'),
+  loginBtn: $('loginBtn'),
   accessCode: $('accessCode'),
   loginStatus: $('loginStatus'),
   syncStatus: $('syncStatus'),
   installBtn: $('installBtn'),
   logoutBtn: $('logoutBtn'),
   searchInput: $('searchInput'),
+  searchPanel: $('searchPanel'),
   scanBtn: $('scanBtn'),
   scanBarcodeBtn: $('scanBarcodeBtn'),
   cameraPanel: $('cameraPanel'),
@@ -34,6 +36,7 @@ const els = {
   stockForm: $('stockForm'),
   qtyInput: $('qtyInput'),
   codigoBarrasNuevo: $('codigoBarrasNuevo'),
+  codigoProveedorLectura: $('codigoProveedorLectura'),
   saveBtn: $('saveBtn'),
   changeProductBtn: $('changeProductBtn'),
   status: $('status')
@@ -41,6 +44,7 @@ const els = {
 
 let productos = [];
 let configuracion = null;
+let configuracionLista = false;
 let usuarioActual = { nombre: 'Control de stock' };
 let productoSeleccionado = null;
 let deferredPrompt = null;
@@ -69,6 +73,15 @@ const obtenerImagen = (producto) => {
   if (Array.isArray(producto?.imagenes) && producto.imagenes[0]) return producto.imagenes[0];
   if (producto?.imagenPrincipal) return producto.imagenPrincipal;
   return '';
+};
+
+const obtenerCodigoProveedorLectura = (producto) => {
+  if (producto?.codigoProveedor) return String(producto.codigoProveedor);
+  const costos = Array.isArray(producto?.proveedoresCostos)
+    ? producto.proveedoresCostos
+    : (Array.isArray(producto?.costosProveedores) ? producto.costosProveedores : []);
+  const encontrado = costos.find((item) => item?.codigoProveedor);
+  return encontrado?.codigoProveedor ? String(encontrado.codigoProveedor) : '';
 };
 
 const camposProducto = (producto) => {
@@ -151,24 +164,27 @@ const seleccionarProducto = (producto) => {
   els.productMeta.textContent = `Codigo ${producto.codigo || '-'} · ${producto.categoria || 'Sin categoria'}`;
   els.productStock.textContent = `Stock actual: ${stock} ${producto.unidad || 'unid.'}`;
   els.codigoBarrasNuevo.value = producto.codigoBarras || '';
+  els.codigoProveedorLectura.value = obtenerCodigoProveedorLectura(producto);
   els.qtyInput.value = String(stock);
   fotoNuevaDataUrl = '';
   els.photoInput.value = '';
   els.photoPreview.src = obtenerImagen(producto) || '';
   els.photoPreview.classList.toggle('hidden', !obtenerImagen(producto));
   els.results.classList.add('hidden');
+  els.searchPanel.classList.add('hidden');
   els.selectedCard.classList.remove('hidden');
   renderStatus('');
-  els.selectedCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
 const volverAlBuscadorStock = (mensaje = '') => {
   productoSeleccionado = null;
   els.selectedCard.classList.add('hidden');
+  els.searchPanel.classList.remove('hidden');
   els.results.classList.remove('hidden');
   els.searchInput.value = '';
   els.qtyInput.value = '0';
   els.codigoBarrasNuevo.value = '';
+  els.codigoProveedorLectura.value = '';
   fotoNuevaDataUrl = '';
   els.photoInput.value = '';
   els.photoPreview.src = '';
@@ -257,12 +273,16 @@ const actualizarProductoSeleccionado = async (event) => {
     renderStatus(`No se pudo actualizar: ${error.message || error}`, 'error');
   } finally {
     els.saveBtn.disabled = false;
-    els.saveBtn.textContent = 'Actualizar inventario';
+    els.saveBtn.textContent = 'Guardar cambios';
   }
 };
 
 const iniciarSesion = (event) => {
   event.preventDefault();
+  if (!configuracionLista) {
+    els.loginStatus.textContent = 'Esperá un momento: todavía estamos sincronizando el acceso.';
+    return;
+  }
   const codigo = String(els.accessCode.value || '').trim();
   if (configuracion?.stockAppActiva === false) {
     els.loginStatus.textContent = 'La app móvil de stock está desactivada desde Ajustes.';
@@ -444,9 +464,16 @@ const iniciarDatos = async () => {
   onAuthStateChanged(auth, () => {
     onSnapshot(doc(db, 'sistema', 'configuracion'), (snapshot) => {
       configuracion = snapshot.exists() ? snapshot.data() : {};
+      configuracionLista = true;
+      els.loginBtn.disabled = false;
+      els.loginBtn.textContent = 'Entrar';
+      els.loginStatus.textContent = '';
       restaurarSesion();
     }, (error) => {
       console.error(error);
+      configuracionLista = false;
+      els.loginBtn.disabled = true;
+      els.loginBtn.textContent = 'Sin conexión';
       els.loginStatus.textContent = 'No pude leer la configuración de acceso. Revisá Firebase.';
     });
     onSnapshot(collection(db, 'productos'), (snapshot) => {
@@ -462,7 +489,7 @@ const iniciarDatos = async () => {
 };
 
 if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
-  navigator.serviceWorker.register('./sw-stock-app.js?v=seniorflow-stock-mobile-20260807-02').catch(console.warn);
+  navigator.serviceWorker.register('./sw-stock-app.js?v=seniorflow-stock-mobile-20260807-03').catch(console.warn);
 }
 
 window.addEventListener('beforeinstallprompt', (event) => {
@@ -481,6 +508,7 @@ els.logoutBtn.addEventListener('click', cerrarSesion);
 els.searchInput.addEventListener('input', () => {
   productoSeleccionado = null;
   els.selectedCard.classList.add('hidden');
+  els.searchPanel.classList.remove('hidden');
   els.results.classList.remove('hidden');
   renderResults();
 });

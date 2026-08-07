@@ -16,6 +16,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     :root { color-scheme: light; }
+    html, body { width: 100%; max-width: 100%; overflow-x: hidden; overscroll-behavior: none; }
     body {
       margin: 0;
       min-height: 100vh;
@@ -30,6 +31,8 @@
     .tap { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     video { transform: scaleX(1); }
     * { box-sizing: border-box; }
+    #appScreen > section { min-width: 0; }
+    #results { scrollbar-gutter: stable; }
   </style>
 </head>
 <body>
@@ -45,13 +48,13 @@
           <span class="text-xs font-black uppercase tracking-wider text-slate-500">Código de acceso</span>
           <input id="accessCode" type="password" inputmode="numeric" autocomplete="current-password" class="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base font-bold outline-none focus:ring-4 focus:ring-cyan-100 focus:border-cyan-400" placeholder="Ingresá el código de stock" />
         </label>
-        <button class="tap w-full h-14 rounded-2xl bg-slate-950 text-white font-black text-sm uppercase tracking-wider shadow-xl shadow-slate-900/20 active:scale-[.99]" type="submit">Entrar</button>
+        <button id="loginBtn" class="tap w-full h-14 rounded-2xl bg-slate-950 text-white font-black text-sm uppercase tracking-wider shadow-xl shadow-slate-900/20 active:scale-[.99] disabled:cursor-wait disabled:opacity-50" type="submit" disabled>Conectando...</button>
       </form>
       <p id="loginStatus" class="mt-4 min-h-5 text-sm font-bold text-rose-600"></p>
     </section>
   </main>
 
-  <main id="appScreen" class="hidden h-[100dvh] flex-col overflow-hidden safe-bottom">
+  <main id="appScreen" class="hidden flex h-[100dvh] flex-col overflow-hidden safe-bottom">
     <header class="sticky top-0 z-20 bg-slate-950 text-white border-b border-white/10">
       <div class="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
         <div class="h-10 w-10 rounded-2xl bg-cyan-400 text-slate-950 grid place-items-center font-black">ST</div>
@@ -65,7 +68,7 @@
     </header>
 
     <section class="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-4 overflow-hidden p-4">
-      <div class="shrink-0 glass rounded-[1.75rem] border border-white/70 shadow-xl shadow-slate-900/10 p-4">
+      <div id="searchPanel" class="shrink-0 glass rounded-[1.75rem] border border-white/70 shadow-xl shadow-slate-900/10 p-4">
         <label class="block">
           <span class="text-xs font-black uppercase tracking-wider text-slate-500">Buscar producto</span>
           <div class="mt-2 flex gap-2">
@@ -107,6 +110,10 @@
               <div class="mt-1 flex gap-2"><input id="codigoBarrasNuevo" class="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base font-black outline-none focus:ring-4 focus:ring-cyan-100 focus:border-cyan-400" placeholder="Escaneá o escribí" /><button id="scanBarcodeBtn" type="button" class="tap h-14 w-14 shrink-0 rounded-2xl bg-cyan-600 text-xl font-black text-white" aria-label="Leer código de barras">⌗</button></div>
             </label>
           </div>
+          <label>
+            <span class="text-xs font-black uppercase tracking-wider text-slate-500">Código de proveedor</span>
+            <input id="codigoProveedorLectura" readonly tabindex="-1" class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-base font-black text-slate-500 outline-none" placeholder="Sin código cargado" />
+          </label>
         <label>
           <span class="text-xs font-black uppercase tracking-wider text-slate-500">Foto del producto</span>
           <span class="mt-1 flex items-center gap-3 rounded-2xl border border-dashed border-cyan-300 bg-cyan-50/60 p-3">
@@ -117,8 +124,8 @@
           </span>
         </label>
           <div class="grid grid-cols-1 sm:grid-cols-[1fr_1.4fr] gap-2">
-            <button id="changeProductBtn" class="tap h-14 rounded-2xl border border-slate-200 bg-white text-slate-700 font-black text-sm uppercase tracking-wider active:scale-[.99]" type="button">Cambiar producto</button>
-            <button id="saveBtn" class="tap h-14 rounded-2xl bg-emerald-600 text-white font-black text-sm uppercase tracking-wider shadow-xl shadow-emerald-900/20 active:scale-[.99]" type="submit">Actualizar inventario</button>
+            <button id="changeProductBtn" class="tap h-14 rounded-2xl border border-slate-200 bg-white text-slate-700 font-black text-sm uppercase tracking-wider active:scale-[.99]" type="button">Cancelar</button>
+            <button id="saveBtn" class="tap h-14 rounded-2xl bg-emerald-600 text-white font-black text-sm uppercase tracking-wider shadow-xl shadow-emerald-900/20 active:scale-[.99]" type="submit">Guardar cambios</button>
           </div>
         </form>
       </section>
@@ -127,6 +134,6 @@
     </section>
   </main>
 
-  <script type="module" src="./stock-app.js?v=seniorflow-stock-mobile-20260807-02"></script>
+  <script type="module" src="./stock-app.js?v=seniorflow-stock-mobile-20260807-03"></script>
 </body>
 </html>
