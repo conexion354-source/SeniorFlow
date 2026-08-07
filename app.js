@@ -1390,6 +1390,19 @@ ${p.nombre}`,A=null;try{A=await J6(n)}catch(N){console.error("No se pudo generar
         .sf-enterprise-shell .sf-sales-list { flex:1; min-height:0; overflow:auto; }
         .sf-enterprise-shell .sf-budget-list, .sf-enterprise-shell .sf-tracking-list { flex:1; min-height:0; overflow:auto; }
         @media (min-width:768px) {
+          /* El panel principal nunca se desplaza: cada m\xF3dulo entrega el scroll a su listado. */
+          .sf-enterprise-shell .sf-main { overflow:hidden !important; }
+          .sf-enterprise-shell .sf-main > .space-y-5,
+          .sf-enterprise-shell .sf-main > .space-y-6 {
+            height:100%; min-height:0; display:flex; flex-direction:column; gap:1rem;
+            overflow:hidden;
+          }
+          .sf-enterprise-shell .sf-main > .space-y-5 > :not([hidden]) ~ :not([hidden]),
+          .sf-enterprise-shell .sf-main > .space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top:0; }
+          .sf-enterprise-shell .sf-main > .space-y-5 > :last-child,
+          .sf-enterprise-shell .sf-main > .space-y-6 > :last-child {
+            flex:1; min-height:0; overflow:auto;
+          }
           .sf-enterprise-shell .sf-main:has(.sf-module-sales),
           .sf-enterprise-shell .sf-main:has(.sf-module-cash),
           .sf-enterprise-shell .sf-main:has(.sf-module-clients),
