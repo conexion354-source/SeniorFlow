@@ -1,14 +1,14 @@
-const CACHE_NAME = 'seniorflow-shared-20260807170000';
+const CACHE_NAME = 'seniorflow-shared-20260807171000';
 const ASSETS = [
   './',
   './index.html',
   './stock-app.html',
-  './stock-app.js?v=seniorflow-shared-20260807170000',
-  './app.js?v=seniorflow-shared-20260807170000',
+  './stock-app.js?v=seniorflow-shared-20260807171000',
+  './app.js?v=seniorflow-shared-20260807171000',
   './firebase-config.js?v=seniorflow-react-20260715-pdf-pagination-06',
   './manifest.json',
   './manifest-stock-app.json',
-  './sw-stock-app.js?v=seniorflow-shared-20260807170000',
+  './sw-stock-app.js?v=seniorflow-shared-20260807171000',
   './ofertas.html?v=seniorflow-react-20260715-pdf-pagination-06',
   './oferta-template-base.jpg',
   './logo-empresa-mundoled.png',
@@ -84,10 +84,10 @@ self.addEventListener('fetch', (event) => {
         || (await caches.match(url.pathname.endsWith('/firebase-config.js')
           ? './firebase-config.js?v=seniorflow-react-20260715-pdf-pagination-06'
           : url.pathname.endsWith('/stock-app.js')
-            ? './stock-app.js?v=seniorflow-shared-20260807170000'
+            ? './stock-app.js?v=seniorflow-shared-20260807171000'
             : url.pathname.endsWith('/ofertas.html')
               ? './ofertas.html?v=seniorflow-react-20260715-pdf-pagination-06'
-              : './app.js?v=seniorflow-shared-20260807170000'));
+              : './app.js?v=seniorflow-shared-20260807171000'));
       }
     })());
     return;
