@@ -424,15 +424,15 @@
     }
   .sf-auth-screen { position: relative; isolation: isolate; overflow: hidden; background: #132723; }
   .sf-auth-backdrop { position: absolute; inset: 0; z-index: -1; background: linear-gradient(rgba(9,26,25,.40), rgba(9,26,25,.40)), url('./assets/login-warehouse.png') center/cover no-repeat; filter: blur(2px); transform: scale(1.02); }
-  .sf-auth-card { width: min(100%, 400px); padding: 42px 36px 36px; border: 1px solid rgba(255,255,255,.72); border-radius: 16px; background: rgba(255,255,255,.96); box-shadow: 0 22px 55px rgba(0,0,0,.28); }
+  .sf-auth-card { width:min(420px, calc(100vw - 32px)) !important; padding:32px 30px 28px; border:1px solid rgba(255,255,255,.72); border-radius:16px; background:rgba(255,255,255,.96); box-shadow:0 22px 55px rgba(0,0,0,.28); }
   .sf-auth-mark { display: grid; place-items: center; margin: auto; color: #078d86; font-size: 2.35rem; font-weight: 900; font-style: italic; letter-spacing: -.18em; line-height: 1; }
   .sf-auth-spinner { width: 82px; height: 82px; border: 4px solid #e3e8eb; border-top-color: #078d86; border-right-color: #078d86; border-radius: 50%; animation: sf-auth-spin 1s linear infinite; }
-  .sf-auth-input { min-height: 50px; border: 1px solid #d8e0e6; border-radius: 8px; background: #fff; color: #26384e; }
+  .sf-auth-input { min-height:44px; border:1px solid #d8e0e6; border-radius:8px; background:#fff; color:#26384e; }
   .sf-auth-input:focus { border-color: #078d86; box-shadow: 0 0 0 3px rgba(7,141,134,.13); }
   .sf-auth-submit { min-height: 49px; background: #078d86; color: #fff; box-shadow: 0 8px 18px rgba(7,141,134,.22); }
   .sf-auth-submit:hover { background: #06766f; }
   @keyframes sf-auth-spin { to { transform: rotate(360deg); } }
-  @media (max-width: 640px) { .sf-auth-screen { padding: 16px; } .sf-auth-card { padding: 34px 25px 28px; border-radius: 14px; } }
+  @media (max-width:640px) { .sf-auth-screen { padding:16px; } .sf-auth-card { padding:30px 24px 26px; border-radius:14px; } }
 
   </style>
   <script>
