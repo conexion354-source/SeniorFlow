@@ -1,4 +1,4 @@
-const CACHE_NAME = 'seniorflow-shared-20260808270000';
+const CACHE_NAME = 'seniorflow-shared-20260808280000';
 const ASSETS = [
   './',
   './index.html',
