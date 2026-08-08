@@ -1751,6 +1751,106 @@ ${p.nombre}`,A=null;try{A=await r_(n)}catch(N){console.error("No se pudo generar
         .sf-enterprise-shell .sf-sales-table > div:first-child h3 { font-weight:700; }
         .sf-enterprise-shell .sf-sales-side > div { padding:16px; }
         .sf-enterprise-shell .sf-sales-side strong { font-weight:700; }
+
+        /* Redise\xF1o integral \xB7 m\xF3dulos restantes */
+        .sf-enterprise-shell .sf-sidebar {
+          background:#fff;
+          color:#334155;
+          border-right:1px solid var(--sf-border-subtle);
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-sidebar > div:first-child { border-bottom:1px solid #edf1f5; }
+        .sf-enterprise-shell .sf-sidebar .sf-brand-mark { background:#0f8d87; border-radius:8px; box-shadow:none; }
+        .sf-enterprise-shell .sf-sidebar button { color:#475569; border-color:transparent; border-radius:6px; }
+        .sf-enterprise-shell .sf-sidebar button:hover { background:#f1f8f7; color:#0f766e; }
+        .sf-enterprise-shell .sf-sidebar button.sf-nav-active {
+          background:#eaf7f5;
+          color:#0f766e;
+          box-shadow:inset 3px 0 #0f8d87;
+        }
+        .sf-enterprise-shell .sf-sidebar .text-slate-800 { color:#17233c; }
+        .sf-enterprise-shell .sf-sidebar .text-slate-400 { color:#718096; }
+        .sf-enterprise-shell .sf-sidebar .border-slate-800,
+        .sf-enterprise-shell .sf-sidebar .border-slate-700 { border-color:#e7edf3; }
+        .sf-enterprise-shell .sf-sidebar .bg-slate-800,
+        .sf-enterprise-shell .sf-sidebar .bg-slate-900 { background:#f7f9fc; }
+        .sf-enterprise-shell .sf-topbar { background:rgba(255,255,255,.98); box-shadow:none; }
+        .sf-enterprise-shell .sf-main { background:#f7f9fc; }
+        .sf-enterprise-shell .sf-module-page > div:first-child:not(.sf-cash-header):not(.sf-sales-header),
+        .sf-enterprise-shell .sf-module-budgets > div:first-child,
+        .sf-enterprise-shell .sf-module-tracking > div:first-child,
+        .sf-enterprise-shell .sf-reports-page > div:first-child {
+          border-radius:8px;
+          border-color:var(--sf-border-subtle);
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-module-page > div:first-child h2,
+        .sf-enterprise-shell .sf-module-budgets > div:first-child h2,
+        .sf-enterprise-shell .sf-module-tracking > div:first-child h2,
+        .sf-enterprise-shell .sf-reports-page > div:first-child h2 { font-weight:700; }
+        .sf-enterprise-shell .sf-module-providers > div,
+        .sf-enterprise-shell .sf-module-clients > div,
+        .sf-enterprise-shell .sf-module-budgets > div,
+        .sf-enterprise-shell .sf-module-tracking > div,
+        .sf-enterprise-shell .sf-reports-page > div {
+          border-radius:8px;
+          border-color:var(--sf-border-subtle);
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-module-providers table thead,
+        .sf-enterprise-shell .sf-module-clients table thead,
+        .sf-enterprise-shell .sf-module-budgets table thead,
+        .sf-enterprise-shell .sf-module-tracking table thead,
+        .sf-enterprise-shell .sf-reports-page table thead,
+        .sf-enterprise-shell .sf-module-inventory table thead {
+          background:#edf8f7 !important;
+        }
+        .sf-enterprise-shell .sf-module-providers table thead th,
+        .sf-enterprise-shell .sf-module-clients table thead th,
+        .sf-enterprise-shell .sf-module-budgets table thead th,
+        .sf-enterprise-shell .sf-module-tracking table thead th,
+        .sf-enterprise-shell .sf-reports-page table thead th,
+        .sf-enterprise-shell .sf-module-inventory table thead th {
+          color:#356461 !important;
+          border-color:#d7ece9 !important;
+          font-size:.67rem;
+        }
+        .sf-enterprise-shell .sf-module-inventory table thead button { color:#356461; }
+        .sf-enterprise-shell .sf-module-inventory table thead button:hover { color:#0f766e; }
+        .sf-enterprise-shell .sf-module-providers table tbody tr:hover,
+        .sf-enterprise-shell .sf-module-clients table tbody tr:hover,
+        .sf-enterprise-shell .sf-module-budgets table tbody tr:hover,
+        .sf-enterprise-shell .sf-module-tracking table tbody tr:hover,
+        .sf-enterprise-shell .sf-module-inventory table tbody tr:hover { background:#f7fbfb; }
+        .sf-enterprise-shell .sf-module-providers .overflow-auto,
+        .sf-enterprise-shell .sf-module-clients .overflow-auto,
+        .sf-enterprise-shell .sf-module-budgets .sf-budget-list,
+        .sf-enterprise-shell .sf-module-tracking .sf-tracking-list,
+        .sf-enterprise-shell .sf-reports-page .sf-report-list,
+        .sf-enterprise-shell .sf-module-inventory .sf-inventory-table {
+          scrollbar-width:thin;
+          scrollbar-color:#b9d6d2 transparent;
+        }
+        .sf-enterprise-shell .sf-modal-panel { max-height:min(88vh,860px); }
+        .sf-enterprise-shell .sf-modal-panel .sf-modal-body { scrollbar-width:thin; scrollbar-color:#bfd2d9 transparent; }
+        .sf-enterprise-shell .sf-modal-panel .sf-modal-body > .space-y-5 > :not([hidden]) ~ :not([hidden]) { margin-top:.85rem; }
+        .sf-enterprise-shell .sf-module-stock-low .sf-stat-card,
+        .sf-enterprise-shell .sf-module-price-variation .sf-stat-card { min-height:88px; }
+        .sf-enterprise-shell .sf-screen-header.bg-slate-900 {
+          background:#fff;
+          border:1px solid var(--sf-border-subtle);
+          border-radius:8px;
+          box-shadow:none;
+          padding:10px;
+        }
+        .sf-enterprise-shell .sf-screen-header.bg-slate-900 > p { color:#64748b; }
+        .sf-enterprise-shell .sf-screen-header.bg-slate-900 .bg-slate-800 { background:#f7f9fc; color:#52627a; }
+        .sf-enterprise-shell .sf-screen-header.bg-slate-900 .bg-slate-700 { background:#eef7f6; color:#0f766e; }
+        .sf-enterprise-shell .sf-screen-header.bg-slate-900 button { border-radius:6px; min-height:52px; }
+        .sf-enterprise-shell .sf-screen-header.bg-slate-900 button:hover { box-shadow:none; }
+        .sf-enterprise-shell .sf-modal-panel > div:first-child { padding:14px 18px; }
+        .sf-enterprise-shell .sf-modal-panel .sf-modal-body { padding:16px 18px; }
+        .sf-enterprise-shell .sf-modal-panel button[type="submit"] { min-height:38px; border-radius:6px; box-shadow:none; }
         @media (max-width:1023px) {
           .sf-enterprise-shell .sf-cash-actions { grid-template-columns:repeat(3,minmax(0,1fr)); }
         }
