@@ -1,4 +1,4 @@
-const CACHE_NAME = 'seniorflow-shared-20260808280000';
+const CACHE_NAME = 'seniorflow-shared-20260808290000';
 const ASSETS = [
   './',
   './index.html',
@@ -18,7 +18,8 @@ const ASSETS = [
   './icons/stock-app-512.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './assets/sf-mark.png'
+  './assets/sf-mark.png',
+  './assets/seniorflow-white.png'
 ];
 
 self.addEventListener('install', (event) => {
