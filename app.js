@@ -58275,8 +58275,12 @@ var redondearImporteVentaHaciaArriba = (importe = 0) => {
 };
 var redondearPrecioProducto = (importe = 0, modo = "ninguno") => {
   const factor = modo === "cien" ? 100 : modo === "mil" ? 1e3 : 1;
-  const valor = Math.max(0, Number(importe) || 0);
-  return factor > 1 ? Math.ceil(valor / factor) * factor : valor;
+  const valor = Number.isFinite(Number(importe)) ? Number(importe) : 0;
+  if (factor <= 1) return valor;
+  const modoAlejarCero = modo === -1 || modo === "-1" || modo === "alejar_cero";
+  const cociente = valor / factor;
+  const entero = valor < 0 && modoAlejarCero ? Math.floor(cociente) : Math.ceil(cociente);
+  return entero * factor;
 };
 var crearFormularioStockRapidoVacio = () => ({
   proveedor: "",
@@ -63101,6 +63105,12 @@ Disponible del per\xEDodo: ${formatearDinero(datosReporte.flujoNeto)}`
       requestAnimationFrame(() => actualizarPantallaClientePuntoVenta());
     });
   };
+  const cancelarPagoPendientePuntoVenta = () => {
+    setPagoPendientePuntoVenta(null);
+    setEfectivoRecibidoPuntoVenta("");
+    setCierrePantallaClientePuntoVenta(null);
+    refrescarPantallaClientePuntoVentaPronto();
+  };
   (0, import_react4.useEffect)(() => {
     if (!pantallaClientePuntoVentaActiva) return;
     if (displayInventarioActivo) return;
@@ -64047,300 +64057,320 @@ Disponible del per\xEDodo: ${formatearDinero(datosReporte.flujoNeto)}`
     if (actualizaciones.length) await Promise.all(actualizaciones);
   };
   const guardarPuntoVenta = async (e2, opciones = {}) => {
-    if (e2?.preventDefault) e2.preventDefault();
-    let itemsNormalizados = (formPuntoVenta.items || []).map((item2) => ({
-      ...item2,
-      productoId: textoSeguroTrim(item2?.productoId, ""),
-      codigo: textoSeguroTrim(item2?.codigo, ""),
-      descripcion: textoSeguroTrim(item2?.descripcion, ""),
-      marca: textoSeguroTrim(item2?.marca, ""),
-      cantidad: Math.max(0, parseNumeroBasico(item2?.cantidad) || 0),
-      precio: Math.max(0, parseNumeroBasico(item2?.precio) || 0),
-      unidad: textoSeguroTrim(item2?.unidad, "unid"),
-      descuento: Math.min(100, Math.max(0, parseNumeroBasico(item2?.descuento) || 0)),
-      imagen: textoSeguroTrim(item2?.imagen, ""),
-      logoMarca: textoSeguroTrim(item2?.logoMarca, ""),
-      iva: textoSeguroTrim(item2?.iva, textoSeguroTrim((productos || []).find((producto) => producto?.id === item2?.productoId)?.iva, "sin_iva")),
-      esItemServicio: Boolean(item2?.esItemServicio),
-      componentesServicio: Array.isArray(item2?.componentesServicio) ? item2.componentesServicio.map((componente) => ({
-        productoId: textoSeguroTrim(componente?.productoId, ""),
-        codigo: textoSeguroTrim(componente?.codigo, ""),
-        descripcion: textoSeguroTrim(componente?.descripcion, "Producto"),
-        cantidad: Math.max(0.01, parseNumeroBasico(componente?.cantidad) || 1),
-        precio: Math.max(0, parseNumeroBasico(componente?.precio) || 0),
-        unidad: textoSeguroTrim(componente?.unidad, "unid")
-      })).filter((componente) => componente.productoId && componente.cantidad > 0) : [],
-      precioProductos: Math.max(0, parseNumeroBasico(item2?.precioProductos) || 0),
-      manoObraPesos: Math.max(0, parseNumeroBasico(item2?.manoObraPesos) || 0)
-    })).filter((item2) => item2.descripcion && item2.cantidad > 0 && item2.precio >= 0);
-    if (!itemsNormalizados.length) {
-      await notificarSistema("Carg\xE1 al menos un \xEDtem v\xE1lido para generar la venta.", {
-        tipo: "warning",
-        titulo: "\xCDtems requeridos"
-      });
-      return;
-    }
-    const devolucionOrigenId = textoSeguroTrim(formPuntoVenta.devolucionOrigenId, "");
-    if (devolucionOrigenId) {
-      const comprobanteOrigen = (movimientos || []).find((mov) => mov?.id === devolucionOrigenId);
-      const resumenDevolucion = obtenerResumenDevolucionComprobante(comprobanteOrigen);
-      if (!comprobanteOrigen || !resumenDevolucion.length) {
-        await notificarSistema("No se encontr\xF3 el comprobante original de esta devoluci\xF3n.", {
-          tipo: "error",
-          titulo: "Comprobante no disponible"
-        });
-        return;
-      }
-      const origenPorClave = new Map(resumenDevolucion.map((item2) => [item2.claveDevolucion, item2]));
-      for (const item2 of itemsNormalizados) {
-        const origen = origenPorClave.get(textoSeguroTrim(item2?.claveDevolucion, ""));
-        if (!origen || item2.cantidad > origen.cantidadDisponible + 1e-4) {
-          await notificarSistema(`La cantidad a devolver de \u201C${item2.descripcion || "este \xEDtem"}\u201D supera lo que queda disponible del remito.`, {
-            tipo: "warning",
-            titulo: "Cantidad no disponible"
-          });
-          return;
-        }
-      }
-      itemsNormalizados = itemsNormalizados.map((item2) => {
-        const origen = origenPorClave.get(textoSeguroTrim(item2?.claveDevolucion, ""));
-        return origen ? {
-          ...item2,
-          productoId: origen.productoId,
-          codigo: origen.codigo,
-          descripcion: origen.descripcion,
-          unidad: origen.unidad,
-          precio: origen.precio,
-          descuento: origen.descuento,
-          imagen: origen.imagen || item2.imagen || "",
-          claveDevolucion: origen.claveDevolucion
-        } : item2;
-      });
-    }
-    const totalBase = itemsNormalizados.reduce((acc, item2) => {
-      const subtotal = item2.cantidad * item2.precio;
-      return acc + Math.max(0, subtotal - subtotal * item2.descuento / 100);
-    }, 0);
-    const redondeoHaciaArribaAplicado = Boolean(configuracion?.redondearVentasHaciaArriba);
-    const total = redondeoHaciaArribaAplicado ? redondearImporteVentaHaciaArriba(totalBase) : totalBase;
-    const ajusteRedondeo = total - totalBase;
-    if (total <= 9e-3) {
-      await notificarSistema("El total del comprobante debe ser mayor a cero.", {
-        tipo: "warning",
-        titulo: "Total inv\xE1lido"
-      });
-      return;
-    }
-    const metodoFormulario = normalizarMetodoPago(formPuntoVenta.metodoPago);
-    if (!opciones?.confirmarPago && ["efectivo", "transferencia"].includes(metodoFormulario)) {
-      setPagoPendientePuntoVenta(metodoFormulario);
-      setCierrePantallaClientePuntoVenta(null);
-      refrescarPantallaClientePuntoVentaPronto();
-      return;
-    }
-    const recibidoEfectivo = metodoFormulario === "efectivo" ? recibidoEfectivoPuntoVentaNumero : 0;
-    const vueltoEfectivo = metodoFormulario === "efectivo" ? Math.max(0, recibidoEfectivo - total) : 0;
-    if (metodoFormulario === "efectivo" && recibidoEfectivo <= 0) {
-      setPagoPendientePuntoVenta("efectivo");
-      refrescarPantallaClientePuntoVentaPronto();
-      await notificarSistema("Ingres\xE1 con cu\xE1nto efectivo abon\xF3 el cliente.", {
-        tipo: "warning",
-        titulo: "Efectivo requerido"
-      });
-      return;
-    }
-    if (metodoFormulario === "efectivo" && recibidoEfectivo + 9e-3 < total) {
-      setPagoPendientePuntoVenta("efectivo");
-      await notificarSistema("El efectivo recibido es menor al total de la venta.", {
-        tipo: "warning",
-        titulo: "Efectivo insuficiente"
-      });
-      return;
-    }
-    let clienteId = "";
-    let clienteNombre = "";
-    let clienteWhatsapp = "";
-    const esCuentaCorriente = metodoFormulario === "cuenta_corriente";
-    if (formPuntoVenta.modoCliente === "existente") {
-      if (!formPuntoVenta.clienteId) {
-        if (esCuentaCorriente) {
-          await notificarSistema("Para vender en cuenta corriente primero ten\xE9s que asignar un cliente del sistema o cargar uno nuevo.", {
-            tipo: "warning",
-            titulo: "Cliente requerido"
-          });
-          return;
-        }
-        clienteId = "";
-        clienteNombre = "Consumidor Final";
-        clienteWhatsapp = "";
-      } else {
-        const cliente = clientes.find((c4) => c4.id === formPuntoVenta.clienteId);
-        if (!cliente) {
-          await notificarSistema("El cliente seleccionado no est\xE1 disponible. Volv\xE9 a buscarlo.", {
-            tipo: "warning",
-            titulo: "Cliente no disponible"
-          });
-          return;
-        }
-        clienteId = cliente.id;
-        clienteNombre = cliente.nombre || "";
-        clienteWhatsapp = cliente.whatsapp || "";
-      }
-    } else {
-      const nombreNuevo = textoSeguroTrim(formPuntoVenta.clienteNombre, "");
-      if (!nombreNuevo) {
-        if (esCuentaCorriente) {
-          await notificarSistema("Para vender en cuenta corriente complet\xE1 el nombre del cliente nuevo.", {
-            tipo: "warning",
-            titulo: "Cliente nuevo requerido"
-          });
-          return;
-        }
-        clienteId = "";
-        clienteNombre = "Consumidor Final";
-        clienteWhatsapp = "";
-      } else {
-        const ref = await addDoc(collection(db, "clientes"), {
-          numero: obtenerSiguienteNumeroCliente(),
-          nombre: nombreNuevo,
-          whatsapp: textoSeguroTrim(formPuntoVenta.whatsapp, ""),
-          saldo: 0,
-          esEspecial: false
-        });
-        clienteId = ref.id;
-        clienteNombre = nombreNuevo;
-        clienteWhatsapp = textoSeguroTrim(formPuntoVenta.whatsapp, "");
-      }
-    }
-    const fechaDocInput = esFechaInputValida(formPuntoVenta.fechaComprobante) ? formPuntoVenta.fechaComprobante : obtenerFechaInputLocal();
-    const fechaMovimiento = combinarFechaInputConHoraReferenciaISO(fechaDocInput, /* @__PURE__ */ new Date());
-    const tipoComp = formPuntoVenta.tipoComprobante || "factura_c";
-    const esNotaCredito = tipoComp === "nota_credito";
-    const clienteDestino = clienteId ? clientes.find((cliente) => cliente.id === clienteId) : null;
-    const plazoCuentaCorriente = Math.max(0, Math.floor(Number(clienteDestino?.plazoCuentaCorrienteDias || 0)));
-    const fechaVencimientoCuentaCorriente = esCuentaCorriente && !esNotaCredito && plazoCuentaCorriente > 0 ? sumarDiasFechaInputLocal(fechaDocInput, plazoCuentaCorriente) : "";
-    const etiquetaComprobante = OPCIONES_COMPROBANTE_VENTA.find((op) => op.value === tipoComp)?.label || "Comprobante";
-    const numeroComprobante = textoSeguroTrim(
-      formPuntoVenta.numeroComprobante,
-      obtenerSiguienteNumeroComprobanteVenta(tipoComp, formPuntoVenta.idMovimiento || "")
-    );
-    const descripcionBase = `${etiquetaComprobante}${numeroComprobante ? ` N\xB0 ${numeroComprobante}` : ""} - ${clienteNombre}`;
-    const movimientoOriginal = formPuntoVenta.idMovimiento ? movimientos.find((mov) => mov.id === formPuntoVenta.idMovimiento) : null;
-    let saldoBaseClienteDestino = null;
-    if (movimientoOriginal?.id) {
-      const originalDetalles = movimientoOriginal?.detallesPago || {};
-      const originalClienteId = originalDetalles?.clienteId || "";
-      const originalEsCuenta = normalizarMetodoPago(movimientoOriginal?.metodoPago) === "cuenta_corriente";
-      if (originalEsCuenta && originalClienteId) {
-        const clienteOriginal = clientes.find((c4) => c4.id === originalClienteId);
-        if (clienteOriginal) {
-          const signoOriginal = originalDetalles?.tipoComprobante === "nota_credito" ? 1 : -1;
-          const saldoAjustado = Math.max(0, Number(clienteOriginal.saldo || 0) + signoOriginal * Number(movimientoOriginal?.monto || 0));
-          await updateDoc(doc(db, "clientes", originalClienteId), { saldo: saldoAjustado });
-          if (originalClienteId === clienteId) saldoBaseClienteDestino = saldoAjustado;
-        }
-      }
-    }
-    if (guardandoPuntoVentaRef.current) return;
-    guardandoPuntoVentaRef.current = true;
-    const liberarBloqueoVenta = () => {
-      guardandoPuntoVentaRef.current = false;
-    };
-    setTimeout(liberarBloqueoVenta, 5e3);
-    if (esCuentaCorriente && clienteId && !esNotaCredito) {
-      const limiteCuentaCorriente = Math.max(0, Number(clienteDestino?.limiteCuentaCorriente || 0));
-      const saldoActual2 = saldoBaseClienteDestino === null ? Math.max(0, Number(estadoCuentaClientes[clienteId]?.saldoPendiente ?? clienteDestino?.saldo ?? 0)) : Math.max(0, Number(saldoBaseClienteDestino || 0));
-      const saldoConVenta = saldoActual2 + total;
-      if (limiteCuentaCorriente > 0 && saldoConVenta > limiteCuentaCorriente + 9e-3) {
-        await notificarSistema(
-          `No se puede cargar esta venta en cuenta corriente. El cliente tiene ${formatearDinero(saldoActual2)} pendiente y el l\xEDmite es ${formatearDinero(limiteCuentaCorriente)}. Esta venta dejar\xEDa la cuenta en ${formatearDinero(saldoConVenta)}.`,
-          { tipo: "warning", titulo: "L\xEDmite de cuenta corriente superado" }
-        );
-        return;
-      }
-    }
-    if (esCuentaCorriente && clienteId) {
-      const clienteActual = clientes.find((c4) => c4.id === clienteId);
-      const saldoActual2 = saldoBaseClienteDestino === null ? Number(estadoCuentaClientes[clienteId]?.saldoPendiente ?? clienteActual?.saldo ?? 0) : saldoBaseClienteDestino;
-      const saldoActualizado = esNotaCredito ? Math.max(0, saldoActual2 - total) : saldoActual2 + total;
-      await updateDoc(doc(db, "clientes", clienteId), { saldo: saldoActualizado });
-    }
-    const payloadVenta = {
-      tipo: "venta",
-      monto: total,
-      descripcion: descripcionBase,
-      metodoPago: esCuentaCorriente ? "cuenta_corriente" : formPuntoVenta.metodoPago,
-      detallesPago: {
-        origen: "punto_venta",
-        clienteId,
-        cliente: clienteNombre,
-        whatsapp: clienteWhatsapp,
-        presupuestoId: textoSeguroTrim(formPuntoVenta.origenPresupuestoId, ""),
-        comboId: textoSeguroTrim(formPuntoVenta.origenComboId, ""),
-        presupuestoNumero: textoSeguroTrim(formPuntoVenta.presupuestoNumero, ""),
-        devolucionOrigenId,
-        devolucionOrigenNumero: textoSeguroTrim(formPuntoVenta.devolucionOrigenNumero, ""),
-        devolucionOrigenTipo: textoSeguroTrim(formPuntoVenta.devolucionOrigenTipo, ""),
-        devolucionVinculada: Boolean(devolucionOrigenId),
-        tipoComprobante: tipoComp,
-        numeroComprobante,
-        fechaComprobante: fechaDocInput,
-        fechaVencimientoCuentaCorriente,
-        notas: textoSeguroTrim(formPuntoVenta.notas, ""),
-        redondeoHaciaArribaAplicado,
-        totalAntesRedondeo: totalBase,
-        ajusteRedondeo,
-        efectivoRecibido: recibidoEfectivo,
-        vuelto: vueltoEfectivo,
-        aliasTransferencia: metodoFormulario === "transferencia" ? textoSeguroTrim(configuracion?.pagoAlias, "") : "",
-        items: itemsNormalizados
-      },
-      fecha: fechaMovimiento,
-      usuario: usuarioActual?.nombre || usuarioActual?.username || "Sistema"
-    };
-    const payloadVentaFirestore = limpiarDatoFirestore(payloadVenta);
     try {
-      if (movimientoOriginal?.id) {
-        await updateDoc(doc(db, "movimientos", movimientoOriginal.id), payloadVentaFirestore);
-      } else {
-        await addDoc(collection(db, "movimientos"), payloadVentaFirestore);
+      if (e2?.preventDefault) e2.preventDefault();
+      let itemsNormalizados = (formPuntoVenta.items || []).map((item2) => ({
+        ...item2,
+        productoId: textoSeguroTrim(item2?.productoId, ""),
+        codigo: textoSeguroTrim(item2?.codigo, ""),
+        descripcion: textoSeguroTrim(item2?.descripcion, ""),
+        marca: textoSeguroTrim(item2?.marca, ""),
+        cantidad: Math.max(0, parseNumeroBasico(item2?.cantidad) || 0),
+        precio: Math.max(0, parseNumeroBasico(item2?.precio) || 0),
+        unidad: textoSeguroTrim(item2?.unidad, "unid"),
+        descuento: Math.min(100, Math.max(0, parseNumeroBasico(item2?.descuento) || 0)),
+        imagen: textoSeguroTrim(item2?.imagen, ""),
+        logoMarca: textoSeguroTrim(item2?.logoMarca, ""),
+        iva: textoSeguroTrim(item2?.iva, textoSeguroTrim((productos || []).find((producto) => producto?.id === item2?.productoId)?.iva, "sin_iva")),
+        esItemServicio: Boolean(item2?.esItemServicio),
+        componentesServicio: Array.isArray(item2?.componentesServicio) ? item2.componentesServicio.map((componente) => ({
+          productoId: textoSeguroTrim(componente?.productoId, ""),
+          codigo: textoSeguroTrim(componente?.codigo, ""),
+          descripcion: textoSeguroTrim(componente?.descripcion, "Producto"),
+          cantidad: Math.max(0.01, parseNumeroBasico(componente?.cantidad) || 1),
+          precio: Math.max(0, parseNumeroBasico(componente?.precio) || 0),
+          unidad: textoSeguroTrim(componente?.unidad, "unid")
+        })).filter((componente) => componente.productoId && componente.cantidad > 0) : [],
+        precioProductos: Math.max(0, parseNumeroBasico(item2?.precioProductos) || 0),
+        manoObraPesos: Math.max(0, parseNumeroBasico(item2?.manoObraPesos) || 0)
+      })).filter((item2) => item2.descripcion && item2.cantidad > 0 && item2.precio >= 0);
+      if (!itemsNormalizados.length) {
+        await notificarSistema("Carg\xE1 al menos un \xEDtem v\xE1lido para generar la venta.", {
+          tipo: "warning",
+          titulo: "\xCDtems requeridos"
+        });
+        return;
       }
-      await aplicarImpactoStockPuntoVenta({
-        movimientoOriginal,
-        itemsNuevos: itemsNormalizados,
-        tipoComprobanteNuevo: tipoComp
+      const devolucionOrigenId = textoSeguroTrim(formPuntoVenta.devolucionOrigenId, "");
+      if (devolucionOrigenId) {
+        const comprobanteOrigen = (movimientos || []).find((mov) => mov?.id === devolucionOrigenId);
+        const resumenDevolucion = obtenerResumenDevolucionComprobante(comprobanteOrigen);
+        if (!comprobanteOrigen || !resumenDevolucion.length) {
+          await notificarSistema("No se encontr\xF3 el comprobante original de esta devoluci\xF3n.", {
+            tipo: "error",
+            titulo: "Comprobante no disponible"
+          });
+          return;
+        }
+        const origenPorClave = new Map(resumenDevolucion.map((item2) => [item2.claveDevolucion, item2]));
+        for (const item2 of itemsNormalizados) {
+          const origen = origenPorClave.get(textoSeguroTrim(item2?.claveDevolucion, ""));
+          if (!origen || item2.cantidad > origen.cantidadDisponible + 1e-4) {
+            await notificarSistema(`La cantidad a devolver de \u201C${item2.descripcion || "este \xEDtem"}\u201D supera lo que queda disponible del remito.`, {
+              tipo: "warning",
+              titulo: "Cantidad no disponible"
+            });
+            return;
+          }
+        }
+        itemsNormalizados = itemsNormalizados.map((item2) => {
+          const origen = origenPorClave.get(textoSeguroTrim(item2?.claveDevolucion, ""));
+          return origen ? {
+            ...item2,
+            productoId: origen.productoId,
+            codigo: origen.codigo,
+            descripcion: origen.descripcion,
+            unidad: origen.unidad,
+            precio: origen.precio,
+            descuento: origen.descuento,
+            imagen: origen.imagen || item2.imagen || "",
+            claveDevolucion: origen.claveDevolucion
+          } : item2;
+        });
+      }
+      const totalBase = itemsNormalizados.reduce((acc, item2) => {
+        const subtotal = item2.cantidad * item2.precio;
+        return acc + Math.max(0, subtotal - subtotal * item2.descuento / 100);
+      }, 0);
+      const redondeoHaciaArribaAplicado = Boolean(configuracion?.redondearVentasHaciaArriba);
+      const total = redondeoHaciaArribaAplicado ? redondearImporteVentaHaciaArriba(totalBase) : totalBase;
+      const ajusteRedondeo = total - totalBase;
+      if (total <= 9e-3) {
+        await notificarSistema("El total del comprobante debe ser mayor a cero.", {
+          tipo: "warning",
+          titulo: "Total inv\xE1lido"
+        });
+        return;
+      }
+      const metodoFormulario = normalizarMetodoPago(formPuntoVenta.metodoPago);
+      if (!opciones?.confirmarPago && ["efectivo", "transferencia"].includes(metodoFormulario)) {
+        setPagoPendientePuntoVenta(metodoFormulario);
+        setCierrePantallaClientePuntoVenta(null);
+        refrescarPantallaClientePuntoVentaPronto();
+        return;
+      }
+      const recibidoEfectivo = metodoFormulario === "efectivo" ? recibidoEfectivoPuntoVentaNumero : 0;
+      const vueltoEfectivo = metodoFormulario === "efectivo" ? Math.max(0, recibidoEfectivo - total) : 0;
+      if (metodoFormulario === "efectivo" && recibidoEfectivo <= 0) {
+        setPagoPendientePuntoVenta("efectivo");
+        refrescarPantallaClientePuntoVentaPronto();
+        await notificarSistema("Ingres\xE1 con cu\xE1nto efectivo abon\xF3 el cliente.", {
+          tipo: "warning",
+          titulo: "Efectivo requerido"
+        });
+        return;
+      }
+      if (metodoFormulario === "efectivo" && recibidoEfectivo + 9e-3 < total) {
+        setPagoPendientePuntoVenta("efectivo");
+        await notificarSistema("El efectivo recibido es menor al total de la venta.", {
+          tipo: "warning",
+          titulo: "Efectivo insuficiente"
+        });
+        return;
+      }
+      let clienteId = "";
+      let clienteNombre = "";
+      let clienteWhatsapp = "";
+      const esCuentaCorriente = metodoFormulario === "cuenta_corriente";
+      if (formPuntoVenta.modoCliente === "existente") {
+        if (!formPuntoVenta.clienteId) {
+          if (esCuentaCorriente) {
+            await notificarSistema("Para vender en cuenta corriente primero ten\xE9s que asignar un cliente del sistema o cargar uno nuevo.", {
+              tipo: "warning",
+              titulo: "Cliente requerido"
+            });
+            return;
+          }
+          clienteId = "";
+          clienteNombre = "Consumidor Final";
+          clienteWhatsapp = "";
+        } else {
+          const cliente = clientes.find((c4) => c4.id === formPuntoVenta.clienteId);
+          if (!cliente) {
+            await notificarSistema("El cliente seleccionado no est\xE1 disponible. Volv\xE9 a buscarlo.", {
+              tipo: "warning",
+              titulo: "Cliente no disponible"
+            });
+            return;
+          }
+          clienteId = cliente.id;
+          clienteNombre = cliente.nombre || "";
+          clienteWhatsapp = cliente.whatsapp || "";
+        }
+      } else {
+        const nombreNuevo = textoSeguroTrim(formPuntoVenta.clienteNombre, "");
+        if (!nombreNuevo) {
+          if (esCuentaCorriente) {
+            await notificarSistema("Para vender en cuenta corriente complet\xE1 el nombre del cliente nuevo.", {
+              tipo: "warning",
+              titulo: "Cliente nuevo requerido"
+            });
+            return;
+          }
+          clienteId = "";
+          clienteNombre = "Consumidor Final";
+          clienteWhatsapp = "";
+        } else {
+          const ref = await addDoc(collection(db, "clientes"), {
+            numero: obtenerSiguienteNumeroCliente(),
+            nombre: nombreNuevo,
+            whatsapp: textoSeguroTrim(formPuntoVenta.whatsapp, ""),
+            saldo: 0,
+            esEspecial: false
+          });
+          clienteId = ref.id;
+          clienteNombre = nombreNuevo;
+          clienteWhatsapp = textoSeguroTrim(formPuntoVenta.whatsapp, "");
+        }
+      }
+      const fechaDocInput = esFechaInputValida(formPuntoVenta.fechaComprobante) ? formPuntoVenta.fechaComprobante : obtenerFechaInputLocal();
+      const fechaMovimiento = combinarFechaInputConHoraReferenciaISO(fechaDocInput, /* @__PURE__ */ new Date());
+      const tipoComp = formPuntoVenta.tipoComprobante || "factura_c";
+      const esNotaCredito = tipoComp === "nota_credito";
+      const clienteDestino = clienteId ? clientes.find((cliente) => cliente.id === clienteId) : null;
+      const plazoCuentaCorriente = Math.max(0, Math.floor(Number(clienteDestino?.plazoCuentaCorrienteDias || 0)));
+      const fechaVencimientoCuentaCorriente = esCuentaCorriente && !esNotaCredito && plazoCuentaCorriente > 0 ? sumarDiasFechaInputLocal(fechaDocInput, plazoCuentaCorriente) : "";
+      const etiquetaComprobante = OPCIONES_COMPROBANTE_VENTA.find((op) => op.value === tipoComp)?.label || "Comprobante";
+      const numeroComprobante = textoSeguroTrim(
+        formPuntoVenta.numeroComprobante,
+        obtenerSiguienteNumeroComprobanteVenta(tipoComp, formPuntoVenta.idMovimiento || "")
+      );
+      const descripcionBase = `${etiquetaComprobante}${numeroComprobante ? ` N\xB0 ${numeroComprobante}` : ""} - ${clienteNombre}`;
+      const movimientoOriginal = formPuntoVenta.idMovimiento ? movimientos.find((mov) => mov.id === formPuntoVenta.idMovimiento) : null;
+      let saldoBaseClienteDestino = null;
+      if (movimientoOriginal?.id) {
+        const originalDetalles = movimientoOriginal?.detallesPago || {};
+        const originalClienteId = originalDetalles?.clienteId || "";
+        const originalEsCuenta = normalizarMetodoPago(movimientoOriginal?.metodoPago) === "cuenta_corriente";
+        if (originalEsCuenta && originalClienteId) {
+          const clienteOriginal = clientes.find((c4) => c4.id === originalClienteId);
+          if (clienteOriginal) {
+            const signoOriginal = originalDetalles?.tipoComprobante === "nota_credito" ? 1 : -1;
+            const saldoAjustado = Math.max(0, Number(clienteOriginal.saldo || 0) + signoOriginal * Number(movimientoOriginal?.monto || 0));
+            await updateDoc(doc(db, "clientes", originalClienteId), { saldo: saldoAjustado });
+            if (originalClienteId === clienteId) saldoBaseClienteDestino = saldoAjustado;
+          }
+        }
+      }
+      if (guardandoPuntoVentaRef.current) return;
+      guardandoPuntoVentaRef.current = true;
+      const liberarBloqueoVenta = () => {
+        guardandoPuntoVentaRef.current = false;
+      };
+      setTimeout(liberarBloqueoVenta, 3e4);
+      if (esCuentaCorriente && clienteId && !esNotaCredito) {
+        const limiteCuentaCorriente = Math.max(0, Number(clienteDestino?.limiteCuentaCorriente || 0));
+        const saldoActual2 = saldoBaseClienteDestino === null ? Math.max(0, Number(estadoCuentaClientes[clienteId]?.saldoPendiente ?? clienteDestino?.saldo ?? 0)) : Math.max(0, Number(saldoBaseClienteDestino || 0));
+        const saldoConVenta = saldoActual2 + total;
+        if (limiteCuentaCorriente > 0 && saldoConVenta > limiteCuentaCorriente + 9e-3) {
+          await notificarSistema(
+            `No se puede cargar esta venta en cuenta corriente. El cliente tiene ${formatearDinero(saldoActual2)} pendiente y el l\xEDmite es ${formatearDinero(limiteCuentaCorriente)}. Esta venta dejar\xEDa la cuenta en ${formatearDinero(saldoConVenta)}.`,
+            { tipo: "warning", titulo: "L\xEDmite de cuenta corriente superado" }
+          );
+          liberarBloqueoVenta();
+          return;
+        }
+      }
+      if (esCuentaCorriente && clienteId) {
+        const clienteActual = clientes.find((c4) => c4.id === clienteId);
+        const saldoActual2 = saldoBaseClienteDestino === null ? Number(estadoCuentaClientes[clienteId]?.saldoPendiente ?? clienteActual?.saldo ?? 0) : saldoBaseClienteDestino;
+        const saldoActualizado = esNotaCredito ? Math.max(0, saldoActual2 - total) : saldoActual2 + total;
+        try {
+          await updateDoc(doc(db, "clientes", clienteId), { saldo: saldoActualizado });
+        } catch (error) {
+          console.error("No se pudo actualizar la cuenta corriente antes de guardar la venta", error);
+          liberarBloqueoVenta();
+          await notificarSistema("No se pudo actualizar la cuenta corriente. La venta no fue guardada; revis\xE1 la conexi\xF3n e intent\xE1 nuevamente.", {
+            tipo: "danger",
+            titulo: "Cuenta corriente no actualizada"
+          });
+          return;
+        }
+      }
+      const payloadVenta = {
+        tipo: "venta",
+        monto: total,
+        descripcion: descripcionBase,
+        metodoPago: esCuentaCorriente ? "cuenta_corriente" : formPuntoVenta.metodoPago,
+        detallesPago: {
+          origen: "punto_venta",
+          clienteId,
+          cliente: clienteNombre,
+          whatsapp: clienteWhatsapp,
+          presupuestoId: textoSeguroTrim(formPuntoVenta.origenPresupuestoId, ""),
+          comboId: textoSeguroTrim(formPuntoVenta.origenComboId, ""),
+          presupuestoNumero: textoSeguroTrim(formPuntoVenta.presupuestoNumero, ""),
+          devolucionOrigenId,
+          devolucionOrigenNumero: textoSeguroTrim(formPuntoVenta.devolucionOrigenNumero, ""),
+          devolucionOrigenTipo: textoSeguroTrim(formPuntoVenta.devolucionOrigenTipo, ""),
+          devolucionVinculada: Boolean(devolucionOrigenId),
+          tipoComprobante: tipoComp,
+          numeroComprobante,
+          fechaComprobante: fechaDocInput,
+          fechaVencimientoCuentaCorriente,
+          notas: textoSeguroTrim(formPuntoVenta.notas, ""),
+          redondeoHaciaArribaAplicado,
+          totalAntesRedondeo: totalBase,
+          ajusteRedondeo,
+          efectivoRecibido: recibidoEfectivo,
+          vuelto: vueltoEfectivo,
+          aliasTransferencia: metodoFormulario === "transferencia" ? textoSeguroTrim(configuracion?.pagoAlias, "") : "",
+          items: itemsNormalizados
+        },
+        fecha: fechaMovimiento,
+        usuario: usuarioActual?.nombre || usuarioActual?.username || "Sistema"
+      };
+      const payloadVentaFirestore = limpiarDatoFirestore(payloadVenta);
+      try {
+        if (movimientoOriginal?.id) {
+          await updateDoc(doc(db, "movimientos", movimientoOriginal.id), payloadVentaFirestore);
+        } else {
+          await addDoc(collection(db, "movimientos"), payloadVentaFirestore);
+        }
+        await aplicarImpactoStockPuntoVenta({
+          movimientoOriginal,
+          itemsNuevos: itemsNormalizados,
+          tipoComprobanteNuevo: tipoComp
+        });
+      } catch (error) {
+        console.error("No se pudo guardar la venta", error);
+        liberarBloqueoVenta();
+        await notificarSistema(`No se pudo guardar la venta. ${error?.message || "Revis\xE1 la conexi\xF3n y los datos cargados."}`, {
+          tipo: "danger",
+          titulo: "Error al guardar venta"
+        });
+        return;
+      }
+      await notificarSistema(movimientoOriginal?.id ? "Comprobante de venta actualizado correctamente." : "Comprobante de venta registrado correctamente.", {
+        tipo: "success",
+        titulo: movimientoOriginal?.id ? "Venta actualizada" : "Venta guardada"
       });
-    } catch (error) {
-      console.error("No se pudo guardar la venta", error);
+      const siguienteNumero = obtenerSiguienteNumeroComprobanteVenta("remito_x");
+      setCierrePantallaClientePuntoVenta(obtenerResumenPagoPantallaClientePuntoVenta({
+        metodoPago: metodoFormulario,
+        total,
+        recibido: recibidoEfectivo,
+        clienteNombre,
+        cierre: true
+      }));
+      setPagoPendientePuntoVenta(null);
+      setFormPuntoVenta({
+        ...crearFormularioPuntoVentaVacio(),
+        numeroComprobante: siguienteNumero,
+        numeroComprobanteManual: false
+      });
+      setEfectivoRecibidoPuntoVenta("");
+      setModalActivo(null);
+      refrescarPantallaClientePuntoVentaPronto();
       liberarBloqueoVenta();
-      await notificarSistema(`No se pudo guardar la venta. ${error?.message || "Revis\xE1 la conexi\xF3n y los datos cargados."}`, {
+    } catch (error) {
+      console.error("Error inesperado al guardar la venta", error);
+      guardandoPuntoVentaRef.current = false;
+      await notificarSistema(`No se pudo completar la venta. ${error?.message || "Revis\xE1 los datos y la conexi\xF3n."}`, {
         tipo: "danger",
         titulo: "Error al guardar venta"
       });
-      return;
     }
-    await notificarSistema(movimientoOriginal?.id ? "Comprobante de venta actualizado correctamente." : "Comprobante de venta registrado correctamente.", {
-      tipo: "success",
-      titulo: movimientoOriginal?.id ? "Venta actualizada" : "Venta guardada"
-    });
-    const siguienteNumero = obtenerSiguienteNumeroComprobanteVenta("remito_x");
-    setCierrePantallaClientePuntoVenta(obtenerResumenPagoPantallaClientePuntoVenta({
-      metodoPago: metodoFormulario,
-      total,
-      recibido: recibidoEfectivo,
-      clienteNombre,
-      cierre: true
-    }));
-    setPagoPendientePuntoVenta(null);
-    setFormPuntoVenta({
-      ...crearFormularioPuntoVentaVacio(),
-      numeroComprobante: siguienteNumero,
-      numeroComprobanteManual: false
-    });
-    setEfectivoRecibidoPuntoVenta("");
-    setModalActivo(null);
-    refrescarPantallaClientePuntoVentaPronto();
-    liberarBloqueoVenta();
   };
   const obtenerImagenItemRemitoR = (item2 = {}) => {
     const imagenItem = textoSeguroTrim(item2?.imagen, "");
@@ -65865,6 +65895,7 @@ Disponible del per\xEDodo: ${formatearDinero(datosReporte.flujoNeto)}`
   };
   const alternarRedondeoVentasHaciaArriba = async (activo) => {
     const configuracionAnterior = configuracion;
+    const itemsAnteriores = formPuntoVenta.items;
     const siguienteConfiguracion = { ...configuracion, redondearVentasHaciaArriba: Boolean(activo) };
     setConfiguracion(siguienteConfiguracion);
     setConfiguracionPersistida((prev) => ({ ...prev, redondearVentasHaciaArriba: Boolean(activo) }));
@@ -65893,6 +65924,7 @@ Disponible del per\xEDodo: ${formatearDinero(datosReporte.flujoNeto)}`
     } catch (error) {
       setConfiguracion(configuracionAnterior);
       setConfiguracionPersistida((prev) => ({ ...prev, redondearVentasHaciaArriba: Boolean(configuracionAnterior?.redondearVentasHaciaArriba) }));
+      setFormPuntoVenta((prev) => ({ ...prev, items: itemsAnteriores }));
       await notificarSistema("No se pudo guardar la preferencia de redondeo. Intent\xE1 nuevamente.", {
         tipo: "error",
         titulo: "Redondeo no guardado"
@@ -81870,7 +81902,11 @@ ${configuracion.nombre}`;
       setFormProducto((prev) => recalcularFormularioProducto({ ...prev, precio: val }, "precio"));
     }, className: "w-full pl-8 pr-4 py-2.5 bg-indigo-50/50 border-2 border-indigo-200 rounded-xl focus:border-indigo-600 outline-none text-2xl font-black text-indigo-800 disabled:bg-fuchsia-50 disabled:text-fuchsia-900", placeholder: "0.00" })), /* @__PURE__ */ import_react4.default.createElement("div", { className: "mt-2 flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50/60 px-2.5 py-2" }, /* @__PURE__ */ import_react4.default.createElement("label", { className: "text-[10px] font-black uppercase tracking-wider text-indigo-700" }, "Redondear precio"), /* @__PURE__ */ import_react4.default.createElement("select", { value: formProducto.redondeoPrecio || "ninguno", onChange: (e2) => {
       const modo = e2.target.value;
-      setFormProducto((prev) => ({ ...prev, redondeoPrecio: modo, precio: prev.precio === "" ? "" : String(redondearPrecioProducto(prev.precio, modo)) }));
+      setCampoPrecioProductoPreferido("precio");
+      setFormProducto((prev) => {
+        const precioBase = prev.precioSinRedondear ?? prev.precio;
+        return { ...prev, redondeoPrecio: modo, precioSinRedondear: precioBase, precio: precioBase === "" ? "" : String(redondearPrecioProducto(precioBase, modo)) };
+      });
     }, className: "w-full sm:w-auto min-w-[150px] px-2 py-1.5 rounded-md border border-indigo-200 bg-white text-xs font-black text-indigo-800" }, /* @__PURE__ */ import_react4.default.createElement("option", { value: "ninguno" }, "Sin redondear"), /* @__PURE__ */ import_react4.default.createElement("option", { value: "cien" }, "A la centena"), /* @__PURE__ */ import_react4.default.createElement("option", { value: "mil" }, "Al millar")), /* @__PURE__ */ import_react4.default.createElement("span", { className: "text-[10px] font-bold text-indigo-600" }, "Se aplica al guardar el producto.")), /* @__PURE__ */ import_react4.default.createElement("div", { className: "text-[9px] text-indigo-700 font-bold mt-1 uppercase tracking-wider h-3" }, formProducto.precio ? numeroALetras(parseFloat(formProducto.precio) || 0) : "")), /* @__PURE__ */ import_react4.default.createElement("div", { className: "sf-product-actions flex flex-col sm:flex-row sm:justify-end gap-3 pt-6 border-t border-gray-200" }, /* @__PURE__ */ import_react4.default.createElement(
       "button",
       {
@@ -83892,8 +83928,7 @@ ${configuracion.nombre}`;
       {
         type: "button",
         onClick: () => {
-          setPagoPendientePuntoVenta(null);
-          refrescarPantallaClientePuntoVentaPronto();
+          cancelarPagoPendientePuntoVenta();
         },
         className: "p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10",
         title: "Cerrar"
@@ -83918,8 +83953,7 @@ ${configuracion.nombre}`;
       {
         type: "button",
         onClick: () => {
-          setPagoPendientePuntoVenta(null);
-          refrescarPantallaClientePuntoVentaPronto();
+          cancelarPagoPendientePuntoVenta();
         },
         className: "min-w-0 w-full min-h-11 px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-black uppercase tracking-wider text-center leading-tight whitespace-normal hover:bg-slate-100"
       },
