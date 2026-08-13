@@ -61940,6 +61940,8 @@ Disponible del per\xEDodo: ${formatearDinero(datosReporte.flujoNeto)}`
         numero: textoSeguroTrim(pedido?.numero, "000000"),
         remitoProveedor: textoSeguroTrim(pedido?.remitoProveedor, ""),
         fechaRemitoProveedor: textoSeguroTrim(pedido?.fechaRemitoProveedor, ""),
+        tipoComprobanteProveedor: textoSeguroTrim(pedido?.tipoComprobanteProveedor, ""),
+        numeroComprobanteProveedor: textoSeguroTrim(pedido?.numeroComprobanteProveedor, ""),
         proveedor: proveedorNombre,
         fecha: fechaRecepcion || fechaPedido,
         fechaPedido,
@@ -70139,36 +70141,62 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
       docPdf.text(`Saldo a favor: ${formatearDinero(estado.saldoFavor)}`, pageWidth - 14, 70, { align: "right" });
     }
     docPdf.setTextColor(15, 23, 42);
+    const comprasPdf = estado.movimientosDesc.filter((mov) => mov.tipoMovimiento === "compra");
+    const pagosPdf = estado.movimientosDesc.filter((mov) => mov.tipoMovimiento === "pago");
+    docPdf.setFont("helvetica", "bold");
+    docPdf.setFontSize(10);
+    docPdf.text("REMITOS Y FACTURAS DEL PROVEEDOR", 14, 80);
     autoTable(docPdf, {
-      startY: 72,
-      head: [["Pedido", "Recibido", "Abonado", "Tipo", "Detalle", "M\xE9todo / Comp.", "Debe", "Haber", "Pendiente"]],
-      body: estado.movimientosDesc.map((mov) => {
-        const esPago = mov.tipoMovimiento === "pago";
-        const esCheque = esPago && ["cheque", "echeq"].includes(normalizarMetodoPago(mov.metodoPago));
-        const identificacionCheque = esCheque && mov.numeroComprobante ? `Cheque N.\xBA ${mov.numeroComprobante}` : mov.numeroComprobante || "";
-        const plazoCheque = esCheque && mov.plazoDias ? ` \xB7 a ${parseNumeroBasico(mov.plazoDias) || 0} d\xEDas` : "";
+      startY: 84,
+      head: [["Fecha", "Recepci\xF3n", "Factura / remito", "Detalle", "Total", "Pendiente"]],
+      body: comprasPdf.map((mov) => {
+        const comprobante = [mov.tipoComprobanteProveedor, mov.numeroComprobanteProveedor].filter(Boolean).join(" ") || (mov.remitoProveedor ? `Remito ${mov.remitoProveedor}` : `Pedido PC-${mov.numero || "000000"}`);
         return [
-          esPago ? "-" : formatearFecha(mov.fechaPedido || mov.fecha),
-          esPago ? "-" : mov.fechaRecepcion ? formatearFecha(mov.fechaRecepcion) : "-",
-          esPago ? formatearFecha(mov.fecha || mov.fechaCreacion) : mov.fechaPago ? formatearFecha(mov.fechaPago) : "-",
-          esPago ? "Pago" : "Compra",
-          esPago ? `${identificacionCheque ? `${identificacionCheque} - ` : ""}${mov.notas || "Pago a proveedor"}${plazoCheque}${Array.isArray(mov.pedidoCompraIds) && mov.pedidoCompraIds.length ? ` \xB7 Aplicado a ${mov.pedidoCompraIds.map((id) => `PC-${estado.cargosProcesados.find((cargo) => cargo.pedidoId === id)?.numero || "000000"}`).join(", ")}` : ""}` : `${mov.descripcion || "Pedido"}${mov.items?.length ? ` (${mov.items.length} \xEDtems)` : ""}${Number(mov.impuestoProvincial || 0) || Number(mov.otrosImpuestos || 0) ? ` \xB7 Imp.: ${formatearDinero(Number(mov.impuestoProvincial || 0) + Number(mov.otrosImpuestos || 0))}` : ""}`,
-          esPago ? `${obtenerEtiquetaMetodoPago(mov.metodoPago || "transferencia")}${mov.numeroComprobante ? ` \xB7 N.\xBA ${mov.numeroComprobante}` : ""}${plazoCheque}` : mov.metodoPago ? `${obtenerEtiquetaMetodoPago(mov.metodoPago)}${mov.numeroComprobante ? ` \xB7 ${mov.numeroComprobante}` : ""}` : "-",
-          esPago ? "-" : formatearDinero(Number(mov.monto || 0)),
-          esPago ? formatearDinero(Number(mov.monto || 0)) : "-",
-          esPago ? Number(mov.saldoFavorGenerado || 0) > 9e-3 ? `A favor ${formatearDinero(mov.saldoFavorGenerado)}` : "-" : formatearDinero(Number(mov.pendiente || 0))
+          formatearFecha(mov.fechaPedido || mov.fecha),
+          mov.fechaRecepcion ? formatearFecha(mov.fechaRecepcion) : "-",
+          comprobante,
+          `${mov.descripcion || "Compra"}${mov.items?.length ? ` (${mov.items.length} \xEDtems)` : ""}${Number(mov.iva21 || 0) || Number(mov.iva105 || 0) ? ` \xB7 IVA: ${formatearDinero(Number(mov.iva21 || 0) + Number(mov.iva105 || 0))}` : ""}${Number(mov.ingresosBrutos || 0) || Number(mov.flete || 0) ? ` \xB7 Flete/IB: ${formatearDinero(Number(mov.ingresosBrutos || 0) + Number(mov.flete || 0))}` : ""}`,
+          formatearDinero(Number(mov.monto || 0)),
+          formatearDinero(Number(mov.pendiente || 0))
         ];
       }),
       styles: { fontSize: 7.5, cellPadding: 1.6, overflow: "linebreak" },
       headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
-      columnStyles: {
-        4: { cellWidth: 78 },
-        6: { halign: "right" },
-        7: { halign: "right" },
-        8: { halign: "right" }
-      },
+      columnStyles: { 3: { cellWidth: 92 }, 4: { halign: "right" }, 5: { halign: "right" } },
       margin: { left: 14, right: 14 }
     });
+    let inicioPagosY = (docPdf.lastAutoTable?.finalY || 84) + 10;
+    if (pagosPdf.length) {
+      if (inicioPagosY > 260) {
+        docPdf.addPage();
+        inicioPagosY = 20;
+      }
+      docPdf.setFont("helvetica", "bold");
+      docPdf.setFontSize(10);
+      docPdf.text("PAGOS REGISTRADOS Y APLICADOS", 14, inicioPagosY);
+      autoTable(docPdf, {
+        startY: inicioPagosY + 4,
+        head: [["Fecha", "Forma / comprobante", "Aplicaci\xF3n", "Importe", "Saldo a favor"]],
+        body: pagosPdf.map((mov) => {
+          const esCheque = ["cheque", "echeq"].includes(normalizarMetodoPago(mov.metodoPago));
+          const cheque = esCheque && mov.numeroComprobante ? `Cheque N.\xBA ${mov.numeroComprobante}` : "";
+          const plazo = esCheque && mov.plazoDias ? ` \xB7 a ${parseNumeroBasico(mov.plazoDias) || 0} d\xEDas` : "";
+          const idsAplicados = Array.isArray(mov.pedidoCompraIds) && mov.pedidoCompraIds.length ? mov.pedidoCompraIds : mov.pedidoCompraId ? [mov.pedidoCompraId] : [];
+          const aplicacion = idsAplicados.length ? `Aplicado a ${idsAplicados.map((id) => `PC-${estado.cargosProcesados.find((cargo) => cargo.pedidoId === id)?.numero || "000000"}`).join(", ")}` : "Pago general a cuenta";
+          return [
+            formatearFecha(mov.fecha || mov.fechaCreacion),
+            `${obtenerEtiquetaMetodoPago(mov.metodoPago || "transferencia")}${cheque ? ` \xB7 ${cheque}` : mov.numeroComprobante ? ` \xB7 N.\xBA ${mov.numeroComprobante}` : ""}${plazo}`,
+            `${aplicacion}${mov.notas ? ` \xB7 ${mov.notas}` : ""}`,
+            formatearDinero(Number(mov.monto || 0)),
+            Number(mov.saldoFavorGenerado || 0) > 9e-3 ? formatearDinero(mov.saldoFavorGenerado) : "-"
+          ];
+        }),
+        styles: { fontSize: 7.5, cellPadding: 1.6, overflow: "linebreak" },
+        headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: "bold" },
+        columnStyles: { 2: { cellWidth: 100 }, 3: { halign: "right" }, 4: { halign: "right" } },
+        margin: { left: 14, right: 14 }
+      });
+    }
     const adjuntosImagen = estado.pagos.flatMap(
       (pago) => (pago.adjuntos || []).filter((adj) => textoSeguroTrim(adj?.tipo, "").startsWith("image/") && textoSeguroTrim(adj?.dataUrl, "")).map((adj) => ({ ...adj, pago }))
     );
