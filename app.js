@@ -73806,7 +73806,7 @@ Esto reemplaza precios, costos, proveedores, stock y datos guardados en esos pro
     setPedidoCompraFechaPedido(esFechaInputValida(fechaPedidoGuardada) ? fechaPedidoGuardada : obtenerFechaInputLocal(fechaPedidoGuardada));
     setPedidoCompraFechaRecepcion(fechaRecepcionGuardada ? esFechaInputValida(fechaRecepcionGuardada) ? fechaRecepcionGuardada : obtenerFechaInputLocal(fechaRecepcionGuardada) : "");
     setPedidoCompraRemitoProveedor(textoSeguroTrim(pedido?.remitoProveedor, ""));
-    setProveedorCompraSeleccionado(obtenerProveedorPrincipalPedido(pedido));
+    setProveedorCompraSeleccionado(obtenerProveedorPrincipalPedidoCompra(pedido));
     setPedidoCompraTransporte(textoSeguroTrim(pedido?.transporte, ""));
     setCompraImpactaInventario(pedido?.actualizarStock !== false && pedido?.actualizarCostos !== false);
     setMostrarTransportePedidoCompraPdf(Boolean(pedido?.mostrarTransporte));
