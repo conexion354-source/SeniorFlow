@@ -70097,7 +70097,14 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
       configuracion?.logo,
       textoSeguroTrim(configuracion?.logoCorporativo, LOGO_EMPRESA_FALLBACK_URL)
     );
-    const logoEmpresa = logoFuente ? logoFuente.startsWith("data:") ? logoFuente : await srcADataUrl(logoFuente) : "";
+    let logoEmpresa = "";
+    if (logoFuente) {
+      try {
+        logoEmpresa = logoFuente.startsWith("data:") ? logoFuente : await srcADataUrl(logoFuente);
+      } catch (error) {
+        console.warn("No se pudo cargar el logo para la cuenta corriente de proveedor.", error);
+      }
+    }
     docPdf.setFillColor(255, 255, 255);
     docPdf.setDrawColor(219, 227, 239);
     docPdf.roundedRect(10, 8, pageWidth - 20, 24, 2, 2, "FD");
@@ -70105,16 +70112,17 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
       try {
         const propsLogo = docPdf.getImageProperties(logoEmpresa);
         const ratioLogo = (propsLogo?.width || 1) / Math.max(propsLogo?.height || 1, 1);
-        const boxLogo = { x: 14, y: 6, w: 52, h: 18 };
+        const boxLogo = { x: 14, y: 10, w: 52, h: 15 };
         let drawW = boxLogo.w;
         let drawH = drawW / Math.max(ratioLogo, 0.01);
         if (drawH > boxLogo.h) {
           drawH = boxLogo.h;
           drawW = drawH * ratioLogo;
         }
+        const drawX = boxLogo.x + (boxLogo.w - drawW) / 2;
         const drawY = boxLogo.y + (boxLogo.h - drawH) / 2;
         const formatoLogo = /image\/jpe?g/i.test(logoEmpresa) ? "JPEG" : "PNG";
-        docPdf.addImage(logoEmpresa, formatoLogo, boxLogo.x, drawY, drawW, drawH);
+        docPdf.addImage(logoEmpresa, formatoLogo, drawX, drawY, drawW, drawH);
       } catch (error) {
         console.warn("No se pudo insertar el logo en la cuenta corriente de proveedor.", error);
       }
@@ -70122,7 +70130,7 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
     docPdf.setFont("helvetica", "bold");
     docPdf.setTextColor(15, 23, 42);
     docPdf.setFontSize(11);
-    docPdf.text("CUENTA CORRIENTE DE PROVEEDOR", 14, 26);
+    docPdf.text("CUENTA CORRIENTE DE PROVEEDOR", 14, 28);
     docPdf.setFontSize(9);
     docPdf.text(`Emitido: ${formatearFecha(fechaEmision)} ${formatearHora(fechaEmision)}`, pageWidth - 14, 14, { align: "right" });
     docPdf.setTextColor(15, 23, 42);
@@ -70338,7 +70346,9 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
         }
       }
     }
-    docPdf.save(`cuenta_proveedor_${normalizarTextoArchivo(nombreProveedor)}_${obtenerFechaInputLocal()}.pdf`);
+    const nombreArchivoCuentaProveedor = `cuenta_proveedor_${normalizarTextoArchivo(nombreProveedor)}_${obtenerFechaInputLocal()}.pdf`;
+    const blobCuentaProveedor = docPdf.output("blob");
+    descargarArchivoTemporal(new File([blobCuentaProveedor], nombreArchivoCuentaProveedor, { type: "application/pdf" }));
   };
   const calcularRutaProveedor = async () => {
     if (calculandoRutaProveedor) return;
