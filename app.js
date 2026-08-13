@@ -59346,6 +59346,8 @@ function AppInterna() {
     chequesRecibidosIds: []
   });
   const [pagoProveedorAEditar, setPagoProveedorAEditar] = (0, import_react4.useState)(null);
+  const [sobrantePagoProveedorDetectado, setSobrantePagoProveedorDetectado] = (0, import_react4.useState)(0);
+  const [confirmarSaldoFavorPagoProveedor, setConfirmarSaldoFavorPagoProveedor] = (0, import_react4.useState)(false);
   const [busquedaMarcas, setBusquedaMarcas] = (0, import_react4.useState)("");
   const [filtroCategoriaInventario, setFiltroCategoriaInventario] = (0, import_react4.useState)("");
   const [filtroProveedorInventario, setFiltroProveedorInventario] = (0, import_react4.useState)("");
@@ -61975,6 +61977,28 @@ Disponible del per\xEDodo: ${formatearDinero(datosReporte.flujoNeto)}`
     const pagos = obtenerPagosProveedor(proveedorNombre).map((pago) => ({ ...pago, monto: Math.max(0, parseNumeroBasico(pago?.monto)) })).sort((a3, b2) => new Date(a3.fecha || a3.fechaCreacion || 0) - new Date(b2.fecha || b2.fechaCreacion || 0));
     pagos.forEach((pago) => {
       let restante = Math.max(0, Number(pago.monto || 0));
+      const aplicacionesGuardadas = Array.isArray(pago?.aplicacionesComprobantes) ? pago.aplicacionesComprobantes.filter((aplicacion) => textoSeguroTrim(aplicacion?.pedidoCompraId, "") && Number(aplicacion?.montoAplicado || 0) > 0) : [];
+      if (aplicacionesGuardadas.length) {
+        aplicacionesGuardadas.forEach((aplicacion) => {
+          if (restante <= 0) return;
+          const cargo = cargosProcesados.find((item2) => item2.pedidoId === aplicacion.pedidoCompraId);
+          if (!cargo || cargo.pendiente <= 0) return;
+          const aplicado = Math.min(restante, cargo.pendiente, Math.max(0, Number(aplicacion.montoAplicado || 0)));
+          if (aplicado <= 0) return;
+          cargo.pendiente = Math.max(0, cargo.pendiente - aplicado);
+          cargo.pagosAplicados = [...cargo.pagosAplicados || [], {
+            id: pago.id,
+            fecha: pago.fecha,
+            monto: aplicado,
+            pendienteDespues: cargo.pendiente,
+            ordenAplicacion: aplicacion.orden || 0,
+            totalAplicaciones: aplicacionesGuardadas.length
+          }];
+          restante -= aplicado;
+        });
+        pago.saldoFavorGenerado = Math.max(0, restante);
+        return;
+      }
       const idsObjetivo = Array.isArray(pago?.pedidoCompraIds) && pago.pedidoCompraIds.length ? pago.pedidoCompraIds : pago?.pedidoCompraId ? [pago.pedidoCompraId] : [];
       const cargosObjetivo = idsObjetivo.length ? cargosProcesados.filter((cargo) => idsObjetivo.includes(cargo.pedidoId)) : cargosProcesados;
       cargosObjetivo.forEach((cargo) => {
@@ -66749,143 +66773,323 @@ Esta acci\xF3n no se puede deshacer. \xBFContinuar?`;
     doc2.setFontSize(7.5);
     doc2.setTextColor(100, 116, 139);
     doc2.text("Este resumen muestra remitos de cuenta corriente y pagos aplicados. No incluye recargos de mora.", 14, 65);
-    const bodyRemitos = remitosBase.map((item2) => {
-      const fechaTicket = new Date(item2.fecha);
-      const dias = Number.isNaN(fechaTicket.getTime()) ? "-" : String(Math.max(0, Math.floor((Date.now() - fechaTicket.getTime()) / MS_POR_DIA)));
-      const numeroRemito = textoSeguroTrim(
-        item2?.detallesPago?.numeroComprobante,
-        textoSeguroTrim(item2?.detallesPago?.comprobanteNumero, "-")
+    const usarDetalleAgrupadoClientesPdf = true;
+    if (usarDetalleAgrupadoClientesPdf) {
+      const pageWidthClientePdf = doc2.internal.pageSize.getWidth();
+      const pageHeightClientePdf = doc2.internal.pageSize.getHeight();
+      const movimientosPagoClientePdf = new Map([
+        ...estado?.movimientosDesc || [],
+        ...movimientos || []
+      ].filter((mov) => mov?.id).map((mov) => [mov.id, mov]));
+      let cursorClienteY = 72;
+      const paginaActualClientePdf = () => Number(
+        doc2.internal?.getCurrentPageInfo?.()?.pageNumber || doc2.internal?.getNumberOfPages?.() || 1
       );
-      const pagosAsignados = Array.isArray(item2?.pagosAplicados) ? item2.pagosAplicados : [];
-      const pendiente = Math.max(0, Number(item2.pendiente || 0));
-      const estadoRemito = pendiente > 9e-3 ? `Impago (${dias} d\xEDas)` : "Saldado";
-      const detallePagos = pagosAsignados.length ? pagosAsignados.map((pago, index2) => {
-        const completo = Number(pago?.pendienteDespues || 0) <= 9e-3;
-        const tipoPago = pago?.tipo === "credito" ? "Cr\xE9dito aplicado" : completo ? "Pago completo" : "Pago parcial";
-        const diasPago = Number.isFinite(Number(pago?.diasDesdeRemito)) ? `${Number(pago.diasDesdeRemito)} d\xEDas despu\xE9s` : "sin c\xE1lculo de d\xEDas";
-        return `${index2 + 1}. ${tipoPago} ${formatearDinero(Number(pago?.monto || 0))} \xB7 ${formatearFecha(pago.fecha)} \xB7 ${diasPago} \xB7 saldo ${formatearDinero(Number(pago?.pendienteDespues || 0))}`;
-      }).join("\n") : "Sin pagos asignados";
-      return [
-        formatearFecha(item2.fecha),
-        numeroRemito || "-",
-        item2.descripcion || "Remito pendiente",
-        formatearDinero(Number(item2.montoOriginal ?? item2.monto ?? 0)),
-        pendiente > 9e-3 ? formatearDinero(pendiente) : `Saldado \xB7 original ${formatearDinero(Number(item2.montoOriginal ?? item2.monto ?? 0))}`,
-        estadoRemito,
-        detallePagos
-      ];
-    });
-    if (bodyRemitos.length) {
-      autoTable(doc2, {
-        startY: 70,
-        head: [["Fecha remito", "Remito N\xB0", "Detalle", "Original", "Saldo actual", "Estado", "Pagos aplicados a este remito"]],
-        body: bodyRemitos,
-        theme: "grid",
-        margin: { left: 14, right: 14 },
-        styles: { fontSize: 7.2, cellPadding: 1.35, textColor: [30, 41, 59], lineColor: [226, 232, 240], valign: "top" },
-        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold" },
-        columnStyles: {
-          0: { cellWidth: 24 },
-          1: { cellWidth: 22 },
-          2: { cellWidth: 62 },
-          3: { halign: "right", cellWidth: 26, fontStyle: "bold" },
-          4: { halign: "right", cellWidth: 35, fontStyle: "bold" },
-          5: { cellWidth: 28, fontStyle: "bold" },
-          6: { cellWidth: 71 }
+      const asegurarEspacioClientePdf = (alto = 48) => {
+        if (cursorClienteY + alto <= pageHeightClientePdf - 14) return;
+        doc2.addPage();
+        cursorClienteY = 18;
+      };
+      const dibujarConexionCobroClientePdf = ({ paginaOrigen, yOrigen, paginaDestino, yDestino }) => {
+        if (!paginaOrigen || !paginaDestino) return;
+        const paginaRetorno = paginaActualClientePdf();
+        const xConexion = 11;
+        doc2.setDrawColor(5, 150, 105);
+        doc2.setFillColor(5, 150, 105);
+        doc2.setLineWidth(0.65);
+        if (paginaOrigen === paginaDestino) {
+          doc2.setPage(paginaOrigen);
+          doc2.circle(xConexion, yOrigen, 1.15, "F");
+          doc2.line(xConexion, yOrigen, xConexion, yDestino);
+          doc2.line(xConexion, yDestino, 16.5, yDestino);
+          doc2.triangle(17.5, yDestino, 14.8, yDestino - 1.5, 14.8, yDestino + 1.5, "F");
+        } else {
+          doc2.setPage(paginaOrigen);
+          doc2.circle(xConexion, yOrigen, 1.15, "F");
+          doc2.line(xConexion, yOrigen, xConexion, pageHeightClientePdf - 7);
+          doc2.triangle(xConexion, pageHeightClientePdf - 5.5, xConexion - 1.5, pageHeightClientePdf - 8.2, xConexion + 1.5, pageHeightClientePdf - 8.2, "F");
+          doc2.setPage(paginaDestino);
+          doc2.line(xConexion, 7, xConexion, yDestino);
+          doc2.line(xConexion, yDestino, 16.5, yDestino);
+          doc2.triangle(17.5, yDestino, 14.8, yDestino - 1.5, 14.8, yDestino + 1.5, "F");
         }
-      });
-    } else {
-      doc2.setFont("helvetica", "bold");
-      doc2.setFontSize(11);
-      doc2.setTextColor(22, 163, 74);
-      doc2.text("No hay remitos de cuenta corriente para este cliente.", 14, 72);
-    }
-    const pagosDetalleMap = /* @__PURE__ */ new Map();
-    remitosBase.forEach((cargo) => {
-      const numeroRemito = textoSeguroTrim(
-        cargo?.detallesPago?.numeroComprobante,
-        textoSeguroTrim(cargo?.detallesPago?.comprobanteNumero, "-")
-      );
-      (Array.isArray(cargo?.pagosAplicados) ? cargo.pagosAplicados : []).forEach((pago, pagoIndex) => {
-        const pagoId = textoSeguroTrim(pago?.id, `${pago?.fecha || "sin-fecha"}-${cargo?.id || "cargo"}-${pagoIndex}`);
-        const movimientoPago = (estado?.movimientosDesc || []).find((mov) => mov?.id === pagoId) || movimientos.find((mov) => mov?.id === pagoId) || null;
-        const resumenPago = movimientoPago ? construirResumenReciboCobro(movimientoPago) : null;
-        if (!pagosDetalleMap.has(pagoId)) {
-          pagosDetalleMap.set(pagoId, {
-            id: pagoId,
-            fecha: pago?.fecha || movimientoPago?.fecha || "",
-            descripcion: textoSeguroTrim(movimientoPago?.descripcion, textoSeguroTrim(pago?.descripcion, "Pago de cuenta corriente")),
-            metodoPago: textoSeguroTrim(movimientoPago?.metodoPago, textoSeguroTrim(pago?.metodoPago, "")),
-            facturaExternaLabel: textoSeguroTrim(resumenPago?.facturaExternaLabel, ""),
-            tipo: pago?.tipo === "credito" ? "credito" : "pago",
-            montoRegistrado: Math.abs(Number(movimientoPago?.monto || 0)),
-            totalAplicado: 0,
-            remitos: []
+        doc2.setPage(paginaRetorno);
+      };
+      const formatearFechaClientePdf = (valor = "") => {
+        const fecha = new Date(valor);
+        return Number.isNaN(fecha.getTime()) ? "-" : formatearFecha(fecha);
+      };
+      const describirCobroClientePdf = (pago = {}, movimientoPago = null) => {
+        const resumen = movimientoPago ? construirResumenReciboCobro(movimientoPago) : null;
+        const detalles = movimientoPago?.detallesPago || {};
+        const esCredito = pago?.tipo === "credito" || esMovimientoDescuentoCuentaCorriente(movimientoPago || {});
+        const metodo = esCredito ? "Nota de cr\xE9dito" : obtenerEtiquetaMetodoPago(movimientoPago?.metodoPago || pago?.metodoPago || "efectivo");
+        const numero = textoSeguroTrim(
+          resumen?.numeroCheque,
+          textoSeguroTrim(detalles?.numeroComprobante, textoSeguroTrim(detalles?.referencia, textoSeguroTrim(resumen?.numeroRecibo, "")))
+        );
+        const emisor = textoSeguroTrim(resumen?.emisor, textoSeguroTrim(detalles?.emisor, textoSeguroTrim(detalles?.titular, "")));
+        const banco = textoSeguroTrim(resumen?.banco, textoSeguroTrim(detalles?.banco, ""));
+        const plazoDias = calcularPlazoEntreFechas(resumen?.fechaEmision || detalles?.fechaEmision, resumen?.fechaCobro || detalles?.fechaCobro);
+        return `${metodo}${numero ? ` \xB7 N.\xBA ${numero}` : ""}${emisor ? ` \xB7 Emisor: ${emisor}` : ""}${banco ? ` \xB7 ${banco}` : ""}${plazoDias ? ` \xB7 a ${plazoDias} d\xEDas` : ""}`;
+      };
+      const aclaracionCobroClientePdf = (pago = {}, movimientoPago = null) => {
+        const resumen = movimientoPago ? construirResumenReciboCobro(movimientoPago) : null;
+        return [
+          resumen?.facturaExternaLabel ? `Corresponde a ${resumen.facturaExternaLabel}` : "",
+          textoSeguroTrim(movimientoPago?.descripcion, textoSeguroTrim(pago?.descripcion, ""))
+        ].filter(Boolean).join(" \xB7 ") || "-";
+      };
+      remitosBase.forEach((cargo) => {
+        const detalleCargo = cargo?.detallesPago || {};
+        const numeroComprobante = textoSeguroTrim(detalleCargo?.numeroComprobante, textoSeguroTrim(detalleCargo?.comprobanteNumero, "-"));
+        const tipoComprobante = OPCIONES_COMPROBANTE_VENTA.find((opcion) => opcion.value === detalleCargo?.tipoComprobante)?.label || textoSeguroTrim(detalleCargo?.tipoComprobante, "Remito");
+        const comprobante = `${tipoComprobante} ${numeroComprobante}`.trim();
+        const ventaSaldada = Number(cargo?.pendiente || 0) <= 9e-3;
+        const pagosCargo = (Array.isArray(cargo?.pagosAplicados) ? cargo.pagosAplicados : []).map((pago) => ({ pago, movimiento: movimientosPagoClientePdf.get(pago?.id) || null })).filter((item2) => item2.pago);
+        asegurarEspacioClientePdf(55);
+        const paginaCargo = paginaActualClientePdf();
+        const inicioCargoY = cursorClienteY;
+        doc2.setFillColor(15, 23, 42);
+        doc2.roundedRect(14, cursorClienteY, pageWidthClientePdf - 28, 8, 1.5, 1.5, "F");
+        doc2.setTextColor(255, 255, 255);
+        doc2.setFont("helvetica", "bold");
+        doc2.setFontSize(9);
+        doc2.text(`${comprobante} \xB7 ${textoSeguroTrim(cliente?.nombre, "Cliente")}`, 18, cursorClienteY + 5.5);
+        if (ventaSaldada) {
+          doc2.setFillColor(5, 150, 105);
+          doc2.roundedRect(pageWidthClientePdf - 61, cursorClienteY + 1.2, 43, 5.6, 1.3, 1.3, "F");
+          doc2.setFontSize(7.2);
+          doc2.text("VENTA SALDADA", pageWidthClientePdf - 39.5, cursorClienteY + 5, { align: "center" });
+        }
+        cursorClienteY += 11;
+        const vencimiento = textoSeguroTrim(cargo?.fechaVencimiento, "");
+        autoTable(doc2, {
+          startY: cursorClienteY,
+          head: [["Fecha", "Vencimiento", "Detalle", "Monto", "Saldo"]],
+          body: [[
+            formatearFechaClientePdf(cargo.fecha),
+            vencimiento ? formatearFechaClientePdf(`${vencimiento}T12:00:00`) : "-",
+            `${cargo.descripcion || "Venta en cuenta corriente"}${obtenerItemsDocumentoVenta(cargo).length ? ` (${obtenerItemsDocumentoVenta(cargo).length} \xEDtems)` : ""}`,
+            formatearDinero(Number(cargo.montoOriginal ?? cargo.monto ?? 0)),
+            formatearDinero(Number(cargo.pendiente || 0))
+          ]],
+          styles: { fontSize: 7.5, cellPadding: 1.6, overflow: "linebreak" },
+          headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: "bold" },
+          columnStyles: {
+            0: { cellWidth: 32 },
+            1: { cellWidth: 32 },
+            2: { cellWidth: 117 },
+            3: { cellWidth: 48, halign: "right" },
+            4: { cellWidth: 40, halign: "right" }
+          },
+          didParseCell: (data) => {
+            if (data.section === "head" && [3, 4].includes(data.column.index)) data.cell.styles.halign = "right";
+          },
+          margin: { left: 14, right: 14 }
+        });
+        cursorClienteY = (doc2.lastAutoTable?.finalY || cursorClienteY + 14) + 2;
+        if (pagosCargo.length) {
+          const paginaPago = paginaActualClientePdf();
+          const destinoConexionY = cursorClienteY + 4;
+          doc2.setFont("helvetica", "bold");
+          doc2.setFontSize(8);
+          doc2.setTextColor(5, 150, 105);
+          doc2.text("Cobros aplicados a este comprobante", 18, cursorClienteY + 4);
+          cursorClienteY += 7;
+          autoTable(doc2, {
+            startY: cursorClienteY,
+            head: [["Fecha", "Forma / comprobante / emisor", "Aclaraci\xF3n", "Cobro total", "Importe aplicado", "Saldo despu\xE9s"]],
+            body: pagosCargo.map(({ pago, movimiento }) => [
+              formatearFechaClientePdf(pago.fecha || movimiento?.fecha),
+              describirCobroClientePdf(pago, movimiento),
+              aclaracionCobroClientePdf(pago, movimiento),
+              formatearDinero(Math.abs(Number(movimiento?.monto || pago?.monto || 0))),
+              formatearDinero(Number(pago.monto || 0)),
+              formatearDinero(Number(pago.pendienteDespues || 0))
+            ]),
+            styles: { fontSize: 7.2, cellPadding: 1.5, overflow: "linebreak" },
+            headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: "bold" },
+            columnStyles: {
+              0: { cellWidth: 24 },
+              1: { cellWidth: 80 },
+              2: { cellWidth: 47, fontStyle: "bold" },
+              3: { cellWidth: 36, halign: "right" },
+              4: { cellWidth: 37, halign: "right" },
+              5: { cellWidth: 37, halign: "right" }
+            },
+            didParseCell: (data) => {
+              if (data.section === "head" && [3, 4, 5].includes(data.column.index)) data.cell.styles.halign = "right";
+              if (data.section === "body" && data.column.index === 2) data.cell.styles.fontStyle = "bold";
+            },
+            margin: { left: 18, right: 18 }
           });
+          cursorClienteY = (doc2.lastAutoTable?.finalY || cursorClienteY + 14) + 3;
+          dibujarConexionCobroClientePdf({ paginaOrigen: paginaCargo, yOrigen: inicioCargoY + 4, paginaDestino: paginaPago, yDestino: destinoConexionY });
+        } else {
+          doc2.setFont("helvetica", "italic");
+          doc2.setFontSize(8);
+          doc2.setTextColor(100, 116, 139);
+          doc2.text("Sin cobros aplicados a este comprobante.", 18, cursorClienteY + 4);
+          cursorClienteY += 9;
         }
-        const detallePago = pagosDetalleMap.get(pagoId);
-        const montoAplicado = Math.max(0, Number(pago?.monto || 0));
-        detallePago.totalAplicado += montoAplicado;
-        detallePago.remitos.push({
-          numero: numeroRemito || "-",
-          descripcion: textoSeguroTrim(cargo?.descripcion, "Remito de cuenta corriente"),
-          aplicado: montoAplicado,
-          saldo: Math.max(0, Number(pago?.pendienteDespues || 0))
+        doc2.setFont("helvetica", "bold");
+        doc2.setFontSize(8.5);
+        if (ventaSaldada) {
+          doc2.setTextColor(5, 150, 105);
+          doc2.text(`VENTA SALDADA - ${comprobante}`, 18, cursorClienteY + 4);
+        } else {
+          doc2.setTextColor(185, 28, 28);
+          doc2.text(`Saldo pendiente de ${comprobante}: ${formatearDinero(Number(cargo.pendiente || 0))}`, 18, cursorClienteY + 4);
+        }
+        cursorClienteY += 10;
+      });
+      if (!remitosBase.length) {
+        doc2.setFont("helvetica", "bold");
+        doc2.setFontSize(11);
+        doc2.setTextColor(22, 163, 74);
+        doc2.text("No hay ventas de cuenta corriente para este cliente.", 14, 74);
+      }
+    }
+    if (!usarDetalleAgrupadoClientesPdf) {
+      const bodyRemitos = remitosBase.map((item2) => {
+        const fechaTicket = new Date(item2.fecha);
+        const dias = Number.isNaN(fechaTicket.getTime()) ? "-" : String(Math.max(0, Math.floor((Date.now() - fechaTicket.getTime()) / MS_POR_DIA)));
+        const numeroRemito = textoSeguroTrim(
+          item2?.detallesPago?.numeroComprobante,
+          textoSeguroTrim(item2?.detallesPago?.comprobanteNumero, "-")
+        );
+        const pagosAsignados = Array.isArray(item2?.pagosAplicados) ? item2.pagosAplicados : [];
+        const pendiente = Math.max(0, Number(item2.pendiente || 0));
+        const estadoRemito = pendiente > 9e-3 ? `Impago (${dias} d\xEDas)` : "Saldado";
+        const detallePagos = pagosAsignados.length ? pagosAsignados.map((pago, index2) => {
+          const completo = Number(pago?.pendienteDespues || 0) <= 9e-3;
+          const tipoPago = pago?.tipo === "credito" ? "Cr\xE9dito aplicado" : completo ? "Pago completo" : "Pago parcial";
+          const diasPago = Number.isFinite(Number(pago?.diasDesdeRemito)) ? `${Number(pago.diasDesdeRemito)} d\xEDas despu\xE9s` : "sin c\xE1lculo de d\xEDas";
+          return `${index2 + 1}. ${tipoPago} ${formatearDinero(Number(pago?.monto || 0))} \xB7 ${formatearFecha(pago.fecha)} \xB7 ${diasPago} \xB7 saldo ${formatearDinero(Number(pago?.pendienteDespues || 0))}`;
+        }).join("\n") : "Sin pagos asignados";
+        return [
+          formatearFecha(item2.fecha),
+          numeroRemito || "-",
+          item2.descripcion || "Remito pendiente",
+          formatearDinero(Number(item2.montoOriginal ?? item2.monto ?? 0)),
+          pendiente > 9e-3 ? formatearDinero(pendiente) : `Saldado \xB7 original ${formatearDinero(Number(item2.montoOriginal ?? item2.monto ?? 0))}`,
+          estadoRemito,
+          detallePagos
+        ];
+      });
+      if (bodyRemitos.length) {
+        autoTable(doc2, {
+          startY: 70,
+          head: [["Fecha remito", "Remito N\xB0", "Detalle", "Original", "Saldo actual", "Estado", "Pagos aplicados a este remito"]],
+          body: bodyRemitos,
+          theme: "grid",
+          margin: { left: 14, right: 14 },
+          styles: { fontSize: 7.2, cellPadding: 1.35, textColor: [30, 41, 59], lineColor: [226, 232, 240], valign: "top" },
+          headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold" },
+          columnStyles: {
+            0: { cellWidth: 24 },
+            1: { cellWidth: 22 },
+            2: { cellWidth: 62 },
+            3: { halign: "right", cellWidth: 26, fontStyle: "bold" },
+            4: { halign: "right", cellWidth: 35, fontStyle: "bold" },
+            5: { cellWidth: 28, fontStyle: "bold" },
+            6: { cellWidth: 71 }
+          }
+        });
+      } else {
+        doc2.setFont("helvetica", "bold");
+        doc2.setFontSize(11);
+        doc2.setTextColor(22, 163, 74);
+        doc2.text("No hay remitos de cuenta corriente para este cliente.", 14, 72);
+      }
+      const pagosDetalleMap = /* @__PURE__ */ new Map();
+      remitosBase.forEach((cargo) => {
+        const numeroRemito = textoSeguroTrim(
+          cargo?.detallesPago?.numeroComprobante,
+          textoSeguroTrim(cargo?.detallesPago?.comprobanteNumero, "-")
+        );
+        (Array.isArray(cargo?.pagosAplicados) ? cargo.pagosAplicados : []).forEach((pago, pagoIndex) => {
+          const pagoId = textoSeguroTrim(pago?.id, `${pago?.fecha || "sin-fecha"}-${cargo?.id || "cargo"}-${pagoIndex}`);
+          const movimientoPago = (estado?.movimientosDesc || []).find((mov) => mov?.id === pagoId) || movimientos.find((mov) => mov?.id === pagoId) || null;
+          const resumenPago = movimientoPago ? construirResumenReciboCobro(movimientoPago) : null;
+          if (!pagosDetalleMap.has(pagoId)) {
+            pagosDetalleMap.set(pagoId, {
+              id: pagoId,
+              fecha: pago?.fecha || movimientoPago?.fecha || "",
+              descripcion: textoSeguroTrim(movimientoPago?.descripcion, textoSeguroTrim(pago?.descripcion, "Pago de cuenta corriente")),
+              metodoPago: textoSeguroTrim(movimientoPago?.metodoPago, textoSeguroTrim(pago?.metodoPago, "")),
+              facturaExternaLabel: textoSeguroTrim(resumenPago?.facturaExternaLabel, ""),
+              tipo: pago?.tipo === "credito" ? "credito" : "pago",
+              montoRegistrado: Math.abs(Number(movimientoPago?.monto || 0)),
+              totalAplicado: 0,
+              remitos: []
+            });
+          }
+          const detallePago = pagosDetalleMap.get(pagoId);
+          const montoAplicado = Math.max(0, Number(pago?.monto || 0));
+          detallePago.totalAplicado += montoAplicado;
+          detallePago.remitos.push({
+            numero: numeroRemito || "-",
+            descripcion: textoSeguroTrim(cargo?.descripcion, "Remito de cuenta corriente"),
+            aplicado: montoAplicado,
+            saldo: Math.max(0, Number(pago?.pendienteDespues || 0))
+          });
         });
       });
-    });
-    const pagosDetalleBody = Array.from(pagosDetalleMap.values()).sort((a3, b2) => new Date(b2.fecha) - new Date(a3.fecha)).map((pago) => {
-      const fechaPago = pago.fecha || fechaEmision;
-      const totalEntregado = pago.montoRegistrado > 0 ? pago.montoRegistrado : pago.totalAplicado;
-      const remitosTexto = pago.remitos.length ? pago.remitos.map((item2) => `Remito ${item2.numero} \xB7 aplicado ${formatearDinero(item2.aplicado)} \xB7 saldo ${formatearDinero(item2.saldo)}`).join("\n") : "Sin remitos aplicados";
-      return [
-        `${formatearFecha(fechaPago)} ${formatearHora(fechaPago)}`,
-        pago.tipo === "credito" ? "Nota de cr\xE9dito" : obtenerEtiquetaMetodoPago(pago.metodoPago),
-        formatearDinero(totalEntregado),
-        formatearDinero(pago.totalAplicado),
-        remitosTexto,
-        [
-          pago.facturaExternaLabel ? `Corresponde a ${pago.facturaExternaLabel}` : "",
-          textoSeguroTrim(pago.descripcion, "-")
-        ].filter(Boolean).join("\n")
-      ];
-    });
-    let siguienteY = Math.max((doc2.lastAutoTable?.finalY || 72) + 8, 88);
-    if (siguienteY > 176) {
-      doc2.addPage();
-      siguienteY = 16;
-    }
-    doc2.setFont("helvetica", "bold");
-    doc2.setFontSize(10);
-    doc2.setTextColor(15, 23, 42);
-    doc2.text("PAGOS RECIBIDOS Y APLICACI\xD3N A REMITOS", 14, siguienteY);
-    doc2.setFont("helvetica", "normal");
-    doc2.setFontSize(7.5);
-    doc2.setTextColor(100, 116, 139);
-    doc2.text("Cada pago puede saldar uno o varios remitos. Si el pago no alcanza, el \xFAltimo remito queda con saldo pendiente.", 14, siguienteY + 4);
-    if (pagosDetalleBody.length) {
-      autoTable(doc2, {
-        startY: siguienteY + 8,
-        head: [["Fecha de pago", "Medio", "Total entregado", "Aplicado", "Remitos afectados", "Detalle"]],
-        body: pagosDetalleBody,
-        theme: "grid",
-        margin: { left: 14, right: 14 },
-        styles: { fontSize: 7.6, cellPadding: 1.45, textColor: [30, 41, 59], lineColor: [226, 232, 240], valign: "top" },
-        headStyles: { fillColor: [6, 95, 70], textColor: [255, 255, 255], fontStyle: "bold" },
-        columnStyles: {
-          0: { cellWidth: 34 },
-          1: { cellWidth: 24 },
-          2: { cellWidth: 28, halign: "right", fontStyle: "bold" },
-          3: { cellWidth: 26, halign: "right", fontStyle: "bold" },
-          4: { cellWidth: 96 },
-          5: { cellWidth: 61 }
-        }
+      const pagosDetalleBody = Array.from(pagosDetalleMap.values()).sort((a3, b2) => new Date(b2.fecha) - new Date(a3.fecha)).map((pago) => {
+        const fechaPago = pago.fecha || fechaEmision;
+        const totalEntregado = pago.montoRegistrado > 0 ? pago.montoRegistrado : pago.totalAplicado;
+        const remitosTexto = pago.remitos.length ? pago.remitos.map((item2) => `Remito ${item2.numero} \xB7 aplicado ${formatearDinero(item2.aplicado)} \xB7 saldo ${formatearDinero(item2.saldo)}`).join("\n") : "Sin remitos aplicados";
+        return [
+          `${formatearFecha(fechaPago)} ${formatearHora(fechaPago)}`,
+          pago.tipo === "credito" ? "Nota de cr\xE9dito" : obtenerEtiquetaMetodoPago(pago.metodoPago),
+          formatearDinero(totalEntregado),
+          formatearDinero(pago.totalAplicado),
+          remitosTexto,
+          [
+            pago.facturaExternaLabel ? `Corresponde a ${pago.facturaExternaLabel}` : "",
+            textoSeguroTrim(pago.descripcion, "-")
+          ].filter(Boolean).join("\n")
+        ];
       });
-    } else {
+      let siguienteY = Math.max((doc2.lastAutoTable?.finalY || 72) + 8, 88);
+      if (siguienteY > 176) {
+        doc2.addPage();
+        siguienteY = 16;
+      }
+      doc2.setFont("helvetica", "bold");
+      doc2.setFontSize(10);
+      doc2.setTextColor(15, 23, 42);
+      doc2.text("PAGOS RECIBIDOS Y APLICACI\xD3N A REMITOS", 14, siguienteY);
       doc2.setFont("helvetica", "normal");
-      doc2.setFontSize(9);
-      doc2.setTextColor(71, 85, 105);
-      doc2.text("Sin pagos registrados para detallar.", 14, siguienteY + 8);
+      doc2.setFontSize(7.5);
+      doc2.setTextColor(100, 116, 139);
+      doc2.text("Cada pago puede saldar uno o varios remitos. Si el pago no alcanza, el \xFAltimo remito queda con saldo pendiente.", 14, siguienteY + 4);
+      if (pagosDetalleBody.length) {
+        autoTable(doc2, {
+          startY: siguienteY + 8,
+          head: [["Fecha de pago", "Medio", "Total entregado", "Aplicado", "Remitos afectados", "Detalle"]],
+          body: pagosDetalleBody,
+          theme: "grid",
+          margin: { left: 14, right: 14 },
+          styles: { fontSize: 7.6, cellPadding: 1.45, textColor: [30, 41, 59], lineColor: [226, 232, 240], valign: "top" },
+          headStyles: { fillColor: [6, 95, 70], textColor: [255, 255, 255], fontStyle: "bold" },
+          columnStyles: {
+            0: { cellWidth: 34 },
+            1: { cellWidth: 24 },
+            2: { cellWidth: 28, halign: "right", fontStyle: "bold" },
+            3: { cellWidth: 26, halign: "right", fontStyle: "bold" },
+            4: { cellWidth: 96 },
+            5: { cellWidth: 61 }
+          }
+        });
+      } else {
+        doc2.setFont("helvetica", "normal");
+        doc2.setFontSize(9);
+        doc2.setTextColor(71, 85, 105);
+        doc2.text("Sin pagos registrados para detallar.", 14, siguienteY + 8);
+      }
     }
     const fileName = `resumen_cuenta_${normalizarTextoArchivo(cliente?.nombre || "cliente")}_${normalizarTextoArchivo(formatearFecha(fechaEmision))}.pdf`;
     const blob = doc2.output("blob");
@@ -69518,6 +69722,8 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
     const proveedorBase = pagoBase ? proveedor || proveedorCuentaSeleccionado || pagoBase?.proveedor : proveedor || proveedorCuentaSeleccionado;
     const nombre = textoSeguroTrim(proveedorBase?.nombre || proveedorBase, textoSeguroTrim(pagoBase?.proveedor, ""));
     const plazoCalculado = calcularPlazoEntreFechas(pagoBase?.fechaEmision, pagoBase?.fechaCobro);
+    setSobrantePagoProveedorDetectado(0);
+    setConfirmarSaldoFavorPagoProveedor(false);
     setPagoProveedorAEditar(pagoBase);
     setFormPagoProveedor({
       proveedor: nombre,
@@ -69660,6 +69866,36 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
     const adjuntosImagen = adjuntos.filter((adj) => textoSeguroTrim(adj?.tipo, "").startsWith("image/") && textoSeguroTrim(adj?.dataUrl, ""));
     const adjuntosOtros = adjuntos.filter((adj) => !textoSeguroTrim(adj?.tipo, "").startsWith("image/"));
     let y3 = (docPdf.lastAutoTable?.finalY || 82) + 8;
+    const aplicacionesPagoPdf = Array.isArray(pago?.aplicacionesComprobantes) ? pago.aplicacionesComprobantes : [];
+    if (aplicacionesPagoPdf.length) {
+      docPdf.setFont("helvetica", "bold");
+      docPdf.setFontSize(10);
+      docPdf.setTextColor(15, 23, 42);
+      docPdf.text("DISTRIBUCI\xD3N DEL PAGO", 14, y3);
+      y3 += 4;
+      autoTable(docPdf, {
+        startY: y3,
+        head: [["Orden", "Remito / factura", "Saldo anterior", "Aplicado", "Saldo posterior"]],
+        body: aplicacionesPagoPdf.map((aplicacion, index2) => [
+          String(aplicacion?.orden || index2 + 1),
+          textoSeguroTrim(aplicacion?.comprobante, `PC-${textoSeguroTrim(aplicacion?.pedidoCompraNumero, "000000")}`),
+          formatearDinero(Number(aplicacion?.saldoAntes || 0)),
+          formatearDinero(Number(aplicacion?.montoAplicado || 0)),
+          formatearDinero(Number(aplicacion?.saldoDespues || 0))
+        ]),
+        styles: { fontSize: 7.5, cellPadding: 1.7, overflow: "linebreak" },
+        headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: "bold" },
+        columnStyles: { 0: { halign: "center", cellWidth: 14 }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" } },
+        margin: { left: 14, right: 14 }
+      });
+      y3 = (docPdf.lastAutoTable?.finalY || y3) + 5;
+      if (Number(pago?.saldoFavorRegistrado || 0) > 9e-3) {
+        docPdf.setTextColor(180, 83, 9);
+        docPdf.setFontSize(8.5);
+        docPdf.text(`Diferencia final registrada como saldo a favor: ${formatearDinero(Number(pago.saldoFavorRegistrado || 0))}`, 14, y3);
+        y3 += 6;
+      }
+    }
     if (adjuntosOtros.length) {
       docPdf.setFont("helvetica", "bold");
       docPdf.setFontSize(10);
@@ -69792,6 +70028,34 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
       await notificarSistema("Seleccion\xE1 al menos un remito pendiente para aplicar el pago.", { tipo: "warning", titulo: "Remitos requeridos" });
       return;
     }
+    let restanteAplicacion = monto;
+    const cargosSeleccionadosPago = pedidoCompraIds.map((pedidoId) => cargosPendientesPagoProveedor.find((cargo) => cargo.pedidoId === pedidoId)).filter(Boolean);
+    const aplicacionesComprobantes = cargosSeleccionadosPago.map((cargo, index2) => {
+      const saldoAntes = Math.max(0, Number(cargo.pendiente || 0));
+      const montoAplicado = Math.min(restanteAplicacion, saldoAntes);
+      restanteAplicacion = Math.max(0, restanteAplicacion - montoAplicado);
+      const comprobante = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(" ") || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || "000000"}`);
+      return {
+        orden: index2 + 1,
+        pedidoCompraId: cargo.pedidoId,
+        pedidoCompraNumero: cargo.numero || "",
+        comprobante,
+        fechaComprobante: cargo.fechaPedido || cargo.fecha || "",
+        saldoAntes,
+        montoAplicado,
+        saldoDespues: Math.max(0, saldoAntes - montoAplicado)
+      };
+    }).filter((aplicacion) => aplicacion.montoAplicado > 0);
+    const otrosCargosPendientes = cargosPendientesPagoProveedor.filter((cargo) => !pedidoCompraIds.includes(cargo.pedidoId));
+    if (tipoAplicacion !== "general" && restanteAplicacion > 9e-3 && otrosCargosPendientes.length && !confirmarSaldoFavorPagoProveedor) {
+      setSobrantePagoProveedorDetectado(restanteAplicacion);
+      setFormPagoProveedor((prev) => ({ ...prev, tipoAplicacion: "ticket_multi" }));
+      await notificarSistema(`Despu\xE9s de aplicar el pago queda un sobrante de ${formatearDinero(restanteAplicacion)}. Eleg\xED otro remito o factura pendiente para aplicar ese importe.`, {
+        tipo: "warning",
+        titulo: "\xBFA qu\xE9 comprobante aplicamos el sobrante?"
+      });
+      return;
+    }
     const pedidoCompraId = pedidoCompraIds.length === 1 ? pedidoCompraIds[0] : "";
     const payloadPagoProveedor = limpiarDatoFirestore({
       proveedorId: proveedorDoc?.id || "",
@@ -69814,6 +70078,9 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
       pedidoCompraEstado: textoSeguroTrim(formPagoProveedor?.pedidoCompraEstado || pagoProveedorAEditar?.pedidoCompraEstado, ""),
       tipoAplicacion,
       pedidoCompraIds,
+      aplicacionesComprobantes,
+      montoAplicadoComprobantes: aplicacionesComprobantes.reduce((total, aplicacion) => total + Number(aplicacion.montoAplicado || 0), 0),
+      saldoFavorRegistrado: tipoAplicacion === "general" ? 0 : Math.max(0, restanteAplicacion),
       impactaCaja: formPagoProveedor?.impactaCaja !== false,
       impactaReportes: true,
       noImpactaCaja: formPagoProveedor?.impactaCaja === false,
@@ -69853,6 +70120,8 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
       }
     }
     setPagoProveedorAEditar(null);
+    setSobrantePagoProveedorDetectado(0);
+    setConfirmarSaldoFavorPagoProveedor(false);
     setModalActivo(null);
     await notificarSistema("Pago registrado en la cuenta del proveedor.", {
       tipo: "success",
@@ -70205,12 +70474,23 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
       }
       docPdf.setPage(paginaRetorno);
     };
-    const descripcionPagoProveedorPdf = (pago = {}, aplicado = 0) => {
+    const descripcionPagoProveedorPdf = (pago = {}, aplicado = 0, pedidoCompraId = "") => {
       const esCheque = ["cheque", "echeq"].includes(normalizarMetodoPago(pago.metodoPago));
       const cheque = esCheque && pago.numeroComprobante ? `Cheque N.\xBA ${pago.numeroComprobante}` : "";
       const plazo = esCheque && pago.plazoDias ? ` \xB7 a ${parseNumeroBasico(pago.plazoDias) || 0} d\xEDas` : "";
       const comprobante = cheque || (pago.numeroComprobante ? `N.\xBA ${pago.numeroComprobante}` : "");
-      return `${obtenerEtiquetaMetodoPago(pago.metodoPago || "transferencia")}${comprobante ? ` \xB7 ${comprobante}` : ""}${plazo}${aplicado > 0 ? ` \xB7 aplicado ${formatearDinero(aplicado)}` : ""}`;
+      const emisor = textoSeguroTrim(pago?.emisor, "");
+      const aplicaciones = Array.isArray(pago?.aplicacionesComprobantes) ? pago.aplicacionesComprobantes : [];
+      const aplicacionActual = pedidoCompraId ? aplicaciones.find((item2) => item2?.pedidoCompraId === pedidoCompraId) : null;
+      const orden = aplicacionActual && aplicaciones.length > 1 ? ` \xB7 distribuci\xF3n ${aplicacionActual.orden || 1}/${aplicaciones.length}` : "";
+      return `${obtenerEtiquetaMetodoPago(pago.metodoPago || "transferencia")}${comprobante ? ` \xB7 ${comprobante}` : ""}${emisor ? ` \xB7 Emisor: ${emisor}` : ""}${plazo}${orden}`;
+    };
+    const aclaracionPagoProveedorPdf = (pago = {}) => {
+      const saldoFavor = Number(pago?.saldoFavorRegistrado || pago?.saldoFavorGenerado || 0);
+      return [
+        textoSeguroTrim(pago?.notas, ""),
+        saldoFavor > 9e-3 ? `Resto registrado como saldo a favor: ${formatearDinero(saldoFavor)}` : ""
+      ].filter(Boolean).join(" \xB7 ") || "-";
     };
     const cargosPdf = cargosProveedorPdf.filter((cargo) => cargo?.imputableSaldo);
     cargosPdf.forEach((cargo) => {
@@ -70247,7 +70527,16 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
         ]],
         styles: { fontSize: 7.5, cellPadding: 1.6, overflow: "linebreak" },
         headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: "bold" },
-        columnStyles: { 2: { cellWidth: 95 }, 3: { halign: "right" }, 4: { halign: "right" } },
+        columnStyles: {
+          0: { cellWidth: 36 },
+          1: { cellWidth: 36 },
+          2: { cellWidth: 111 },
+          3: { cellWidth: 48, halign: "right" },
+          4: { cellWidth: 38, halign: "right" }
+        },
+        didParseCell: (data) => {
+          if (data.section === "head" && [3, 4].includes(data.column.index)) data.cell.styles.halign = "right";
+        },
         margin: { left: 14, right: 14 }
       });
       cursorCuentaY = (docPdf.lastAutoTable?.finalY || cursorCuentaY + 15) + 2;
@@ -70261,16 +70550,29 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
         cursorCuentaY += 7;
         autoTable(docPdf, {
           startY: cursorCuentaY,
-          head: [["Fecha", "Forma / comprobante", "Importe aplicado", "Saldo despu\xE9s"]],
+          head: [["Fecha", "Forma / comprobante / emisor", "Aclaraci\xF3n", "Pago total", "Importe aplicado", "Saldo despu\xE9s"]],
           body: pagosDelCargo.map(({ aplicado, pago }) => [
             formatearFechaCuentaPdf(pago.fecha || pago.fechaCreacion),
-            `${descripcionPagoProveedorPdf(pago, Number(aplicado.monto || 0))}${pago.notas ? ` \xB7 ${pago.notas}` : ""}`,
+            descripcionPagoProveedorPdf(pago, Number(aplicado.monto || 0), cargo.pedidoId),
+            aclaracionPagoProveedorPdf(pago),
+            formatearDinero(Number(pago.monto || 0)),
             formatearDinero(Number(aplicado.monto || 0)),
             formatearDinero(Number(aplicado.pendienteDespues || 0))
           ]),
           styles: { fontSize: 7.2, cellPadding: 1.5, overflow: "linebreak" },
           headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: "bold" },
-          columnStyles: { 1: { cellWidth: 105 }, 2: { halign: "right" }, 3: { halign: "right" } },
+          columnStyles: {
+            0: { cellWidth: 24 },
+            1: { cellWidth: 80 },
+            2: { cellWidth: 47, fontStyle: "bold" },
+            3: { cellWidth: 36, halign: "right" },
+            4: { cellWidth: 37, halign: "right" },
+            5: { cellWidth: 37, halign: "right" }
+          },
+          didParseCell: (data) => {
+            if (data.section === "head" && [3, 4, 5].includes(data.column.index)) data.cell.styles.halign = "right";
+            if (data.section === "body" && data.column.index === 2) data.cell.styles.fontStyle = "bold";
+          },
           margin: { left: 18, right: 18 }
         });
         cursorCuentaY = (docPdf.lastAutoTable?.finalY || cursorCuentaY + 14) + 3;
@@ -70308,16 +70610,27 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
       cursorCuentaY += 5;
       autoTable(docPdf, {
         startY: cursorCuentaY,
-        head: [["Fecha", "Forma / comprobante", "Importe", "Saldo a favor"]],
+        head: [["Fecha", "Forma / comprobante / emisor", "Aclaraci\xF3n", "Importe", "Saldo a favor"]],
         body: pagosGeneralesPdf.map((pago) => [
           formatearFechaCuentaPdf(pago.fecha || pago.fechaCreacion),
           descripcionPagoProveedorPdf(pago),
+          aclaracionPagoProveedorPdf(pago),
           formatearDinero(Number(pago.monto || 0)),
           Number(pago.saldoFavorGenerado || 0) > 9e-3 ? formatearDinero(pago.saldoFavorGenerado) : "-"
         ]),
         styles: { fontSize: 7.5, cellPadding: 1.6, overflow: "linebreak" },
         headStyles: { fillColor: [100, 116, 139], textColor: 255, fontStyle: "bold" },
-        columnStyles: { 1: { cellWidth: 110 }, 2: { halign: "right" }, 3: { halign: "right" } },
+        columnStyles: {
+          0: { cellWidth: 28 },
+          1: { cellWidth: 102 },
+          2: { cellWidth: 55, fontStyle: "bold" },
+          3: { cellWidth: 42, halign: "right" },
+          4: { cellWidth: 42, halign: "right" }
+        },
+        didParseCell: (data) => {
+          if (data.section === "head" && [3, 4].includes(data.column.index)) data.cell.styles.halign = "right";
+          if (data.section === "body" && data.column.index === 2) data.cell.styles.fontStyle = "bold";
+        },
         margin: { left: 14, right: 14 }
       });
     }
@@ -80733,17 +81046,36 @@ ${configuracion.nombre}`;
       titulo: pagoProveedorAEditar ? "Editar pago a proveedor" : "Registrar pago a proveedor",
       onClose: () => {
         setPagoProveedorAEditar(null);
+        setSobrantePagoProveedorDetectado(0);
+        setConfirmarSaldoFavorPagoProveedor(false);
         setModalActivo(null);
       },
       customWidth: "max-w-2xl"
     },
-    /* @__PURE__ */ import_react4.default.createElement("form", { onSubmit: guardarPagoProveedor, className: "space-y-4" }, textoSeguroTrim(formPagoProveedor?.pedidoCompraId, "") && /* @__PURE__ */ import_react4.default.createElement("div", { className: "rounded-xl border border-amber-200 bg-amber-50 px-3 py-2" }, /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-[10px] font-black uppercase tracking-wider text-amber-700" }, "Pago anticipado asociado al pedido"), /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-xs font-bold text-amber-800" }, "PC-", textoSeguroTrim(formPagoProveedor?.pedidoCompraNumero, "000000"), " \xB7 ", textoSeguroTrim(formPagoProveedor?.pedidoCompraEstado, "guardado"))), /* @__PURE__ */ import_react4.default.createElement("div", { className: "rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3 space-y-2" }, /* @__PURE__ */ import_react4.default.createElement("label", { className: "block text-[10px] font-black uppercase tracking-wider text-emerald-800" }, "Aplicar pago ", /* @__PURE__ */ import_react4.default.createElement(AyudaCampo, { texto: "Eleg\xED si el pago se registra como saldo general o se aplica a uno o varios remitos pendientes." })), /* @__PURE__ */ import_react4.default.createElement("select", { value: formPagoProveedor.tipoAplicacion || "general", onChange: (e2) => setFormPagoProveedor((prev) => ({ ...prev, tipoAplicacion: e2.target.value, pedidoCompraIds: e2.target.value === "general" ? [] : prev.pedidoCompraIds?.length ? prev.pedidoCompraIds : cargosPendientesPagoProveedor[0]?.pedidoId ? [cargosPendientesPagoProveedor[0].pedidoId] : [] })), className: "w-full px-3 py-2.5 rounded-xl border border-emerald-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500" }, /* @__PURE__ */ import_react4.default.createElement("option", { value: "general" }, "Pago general a la cuenta corriente"), /* @__PURE__ */ import_react4.default.createElement("option", { value: "ticket", disabled: !cargosPendientesPagoProveedor.length }, "Aplicar a un remito pendiente"), /* @__PURE__ */ import_react4.default.createElement("option", { value: "ticket_multi", disabled: !cargosPendientesPagoProveedor.length }, "Aplicar a remitos seleccionados")), formPagoProveedor.tipoAplicacion === "ticket" && /* @__PURE__ */ import_react4.default.createElement("select", { value: formPagoProveedor.pedidoCompraIds?.[0] || "", onChange: (e2) => {
+    /* @__PURE__ */ import_react4.default.createElement("form", { onSubmit: guardarPagoProveedor, className: "space-y-4" }, textoSeguroTrim(formPagoProveedor?.pedidoCompraId, "") && /* @__PURE__ */ import_react4.default.createElement("div", { className: "rounded-xl border border-amber-200 bg-amber-50 px-3 py-2" }, /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-[10px] font-black uppercase tracking-wider text-amber-700" }, "Pago anticipado asociado al pedido"), /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-xs font-bold text-amber-800" }, "PC-", textoSeguroTrim(formPagoProveedor?.pedidoCompraNumero, "000000"), " \xB7 ", textoSeguroTrim(formPagoProveedor?.pedidoCompraEstado, "guardado"))), /* @__PURE__ */ import_react4.default.createElement("div", { className: "rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3 space-y-2" }, /* @__PURE__ */ import_react4.default.createElement("label", { className: "block text-[10px] font-black uppercase tracking-wider text-emerald-800" }, "Aplicar pago ", /* @__PURE__ */ import_react4.default.createElement(AyudaCampo, { texto: "Eleg\xED si el pago se registra como saldo general o se aplica a uno o varios remitos pendientes." })), /* @__PURE__ */ import_react4.default.createElement("select", { value: formPagoProveedor.tipoAplicacion || "general", onChange: (e2) => {
+      setSobrantePagoProveedorDetectado(0);
+      setConfirmarSaldoFavorPagoProveedor(false);
+      setFormPagoProveedor((prev) => ({ ...prev, tipoAplicacion: e2.target.value, pedidoCompraIds: e2.target.value === "general" ? [] : prev.pedidoCompraIds?.length ? prev.pedidoCompraIds : cargosPendientesPagoProveedor[0]?.pedidoId ? [cargosPendientesPagoProveedor[0].pedidoId] : [] }));
+    }, className: "w-full px-3 py-2.5 rounded-xl border border-emerald-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500" }, /* @__PURE__ */ import_react4.default.createElement("option", { value: "general" }, "Pago general a la cuenta corriente"), /* @__PURE__ */ import_react4.default.createElement("option", { value: "ticket", disabled: !cargosPendientesPagoProveedor.length }, "Aplicar a un remito pendiente"), /* @__PURE__ */ import_react4.default.createElement("option", { value: "ticket_multi", disabled: !cargosPendientesPagoProveedor.length }, "Aplicar a remitos seleccionados")), formPagoProveedor.tipoAplicacion === "ticket" && /* @__PURE__ */ import_react4.default.createElement("select", { value: formPagoProveedor.pedidoCompraIds?.[0] || "", onChange: (e2) => {
       const cargo = cargosPendientesPagoProveedor.find((item2) => item2.pedidoId === e2.target.value);
+      setSobrantePagoProveedorDetectado(0);
+      setConfirmarSaldoFavorPagoProveedor(false);
       setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: e2.target.value ? [e2.target.value] : [], monto: cargo ? cargo.pendiente.toFixed(2) : prev.monto }));
-    }, className: "w-full px-3 py-2.5 rounded-xl border border-emerald-200 bg-white font-bold text-xs outline-none focus:ring-2 focus:ring-emerald-500" }, cargosPendientesPagoProveedor.map((cargo) => /* @__PURE__ */ import_react4.default.createElement("option", { key: `pago-prov-remito-${cargo.pedidoId}`, value: cargo.pedidoId }, formatearFecha(cargo.fecha), " \xB7 PC-", cargo.numero, " \xB7 Pendiente ", formatearDinero(cargo.pendiente)))), formPagoProveedor.tipoAplicacion === "ticket_multi" && /* @__PURE__ */ import_react4.default.createElement("div", { className: "max-h-44 overflow-y-auto divide-y divide-emerald-100 rounded-xl border border-emerald-100 bg-white" }, /* @__PURE__ */ import_react4.default.createElement("div", { className: "flex justify-end px-3 py-2" }, /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: () => setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: cargosPendientesPagoProveedor.map((cargo) => cargo.pedidoId) })), className: "text-[10px] font-black uppercase text-emerald-700" }, "Todos")), cargosPendientesPagoProveedor.map((cargo) => {
+    }, className: "w-full px-3 py-2.5 rounded-xl border border-emerald-200 bg-white font-bold text-xs outline-none focus:ring-2 focus:ring-emerald-500" }, cargosPendientesPagoProveedor.map((cargo) => /* @__PURE__ */ import_react4.default.createElement("option", { key: `pago-prov-remito-${cargo.pedidoId}`, value: cargo.pedidoId }, formatearFecha(cargo.fecha), " \xB7 PC-", cargo.numero, " \xB7 Pendiente ", formatearDinero(cargo.pendiente)))), sobrantePagoProveedorDetectado > 9e-3 && /* @__PURE__ */ import_react4.default.createElement("div", { className: "rounded-xl border border-amber-300 bg-amber-50 p-3" }, /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-xs font-black text-amber-900" }, "Quedan ", formatearDinero(sobrantePagoProveedorDetectado), " sin aplicar."), /* @__PURE__ */ import_react4.default.createElement("p", { className: "mt-1 text-[10px] font-bold text-amber-800" }, "Seleccion\xE1 abajo otro remito o factura pendiente. Si no quer\xE9s aplicarlo, pod\xE9s dejar expresamente el resto como saldo a favor."), /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: () => {
+      setConfirmarSaldoFavorPagoProveedor(true);
+      setSobrantePagoProveedorDetectado(0);
+    }, className: "mt-2 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-[10px] font-black uppercase text-amber-800 hover:bg-amber-100" }, "Dejar resto como saldo a favor")), formPagoProveedor.tipoAplicacion === "ticket_multi" && /* @__PURE__ */ import_react4.default.createElement("div", { className: "max-h-44 overflow-y-auto divide-y divide-emerald-100 rounded-xl border border-emerald-100 bg-white" }, /* @__PURE__ */ import_react4.default.createElement("div", { className: "flex justify-end px-3 py-2" }, /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: () => {
+      setSobrantePagoProveedorDetectado(0);
+      setConfirmarSaldoFavorPagoProveedor(false);
+      setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: cargosPendientesPagoProveedor.map((cargo) => cargo.pedidoId) }));
+    }, className: "text-[10px] font-black uppercase text-emerald-700" }, "Todos")), cargosPendientesPagoProveedor.map((cargo) => {
       const seleccionado = (formPagoProveedor.pedidoCompraIds || []).includes(cargo.pedidoId);
-      return /* @__PURE__ */ import_react4.default.createElement("label", { key: `pago-prov-remito-multi-${cargo.pedidoId}`, className: "flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-emerald-50" }, /* @__PURE__ */ import_react4.default.createElement("input", { type: "checkbox", checked: seleccionado, onChange: (e2) => setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: e2.target.checked ? Array.from(/* @__PURE__ */ new Set([...prev.pedidoCompraIds || [], cargo.pedidoId])) : (prev.pedidoCompraIds || []).filter((id) => id !== cargo.pedidoId) })), className: "w-4 h-4 text-emerald-600 rounded border-emerald-300" }), /* @__PURE__ */ import_react4.default.createElement("span", { className: "text-xs font-bold text-slate-700" }, "PC-", cargo.numero, " \xB7 ", formatearFecha(cargo.fecha), " \xB7 Pendiente ", formatearDinero(cargo.pendiente)));
-    })), /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-[10px] font-bold text-emerald-700" }, "Si el importe supera lo pendiente, la diferencia queda registrada como saldo a favor del proveedor.")), /* @__PURE__ */ import_react4.default.createElement("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-3" }, /* @__PURE__ */ import_react4.default.createElement("div", null, /* @__PURE__ */ import_react4.default.createElement("label", { className: "block text-[10px] font-black text-gray-600 uppercase tracking-wider mb-1" }, "Proveedor"), /* @__PURE__ */ import_react4.default.createElement(
+      return /* @__PURE__ */ import_react4.default.createElement("label", { key: `pago-prov-remito-multi-${cargo.pedidoId}`, className: "flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-emerald-50" }, /* @__PURE__ */ import_react4.default.createElement("input", { type: "checkbox", checked: seleccionado, onChange: (e2) => {
+        setSobrantePagoProveedorDetectado(0);
+        setConfirmarSaldoFavorPagoProveedor(false);
+        setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: e2.target.checked ? Array.from(/* @__PURE__ */ new Set([...prev.pedidoCompraIds || [], cargo.pedidoId])) : (prev.pedidoCompraIds || []).filter((id) => id !== cargo.pedidoId) }));
+      }, className: "w-4 h-4 text-emerald-600 rounded border-emerald-300" }), /* @__PURE__ */ import_react4.default.createElement("span", { className: "text-xs font-bold text-slate-700" }, "PC-", cargo.numero, " \xB7 ", formatearFecha(cargo.fecha), " \xB7 Pendiente ", formatearDinero(cargo.pendiente)));
+    })), /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-[10px] font-bold text-emerald-700" }, "El pago se aplica en el orden de los comprobantes seleccionados. Solo la diferencia final confirmada queda como saldo a favor.")), /* @__PURE__ */ import_react4.default.createElement("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-3" }, /* @__PURE__ */ import_react4.default.createElement("div", null, /* @__PURE__ */ import_react4.default.createElement("label", { className: "block text-[10px] font-black text-gray-600 uppercase tracking-wider mb-1" }, "Proveedor"), /* @__PURE__ */ import_react4.default.createElement(
       "select",
       {
         value: formPagoProveedor.proveedor || "",
@@ -80769,7 +81101,11 @@ ${configuracion.nombre}`;
         inputMode: "decimal",
         autoComplete: "off",
         value: formPagoProveedor.monto || "",
-        onChange: (e2) => setFormPagoProveedor((prev) => ({ ...prev, monto: e2.target.value.replace(/[^0-9.,]/g, "") })),
+        onChange: (e2) => {
+          setSobrantePagoProveedorDetectado(0);
+          setConfirmarSaldoFavorPagoProveedor(false);
+          setFormPagoProveedor((prev) => ({ ...prev, monto: e2.target.value.replace(/[^0-9.,]/g, "") }));
+        },
         className: "w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white font-black text-sm text-right outline-none focus:ring-2 focus:ring-emerald-500",
         placeholder: "3.305.054,50",
         required: true
