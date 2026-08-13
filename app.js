@@ -70093,6 +70093,7 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
     const docPdf = crearPdfA4("landscape", { titulo: "Cuenta corriente de proveedor" });
     const fechaEmision = /* @__PURE__ */ new Date();
     const pageWidth = docPdf.internal.pageSize.getWidth();
+    const pageHeight = docPdf.internal.pageSize.getHeight();
     const logoFuente = textoSeguroTrim(
       configuracion?.logo,
       textoSeguroTrim(configuracion?.logoCorporativo, LOGO_EMPRESA_FALLBACK_URL)
@@ -70169,10 +70170,38 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
     const pagosPorId = new Map(pagosProveedorPdf.map((pago) => [pago?.id, pago]));
     const pagosAplicadosIds = /* @__PURE__ */ new Set();
     let cursorCuentaY = 80;
+    const obtenerPaginaCuentaPdf = () => Number(
+      docPdf.internal?.getCurrentPageInfo?.()?.pageNumber || docPdf.internal?.getNumberOfPages?.() || 1
+    );
     const asegurarEspacioCuenta = (alto = 35) => {
-      if (cursorCuentaY + alto <= 270) return;
+      if (cursorCuentaY + alto <= pageHeight - 14) return;
       docPdf.addPage();
       cursorCuentaY = 20;
+    };
+    const dibujarConexionPagoPdf = ({ paginaOrigen, yOrigen, paginaDestino, yDestino }) => {
+      if (!paginaOrigen || !paginaDestino) return;
+      const paginaRetorno = obtenerPaginaCuentaPdf();
+      const xConexion = 11;
+      docPdf.setDrawColor(5, 150, 105);
+      docPdf.setFillColor(5, 150, 105);
+      docPdf.setLineWidth(0.65);
+      if (paginaOrigen === paginaDestino) {
+        docPdf.setPage(paginaOrigen);
+        docPdf.circle(xConexion, yOrigen, 1.15, "F");
+        docPdf.line(xConexion, yOrigen, xConexion, yDestino);
+        docPdf.line(xConexion, yDestino, 16.5, yDestino);
+        docPdf.triangle(17.5, yDestino, 14.8, yDestino - 1.5, 14.8, yDestino + 1.5, "F");
+      } else {
+        docPdf.setPage(paginaOrigen);
+        docPdf.circle(xConexion, yOrigen, 1.15, "F");
+        docPdf.line(xConexion, yOrigen, xConexion, pageHeight - 7);
+        docPdf.triangle(xConexion, pageHeight - 5.5, xConexion - 1.5, pageHeight - 8.2, xConexion + 1.5, pageHeight - 8.2, "F");
+        docPdf.setPage(paginaDestino);
+        docPdf.line(xConexion, 7, xConexion, yDestino);
+        docPdf.line(xConexion, yDestino, 16.5, yDestino);
+        docPdf.triangle(17.5, yDestino, 14.8, yDestino - 1.5, 14.8, yDestino + 1.5, "F");
+      }
+      docPdf.setPage(paginaRetorno);
     };
     const descripcionPagoProveedorPdf = (pago = {}, aplicado = 0) => {
       const esCheque = ["cheque", "echeq"].includes(normalizarMetodoPago(pago.metodoPago));
@@ -70183,16 +70212,25 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
     };
     const cargosPdf = cargosProveedorPdf.filter((cargo) => cargo?.imputableSaldo);
     cargosPdf.forEach((cargo) => {
+      const compraSaldada = Number(cargo?.pendiente || 0) <= 9e-3;
       const comprobante = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(" ") || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || "000000"}`);
       const pagosDelCargo = (Array.isArray(cargo?.pagosAplicados) ? cargo.pagosAplicados : []).map((aplicado) => ({ aplicado, pago: pagosPorId.get(aplicado?.id) })).filter((item2) => item2.aplicado && item2.pago);
       pagosDelCargo.forEach(({ aplicado }) => pagosAplicadosIds.add(aplicado.id));
       asegurarEspacioCuenta(55);
+      const paginaCargo = obtenerPaginaCuentaPdf();
+      const inicioCargoY = cursorCuentaY;
       docPdf.setFillColor(15, 23, 42);
       docPdf.roundedRect(14, cursorCuentaY, pageWidth - 28, 8, 1.5, 1.5, "F");
       docPdf.setTextColor(255, 255, 255);
       docPdf.setFont("helvetica", "bold");
       docPdf.setFontSize(9);
       docPdf.text(`${comprobante} \xB7 PC-${cargo.numero || "000000"}`, 18, cursorCuentaY + 5.5);
+      if (compraSaldada) {
+        docPdf.setFillColor(5, 150, 105);
+        docPdf.roundedRect(pageWidth - 61, cursorCuentaY + 1.2, 43, 5.6, 1.3, 1.3, "F");
+        docPdf.setFontSize(7.2);
+        docPdf.text("COMPRA SALDADA", pageWidth - 39.5, cursorCuentaY + 5, { align: "center" });
+      }
       cursorCuentaY += 11;
       docPdf.setTextColor(15, 23, 42);
       autoTable(docPdf, {
@@ -70212,6 +70250,8 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
       });
       cursorCuentaY = (docPdf.lastAutoTable?.finalY || cursorCuentaY + 15) + 2;
       if (pagosDelCargo.length) {
+        const paginaPago = obtenerPaginaCuentaPdf();
+        const destinoConexionY = cursorCuentaY + 4;
         docPdf.setFont("helvetica", "bold");
         docPdf.setFontSize(8);
         docPdf.setTextColor(5, 150, 105);
@@ -70232,6 +70272,12 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
           margin: { left: 18, right: 18 }
         });
         cursorCuentaY = (docPdf.lastAutoTable?.finalY || cursorCuentaY + 14) + 3;
+        dibujarConexionPagoPdf({
+          paginaOrigen: paginaCargo,
+          yOrigen: inicioCargoY + 4,
+          paginaDestino: paginaPago,
+          yDestino: destinoConexionY
+        });
       } else {
         docPdf.setFont("helvetica", "italic");
         docPdf.setFontSize(8);
@@ -70241,8 +70287,13 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
       }
       docPdf.setFont("helvetica", "bold");
       docPdf.setFontSize(8.5);
-      docPdf.setTextColor(Number(cargo.pendiente || 0) > 9e-3 ? 185 : 5, Number(cargo.pendiente || 0) > 9e-3 ? 28 : 150, Number(cargo.pendiente || 0) > 9e-3 ? 28 : 105);
-      docPdf.text(`Saldo pendiente de ${comprobante}: ${formatearDinero(Number(cargo.pendiente || 0))}`, 18, cursorCuentaY + 4);
+      if (compraSaldada) {
+        docPdf.setTextColor(5, 150, 105);
+        docPdf.text(`COMPRA SALDADA - ${comprobante}`, 18, cursorCuentaY + 4);
+      } else {
+        docPdf.setTextColor(185, 28, 28);
+        docPdf.text(`Saldo pendiente de ${comprobante}: ${formatearDinero(Number(cargo.pendiente || 0))}`, 18, cursorCuentaY + 4);
+      }
       cursorCuentaY += 10;
     });
     const pagosGeneralesPdf = pagosProveedorPdf.filter((pago) => !pagosAplicadosIds.has(pago?.id) && !(pago?.pedidoCompraId || (Array.isArray(pago?.pedidoCompraIds) ? pago.pedidoCompraIds.length : 0)));
