@@ -61918,7 +61918,9 @@ Disponible del per\xEDodo: ${formatearDinero(datosReporte.flujoNeto)}`
         };
       }).filter(Boolean).filter((item2) => normalizarTextoBusqueda(item2?.proveedor || "") === key);
       if (!filasProveedor.length) return [];
-      const monto = filasProveedor.reduce((acc, item2) => acc + Number(item2.subtotal || 0), 0);
+      const esCompraDirecta = textoSeguroTrim(pedido?.tipoRegistro, "") === "compra_directa";
+      const montoItems = filasProveedor.reduce((acc, item2) => acc + Number(item2.subtotal || 0), 0);
+      const monto = esCompraDirecta ? Math.max(0, parseNumeroBasico(pedido?.totalEstimado) || montoItems) : montoItems;
       const estadoPedido = textoSeguroTrim(pedido?.estado, "guardado");
       const pagoPedido = obtenerPagoProveedorDePedido(pedido?.id, proveedorNombre);
       const fechaPedido = pedido?.fechaCreacion || pedido?.fechaComprobante || pedido?.fechaActualizacion || (/* @__PURE__ */ new Date()).toISOString();
@@ -61942,6 +61944,10 @@ Disponible del per\xEDodo: ${formatearDinero(datosReporte.flujoNeto)}`
         estadoPedido,
         descuentoPorcentaje: parseNumeroBasico(pedido?.descuentoPorcentaje),
         ajusteMonto: parseNumeroConSigno(pedido?.ajusteMonto),
+        iva21: Math.max(0, parseNumeroBasico(pedido?.iva21)),
+        iva105: Math.max(0, parseNumeroBasico(pedido?.iva105)),
+        ingresosBrutos: Math.max(0, parseNumeroBasico(pedido?.ingresosBrutos)),
+        flete: Math.max(0, parseNumeroBasico(pedido?.flete)),
         impuestoProvincial: parseNumeroBasico(pedido?.detalleRecepcion?.impuestoProvincial),
         otrosImpuestos: parseNumeroBasico(pedido?.detalleRecepcion?.otrosImpuestos),
         monto,
@@ -73506,6 +73512,12 @@ Esto reemplaza precios, costos, proveedores, stock y datos guardados en esos pro
     if (textoSeguroTrim(producto?.imagen, "")) return producto.imagen;
     return "";
   };
+  const convertirCostoProveedorNetoParaPedidoCompra = (costo = {}, producto = {}) => {
+    const costoPesos = Math.max(0, convertirCostoProveedorAPesos(costo, producto));
+    if (!Boolean(costo?.ivaIncluido)) return costoPesos;
+    const factorIva = obtenerFactorIvaProducto(producto?.iva);
+    return factorIva > 0 ? costoPesos / (1 + factorIva) : costoPesos;
+  };
   const obtenerCostoBaseProductoParaPedidoCompra = (producto = {}, proveedor = "") => {
     const costo = producto?.costoOriginal ?? producto?.costo ?? "";
     const moneda = ["ARS", "USD_BNA", "USD_BLUE"].includes(producto?.monedaCosto) ? producto.monedaCosto : "ARS";
@@ -73514,11 +73526,15 @@ Esto reemplaza precios, costos, proveedores, stock y datos guardados en esos pro
       codigoProveedor: textoSeguroTrim(producto?.proveedor, "") === textoSeguroTrim(proveedor, "") ? textoSeguroTrim(producto?.codigoProveedor, "") : "",
       costo,
       moneda,
-      costoPesos: Math.max(0, convertirCostoProveedorAPesos({ costo, moneda }, producto))
+      costoPesos: Math.max(0, convertirCostoProveedorNetoParaPedidoCompra({
+        costo,
+        moneda,
+        ivaIncluido: Boolean(producto?.costoIvaIncluido)
+      }, producto))
     };
   };
   const obtenerCostoProveedorParaPedidoCompra = (producto = {}, proveedor = "", costoPreferido = null) => {
-    const costos = obtenerCostosProveedorProducto(producto).map((costo) => ({ ...costo, costoPesos: convertirCostoProveedorAPesos(costo, producto) }));
+    const costos = obtenerCostosProveedorProducto(producto).map((costo) => ({ ...costo, costoPesos: convertirCostoProveedorNetoParaPedidoCompra(costo, producto) }));
     if (costoPreferido) {
       const costoExacto = costos.find((costo) => normalizarTextoBusqueda(costo?.proveedor || "") === normalizarTextoBusqueda(costoPreferido?.proveedor || "") && (!costoPreferido?.codigoProveedor || normalizarTextoBusqueda(costo?.codigoProveedor || "") === normalizarTextoBusqueda(costoPreferido?.codigoProveedor || "")));
       if (costoExacto) return costoExacto;
@@ -73691,7 +73707,7 @@ Esto reemplaza precios, costos, proveedores, stock y datos guardados en esos pro
         unidad: item2?.unidad || "unid",
         cantidad: Math.max(0, parseNumeroPresupuesto(item2?.cantidad) || 0),
         stock: Math.max(0, parseNumeroPresupuesto(item2?.cantidad) || 0),
-        iva: "21",
+        iva: item2?.iva || "",
         imagen: "",
         imagenes: [],
         esProductoCompuesto: false,
@@ -73756,7 +73772,8 @@ Esto reemplaza precios, costos, proveedores, stock y datos guardados en esos pro
         codigoProveedor: mejor?.codigoProveedor || fila.codigoProveedor || "",
         costo: mejor?.costo ?? "",
         moneda: mejor?.moneda || "ARS",
-        costoPesos: mejor?.costoPesos || fila.costoPesos || 0,
+        costoPesos: producto && mejor ? convertirCostoProveedorNetoParaPedidoCompra(mejor, producto) : fila.costoPesos || 0,
+        iva: producto?.iva ?? "",
         imagen: producto?.imagen || ""
       }, index2);
     });
@@ -73825,7 +73842,7 @@ Esto reemplaza precios, costos, proveedores, stock y datos guardados en esos pro
         codigoProveedor: mejor.codigoProveedor || "",
         costo: mejor.costo ?? item2.costo,
         moneda: mejor.moneda || "ARS",
-        costoPesos: mejor.costoPesos || item2.costoPesos
+        costoPesos: producto ? convertirCostoProveedorNetoParaPedidoCompra(mejor, producto) : item2.costoPesos
       });
     }));
   };
@@ -73833,7 +73850,7 @@ Esto reemplaza precios, costos, proveedores, stock y datos guardados en esos pro
     if (!presupuesto) return;
     const items = (presupuesto?.items || []).map((item2, index2) => {
       const productoRelacionado = (item2?.id ? (productos || []).find((p3) => p3.id === item2.id) : null) || (productos || []).find((p3) => normalizarTextoBusqueda(p3?.codigo || "") === normalizarTextoBusqueda(item2?.codigo || "") || normalizarTextoBusqueda(p3?.descripcion || "") === normalizarTextoBusqueda(item2?.descripcion || ""));
-      const costos = obtenerCostosProveedorProducto(productoRelacionado).map((costo) => ({ ...costo, costoPesos: convertirCostoProveedorAPesos(costo) })).filter((costo) => costo.costoPesos > 0).sort((a3, b2) => a3.costoPesos - b2.costoPesos);
+      const costos = obtenerCostosProveedorProducto(productoRelacionado).map((costo) => ({ ...costo, costoPesos: convertirCostoProveedorNetoParaPedidoCompra(costo, productoRelacionado) })).filter((costo) => costo.costoPesos > 0).sort((a3, b2) => a3.costoPesos - b2.costoPesos);
       const proveedorElegido = textoSeguroTrim(item2?.proveedorCompra, "");
       const costoProveedor = proveedorElegido ? costos.find((costo) => normalizarTextoBusqueda(costo?.proveedor) === normalizarTextoBusqueda(proveedorElegido)) : costos[0] || null;
       return normalizarItemPedidoCompra({
