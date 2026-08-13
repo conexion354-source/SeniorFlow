@@ -1,10 +1,10 @@
-const CACHE_NAME = 'seniorflow-purchase-actions-20260813-14';
+const CACHE_NAME = 'seniorflow-purchase-actions-20260813-15';
 const ASSETS = [
   './',
   './index.html',
   './stock-app.html',
   './stock-app.js?v=seniorflow-stock-mobile-20260807-08',
-  './app.js?v=seniorflow-purchase-actions-20260813-14',
+  './app.js?v=seniorflow-purchase-actions-20260813-15',
   './firebase-config.js?v=seniorflow-react-20260715-pdf-pagination-06',
   './manifest.json',
   './manifest-stock-app.json?v=seniorflow-stock-mobile-20260807-08',
@@ -23,7 +23,11 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    await Promise.allSettled(ASSETS.map((asset) => cache.add(asset)));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (event) => {
@@ -90,7 +94,7 @@ self.addEventListener('fetch', (event) => {
             ? './stock-app.js?v=seniorflow-stock-mobile-20260807-08'
             : url.pathname.endsWith('/ofertas.html')
               ? './ofertas.html?v=seniorflow-react-20260715-pdf-pagination-06'
-              : './app.js?v=seniorflow-purchase-actions-20260813-14'));
+              : './app.js?v=seniorflow-purchase-actions-20260813-15'));
       }
     })());
     return;
