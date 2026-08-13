@@ -73812,6 +73812,10 @@ Esto reemplaza precios, costos, proveedores, stock y datos guardados en esos pro
     setMostrarTransportePedidoCompraPdf(Boolean(pedido?.mostrarTransporte));
     setPedidoCompraDescuentoPct(pedido?.descuentoPorcentaje ? String(pedido.descuentoPorcentaje) : "");
     setPedidoCompraAjusteMonto(pedido?.ajusteMonto ? String(pedido.ajusteMonto) : "");
+    setPedidoCompraIva21(pedido?.iva21 ?? "");
+    setPedidoCompraIva105(pedido?.iva105 ?? "");
+    setPedidoCompraIngresosBrutos(pedido?.ingresosBrutos ?? "");
+    setPedidoCompraFlete(pedido?.flete ?? "");
     setBusquedaProductosPedidoCompra("");
     setIncluirImagenPedidoCompraPdf(Boolean(pedido?.incluirImagenes));
     setMostrarPrecioUnitarioPedidoCompraPdf(pedido?.mostrarPrecioUnitario !== false);
@@ -79433,7 +79437,7 @@ ${configuracion.nombre}`;
         /* @__PURE__ */ import_react4.default.createElement("option", { value: "enviado" }, "Enviado"),
         /* @__PURE__ */ import_react4.default.createElement("option", { value: "recibido" }, "Recibido")
       ), /* @__PURE__ */ import_react4.default.createElement("p", { className: `mt-1 text-[10px] font-black uppercase tracking-wider ${pedido?.estado === "recibido" ? "text-emerald-700" : pedido?.pagoRegistradoProveedor ? "text-amber-700" : "text-slate-500"}` }, etiquetaEstadoPago)),
-      /* @__PURE__ */ import_react4.default.createElement("td", { className: "px-4 py-3 text-right" }, /* @__PURE__ */ import_react4.default.createElement("div", { className: "flex justify-end gap-1.5" }, /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: () => abrirPedidoCompraGuardado(pedido), className: "p-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100", title: "Abrir pedido" }, /* @__PURE__ */ import_react4.default.createElement(Eye, { size: 14 })), /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: async () => {
+      /* @__PURE__ */ import_react4.default.createElement("td", { className: "px-4 py-3 text-right" }, /* @__PURE__ */ import_react4.default.createElement("div", { className: "flex justify-end gap-1.5" }, /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: () => abrirPedidoCompraGuardado(pedido), className: "p-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100", title: "Editar pedido", "aria-label": "Editar pedido" }, /* @__PURE__ */ import_react4.default.createElement(Pen, { size: 14 })), /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: async () => {
         const filas = construirFilasPedidoCompra(pedido?.items || []);
         if (!filas.length) return;
         await generarPdfPedidoCompra({
@@ -79450,32 +79454,7 @@ ${configuracion.nombre}`;
           transporte: pedido?.transporte || "",
           incluirTransporte: Boolean(pedido?.mostrarTransporte)
         });
-      }, className: "p-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100", title: "PDF general" }, /* @__PURE__ */ import_react4.default.createElement(Download, { size: 14 })), /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: async () => {
-        const filas = construirFilasPedidoCompra(pedido?.items || []);
-        if (!filas.length) return;
-        const grupos = filas.reduce((acc, item2) => {
-          const prov = textoSeguroTrim(item2?.proveedor, "Sin proveedor");
-          if (!acc[prov]) acc[prov] = [];
-          acc[prov].push(item2);
-          return acc;
-        }, {});
-        for (const [prov, lista] of Object.entries(grupos)) {
-          await generarPdfPedidoCompra({
-            items: lista,
-            titulo: `Pedido a proveedor: ${prov}`,
-            nombreArchivo: `pedido_compra_${normalizarTextoArchivo(prov)}_pc_${textoSeguroTrim(pedido?.numero, "000000")}`,
-            incluirImagenes: Boolean(pedido?.incluirImagenes),
-            mostrarPrecioUnitario: pedido?.mostrarPrecioUnitario !== false,
-            mostrarSubtotal: pedido?.mostrarSubtotal !== false,
-            mostrarTotal: pedido?.mostrarTotal !== false,
-            notas: pedido?.notas || "",
-            numeroPedido: `PC-${textoSeguroTrim(pedido?.numero, "000000")}`,
-            fechaPedido: pedido?.fechaPedido || pedido?.fechaComprobante || "",
-            transporte: pedido?.transporte || "",
-            incluirTransporte: Boolean(pedido?.mostrarTransporte)
-          });
-        }
-      }, className: "p-2 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100", title: "PDF por proveedor" }, /* @__PURE__ */ import_react4.default.createElement(FileSpreadsheet, { size: 14 })), /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: () => eliminarPedidoCompraGuardado(pedido), className: "p-2 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100", title: "Eliminar" }, /* @__PURE__ */ import_react4.default.createElement(Trash2, { size: 14 }))))
+      }, className: "p-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100", title: "PDF general" }, /* @__PURE__ */ import_react4.default.createElement(Download, { size: 14 })), /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: () => eliminarPedidoCompraGuardado(pedido), className: "p-2 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100", title: "Eliminar" }, /* @__PURE__ */ import_react4.default.createElement(Trash2, { size: 14 }))))
     );
   })))))), puedeVerSugerencias && vista === "sugerencias" && /* @__PURE__ */ import_react4.default.createElement("div", { className: "space-y-6 animate-in fade-in duration-300 print:hidden" }, /* @__PURE__ */ import_react4.default.createElement("div", { className: "bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4" }, /* @__PURE__ */ import_react4.default.createElement("div", { className: "flex items-center gap-3" }, /* @__PURE__ */ import_react4.default.createElement("div", { className: "bg-amber-500 p-2.5 rounded-xl shadow-sm" }, /* @__PURE__ */ import_react4.default.createElement(TrendingUp, { size: 20, className: "text-white" })), /* @__PURE__ */ import_react4.default.createElement("div", null, /* @__PURE__ */ import_react4.default.createElement("h2", { className: "text-lg font-bold text-gray-900 tracking-tight" }, "Sugerencias"), /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-xs font-bold text-gray-500 uppercase tracking-wider" }, "Productos m\xE1s vendidos para armar pedidos de compra"))), /* @__PURE__ */ import_react4.default.createElement("div", { className: "w-full lg:w-auto flex flex-col sm:flex-row gap-2" }, /* @__PURE__ */ import_react4.default.createElement("div", { className: "inline-flex rounded-xl border border-amber-200 bg-amber-50 p-1" }, [
     { key: "dia", label: "D\xEDa" },
