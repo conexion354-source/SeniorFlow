@@ -70268,60 +70268,6 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
         margin: { left: 14, right: 14 }
       });
     }
-    docPdf.setFont("helvetica", "bold");
-    docPdf.setFontSize(10);
-    docPdf.text("REMITOS Y FACTURAS DEL PROVEEDOR", 14, 80);
-    autoTable(docPdf, {
-      startY: 84,
-      head: [["Fecha", "Recepci\xF3n", "Factura / remito", "Detalle", "Total", "Pendiente"]],
-      body: comprasPdf.map((mov) => {
-        const comprobante = [mov.tipoComprobanteProveedor, mov.numeroComprobanteProveedor].filter(Boolean).join(" ") || (mov.remitoProveedor ? `Remito ${mov.remitoProveedor}` : `Pedido PC-${mov.numero || "000000"}`);
-        return [
-          formatearFecha(mov.fechaPedido || mov.fecha),
-          mov.fechaRecepcion ? formatearFecha(mov.fechaRecepcion) : "-",
-          comprobante,
-          `${mov.descripcion || "Compra"}${mov.items?.length ? ` (${mov.items.length} \xEDtems)` : ""}${Number(mov.iva21 || 0) || Number(mov.iva105 || 0) ? ` \xB7 IVA: ${formatearDinero(Number(mov.iva21 || 0) + Number(mov.iva105 || 0))}` : ""}${Number(mov.ingresosBrutos || 0) || Number(mov.flete || 0) ? ` \xB7 Flete/IB: ${formatearDinero(Number(mov.ingresosBrutos || 0) + Number(mov.flete || 0))}` : ""}`,
-          formatearDinero(Number(mov.monto || 0)),
-          formatearDinero(Number(mov.pendiente || 0))
-        ];
-      }),
-      styles: { fontSize: 7.5, cellPadding: 1.6, overflow: "linebreak" },
-      headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
-      columnStyles: { 3: { cellWidth: 92 }, 4: { halign: "right" }, 5: { halign: "right" } },
-      margin: { left: 14, right: 14 }
-    });
-    let inicioPagosY = (docPdf.lastAutoTable?.finalY || 84) + 10;
-    if (pagosPdf.length) {
-      if (inicioPagosY > 260) {
-        docPdf.addPage();
-        inicioPagosY = 20;
-      }
-      docPdf.setFont("helvetica", "bold");
-      docPdf.setFontSize(10);
-      docPdf.text("PAGOS REGISTRADOS Y APLICADOS", 14, inicioPagosY);
-      autoTable(docPdf, {
-        startY: inicioPagosY + 4,
-        head: [["Fecha", "Forma / comprobante", "Aplicaci\xF3n", "Importe", "Saldo a favor"]],
-        body: pagosPdf.map((mov) => {
-          const esCheque = ["cheque", "echeq"].includes(normalizarMetodoPago(mov.metodoPago));
-          const cheque = esCheque && mov.numeroComprobante ? `Cheque N.\xBA ${mov.numeroComprobante}` : "";
-          const plazo = esCheque && mov.plazoDias ? ` \xB7 a ${parseNumeroBasico(mov.plazoDias) || 0} d\xEDas` : "";
-          const idsAplicados = Array.isArray(mov.pedidoCompraIds) && mov.pedidoCompraIds.length ? mov.pedidoCompraIds : mov.pedidoCompraId ? [mov.pedidoCompraId] : [];
-          const aplicacion = idsAplicados.length ? `Aplicado a ${idsAplicados.map((id) => `PC-${estado.cargosProcesados.find((cargo) => cargo.pedidoId === id)?.numero || "000000"}`).join(", ")}` : "Pago general a cuenta";
-          return [
-            formatearFecha(mov.fecha || mov.fechaCreacion),
-            `${obtenerEtiquetaMetodoPago(mov.metodoPago || "transferencia")}${cheque ? ` \xB7 ${cheque}` : mov.numeroComprobante ? ` \xB7 N.\xBA ${mov.numeroComprobante}` : ""}${plazo}`,
-            `${aplicacion}${mov.notas ? ` \xB7 ${mov.notas}` : ""}`,
-            formatearDinero(Number(mov.monto || 0)),
-            Number(mov.saldoFavorGenerado || 0) > 9e-3 ? formatearDinero(mov.saldoFavorGenerado) : "-"
-          ];
-        }),
-        styles: { fontSize: 7.5, cellPadding: 1.6, overflow: "linebreak" },
-        headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: "bold" },
-        columnStyles: { 2: { cellWidth: 100 }, 3: { halign: "right" }, 4: { halign: "right" } },
-        margin: { left: 14, right: 14 }
-      });
-    }
     const adjuntosImagen = pagosProveedorPdf.flatMap(
       (pago) => (Array.isArray(pago?.adjuntos) ? pago.adjuntos : []).filter((adj) => textoSeguroTrim(adj?.tipo, "").startsWith("image/") && textoSeguroTrim(adj?.dataUrl, "")).map((adj) => ({ ...adj, pago }))
     );
@@ -78325,7 +78271,7 @@ ${configuracion.nombre}`;
         .sf-purchase-item-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .sf-purchase-actions-grid { display:grid !important; grid-template-columns:112px 112px 100px !important; align-items:center !important; justify-content:end !important; gap:8px !important; width:340px !important; min-width:340px !important; overflow:visible !important; }
         .sf-purchase-actions-grid > .sf-purchase-action { appearance:none !important; display:inline-flex !important; position:static !important; inset:auto !important; transform:none !important; margin:0 !important; box-sizing:border-box !important; width:100% !important; min-width:0 !important; height:34px !important; min-height:34px !important; padding:0 12px !important; align-items:center !important; justify-content:center !important; gap:6px !important; border-radius:7px !important; font-size:11px !important; line-height:1 !important; font-weight:800 !important; letter-spacing:0 !important; text-transform:none !important; white-space:nowrap !important; overflow:hidden !important; }
-        .sf-purchase-actions-grid > .sf-purchase-action-add { border:1px solid #16a34a !important; background:#16a34a !important; color:#fff !important; }
+        .sf-enterprise-shell .sf-purchase-actions-grid > .sf-purchase-action-add { width:100% !important; min-width:0 !important; height:34px !important; min-height:34px !important; padding:0 12px !important; border:1px solid #16a34a !important; background:#16a34a !important; color:#fff !important; }
         .sf-purchase-actions-grid > .sf-purchase-action-manual { border:1px solid #2563eb !important; background:#2563eb !important; color:#fff !important; }
         .sf-purchase-actions-grid > .sf-purchase-action-clear { border:1px solid #dbe3ee !important; background:#fff !important; color:#475569 !important; }
         .sf-purchase-actions-grid > .sf-purchase-action:disabled { cursor:not-allowed !important; opacity:.45 !important; }
@@ -81649,7 +81595,7 @@ ${configuracion.nombre}`;
     )), mostrarConfigPdfPedidoCompra && /* @__PURE__ */ import_react4.default.createElement("div", { className: "mt-2 grid grid-cols-1 gap-2 border-t border-sky-200 pt-2 sm:grid-cols-2 lg:grid-cols-4" }, /* @__PURE__ */ import_react4.default.createElement("label", { className: "flex cursor-pointer items-center gap-2 rounded-lg border border-sky-100 bg-white px-2.5 py-2 text-[10px] font-black text-slate-700" }, /* @__PURE__ */ import_react4.default.createElement("input", { type: "checkbox", checked: incluirImagenPedidoCompraPdf, onChange: (e2) => setIncluirImagenPedidoCompraPdf(e2.target.checked), className: "h-4 w-4 rounded border-sky-300 text-sky-600" }), "Incluir im\xE1genes"), /* @__PURE__ */ import_react4.default.createElement("label", { className: "flex cursor-pointer items-center gap-2 rounded-lg border border-sky-100 bg-white px-2.5 py-2 text-[10px] font-black text-slate-700" }, /* @__PURE__ */ import_react4.default.createElement("input", { type: "checkbox", checked: mostrarPrecioUnitarioPedidoCompraPdf, onChange: (e2) => setMostrarPrecioUnitarioPedidoCompraPdf(e2.target.checked), className: "h-4 w-4 rounded border-sky-300 text-sky-600" }), "Precio unitario"), /* @__PURE__ */ import_react4.default.createElement("label", { className: "flex cursor-pointer items-center gap-2 rounded-lg border border-sky-100 bg-white px-2.5 py-2 text-[10px] font-black text-slate-700" }, /* @__PURE__ */ import_react4.default.createElement("input", { type: "checkbox", checked: mostrarSubtotalPedidoCompraPdf, onChange: (e2) => setMostrarSubtotalPedidoCompraPdf(e2.target.checked), className: "h-4 w-4 rounded border-sky-300 text-sky-600" }), "Subtotales"), /* @__PURE__ */ import_react4.default.createElement("label", { className: "flex cursor-pointer items-center gap-2 rounded-lg border border-sky-100 bg-white px-2.5 py-2 text-[10px] font-black text-slate-700" }, /* @__PURE__ */ import_react4.default.createElement("input", { type: "checkbox", checked: mostrarTotalPedidoCompraPdf, onChange: (e2) => setMostrarTotalPedidoCompraPdf(e2.target.checked), className: "h-4 w-4 rounded border-sky-300 text-sky-600" }), "Total final"), /* @__PURE__ */ import_react4.default.createElement("div", { className: "sm:col-span-2 lg:col-span-4 flex flex-wrap justify-end gap-2" }, /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: descargarPedidoCompraActual, disabled: !itemsPedidoCompra.length, className: "rounded-lg bg-sky-700 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-40" }, "Descargar pedido"), /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: descargarPedidoCompraPorProveedor, disabled: !itemsPedidoCompra.length, className: "rounded-lg border border-sky-300 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-wider text-sky-800 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-40" }, "Por proveedor")))), !compraDirectaActiva && /* @__PURE__ */ import_react4.default.createElement("div", { className: "flex justify-end" }, /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: guardarPedidoCompra, disabled: !itemsPedidoCompra.length, className: "w-full sm:w-auto sm:min-w-[260px] bg-slate-800 hover:bg-black disabled:bg-slate-300 text-white font-black py-2 rounded-lg text-[10px] uppercase tracking-wider" }, "Guardar pedido")))), /* @__PURE__ */ import_react4.default.createElement("div", { className: "flex flex-col gap-3 min-h-0 flex-1" }, /* @__PURE__ */ import_react4.default.createElement("div", { className: "bg-white border border-slate-200 rounded-2xl overflow-hidden min-h-0 flex-1 flex flex-col" }, /* @__PURE__ */ import_react4.default.createElement("div", { className: "sf-purchase-item-header px-3 py-1.5 border-b border-slate-100 bg-slate-50" }, /* @__PURE__ */ import_react4.default.createElement("p", { className: "sf-purchase-item-title text-[11px] font-black text-slate-700 uppercase tracking-wider", style: { minWidth: 0, margin: 0 } }, compraDirectaActiva ? "Items de la compra" : "Items del pedido", " (", itemsPedidoCompra.length, ")"), /* @__PURE__ */ import_react4.default.createElement("div", { className: "sf-purchase-actions-grid" }, /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: () => {
       setBusquedaSelectorInventarioPedidoCompra("");
       setSelectorInventarioPedidoCompraAbierto(true);
-    }, className: "sf-purchase-action sf-purchase-action-add", title: "Abrir inventario" }, /* @__PURE__ */ import_react4.default.createElement(Search, { size: 13 }), " Agregar"), /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: agregarItemManualPedidoCompra, className: "sf-purchase-action sf-purchase-action-manual" }, "+ Manual"), /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: () => setItemsPedidoCompra([]), disabled: !itemsPedidoCompra.length, className: "sf-purchase-action sf-purchase-action-clear" }, "Limpiar"))), itemsPedidoCompra.length === 0 ? /* @__PURE__ */ import_react4.default.createElement("p", { className: "p-6 text-sm font-bold text-slate-400 text-center" }, compraDirectaActiva ? "Agrega productos para registrar la compra." : "Agrega productos para crear el pedido.") : /* @__PURE__ */ import_react4.default.createElement("div", { className: "flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-slate-50/70" }, /* @__PURE__ */ import_react4.default.createElement("div", { className: "hidden lg:grid sticky top-0 z-10 grid-cols-[70px_minmax(170px,1.4fr)_86px_58px_68px_88px_60px_86px_108px_32px_32px] gap-1 items-center px-2 py-1.5 bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider" }, /* @__PURE__ */ import_react4.default.createElement("span", null, "C\xF3digo"), /* @__PURE__ */ import_react4.default.createElement("span", null, "Detalle"), /* @__PURE__ */ import_react4.default.createElement("span", null, "Cod. prov."), /* @__PURE__ */ import_react4.default.createElement("span", { className: "text-center" }, "Cant."), /* @__PURE__ */ import_react4.default.createElement("span", null, "Unidad"), /* @__PURE__ */ import_react4.default.createElement("span", { className: "text-right" }, "Costo"), /* @__PURE__ */ import_react4.default.createElement("span", { className: "text-right" }, "Desc. %"), /* @__PURE__ */ import_react4.default.createElement("span", { className: "text-center" }, "IVA"), /* @__PURE__ */ import_react4.default.createElement("span", { className: "text-right" }, "Subtotal"), /* @__PURE__ */ import_react4.default.createElement("span", null), /* @__PURE__ */ import_react4.default.createElement("span", null)), /* @__PURE__ */ import_react4.default.createElement("div", { className: "divide-y divide-slate-100" }, itemsPedidoCompra.map((item2) => {
+    }, className: "sf-purchase-action sf-purchase-action-add", "aria-label": "Agregar producto del inventario" }, /* @__PURE__ */ import_react4.default.createElement(Search, { size: 13 }), /* @__PURE__ */ import_react4.default.createElement("span", null, "Agregar")), /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: agregarItemManualPedidoCompra, className: "sf-purchase-action sf-purchase-action-manual" }, "+ Manual"), /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: () => setItemsPedidoCompra([]), disabled: !itemsPedidoCompra.length, className: "sf-purchase-action sf-purchase-action-clear" }, "Limpiar"))), itemsPedidoCompra.length === 0 ? /* @__PURE__ */ import_react4.default.createElement("p", { className: "p-6 text-sm font-bold text-slate-400 text-center" }, compraDirectaActiva ? "Agrega productos para registrar la compra." : "Agrega productos para crear el pedido.") : /* @__PURE__ */ import_react4.default.createElement("div", { className: "flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-slate-50/70" }, /* @__PURE__ */ import_react4.default.createElement("div", { className: "hidden lg:grid sticky top-0 z-10 grid-cols-[70px_minmax(170px,1.4fr)_86px_58px_68px_88px_60px_86px_108px_32px_32px] gap-1 items-center px-2 py-1.5 bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider" }, /* @__PURE__ */ import_react4.default.createElement("span", null, "C\xF3digo"), /* @__PURE__ */ import_react4.default.createElement("span", null, "Detalle"), /* @__PURE__ */ import_react4.default.createElement("span", null, "Cod. prov."), /* @__PURE__ */ import_react4.default.createElement("span", { className: "text-center" }, "Cant."), /* @__PURE__ */ import_react4.default.createElement("span", null, "Unidad"), /* @__PURE__ */ import_react4.default.createElement("span", { className: "text-right" }, "Costo"), /* @__PURE__ */ import_react4.default.createElement("span", { className: "text-right" }, "Desc. %"), /* @__PURE__ */ import_react4.default.createElement("span", { className: "text-center" }, "IVA"), /* @__PURE__ */ import_react4.default.createElement("span", { className: "text-right" }, "Subtotal"), /* @__PURE__ */ import_react4.default.createElement("span", null), /* @__PURE__ */ import_react4.default.createElement("span", null)), /* @__PURE__ */ import_react4.default.createElement("div", { className: "divide-y divide-slate-100" }, itemsPedidoCompra.map((item2) => {
       const productoRelacionado = obtenerProductoParaPedidoCompra(item2);
       const cantidad = parseNumeroPresupuesto(item2.cantidad) || 0;
       const costo = parseNumeroPresupuesto(item2.costoPesos) || 0;
