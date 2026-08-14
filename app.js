@@ -57699,6 +57699,107 @@ var ajustarImagenA4 = (anchoImagen = 1, altoImagen = 1, orientacion = "portrait"
   const drawY = margen + (areaH - drawH) / 2;
   return { pageW, pageH, margen, areaW, areaH, drawW, drawH, drawX, drawY };
 };
+var calcularDiasEntreComprobanteYPago = (fechaComprobante = "", fechaPago = "") => {
+  if (!fechaComprobante || !fechaPago) return null;
+  const inicio = new Date(fechaComprobante || 0);
+  const fin = new Date(fechaPago || 0);
+  if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) return null;
+  return Math.max(0, Math.round((fin.getTime() - inicio.getTime()) / (1e3 * 60 * 60 * 24)));
+};
+var renderizarAplicacionesPagosPdf = ({ doc: doc2, pagos = [], startY = 20, tituloPago = "PAGO", tituloVacio = "Sin pagos registrados" }) => {
+  const pageWidth = doc2.internal.pageSize.getWidth();
+  const pageHeight = doc2.internal.pageSize.getHeight();
+  let cursorY = startY;
+  const paginaActual = () => Number(doc2.internal?.getCurrentPageInfo?.()?.pageNumber || doc2.internal?.getNumberOfPages?.() || 1);
+  const asegurarEspacio = (alto = 30) => {
+    if (cursorY + alto <= pageHeight - 14) return;
+    doc2.addPage();
+    cursorY = 16;
+  };
+  if (!pagos.length) {
+    asegurarEspacio(18);
+    doc2.setFillColor(248, 250, 252);
+    doc2.setDrawColor(226, 232, 240);
+    doc2.roundedRect(14, cursorY, pageWidth - 28, 14, 2, 2, "FD");
+    doc2.setFont("helvetica", "bold");
+    doc2.setFontSize(9);
+    doc2.setTextColor(100, 116, 139);
+    doc2.text(tituloVacio, 18, cursorY + 8.5);
+    return { cursorY: cursorY + 18, pagina: paginaActual() };
+  }
+  pagos.forEach((pago, indicePago) => {
+    const aplicaciones = Array.isArray(pago?.aplicaciones) ? pago.aplicaciones : [];
+    doc2.setFont("helvetica", "bold");
+    doc2.setFontSize(8.2);
+    const alturasAplicaciones = aplicaciones.map((aplicacion) => {
+      const dias = Number.isFinite(Number(aplicacion?.dias)) ? Number(aplicacion.dias) : null;
+      const estadoTexto = Number(aplicacion?.saldoDespues || 0) <= 9e-3 ? "Qued\xF3 saldado." : `Qued\xF3 un saldo de ${formatearDinero(Number(aplicacion?.saldoDespues || 0))}.`;
+      const texto = aplicacion?.desdeSaldoFavor ? `Del sobrante de este pago se aplicaron ${formatearDinero(Number(aplicacion?.aplicado || 0))} al ${aplicacion?.comprobante || "comprobante"} de valor original ${formatearDinero(Number(aplicacion?.montoOriginal || 0))}. ${estadoTexto}` : `Se aplicaron ${formatearDinero(Number(aplicacion?.aplicado || 0))} al ${aplicacion?.comprobante || "comprobante"} de valor original ${formatearDinero(Number(aplicacion?.montoOriginal || 0))}${dias === null ? "" : `, a los ${dias} d\xEDas`}. ${estadoTexto}`;
+      const lineas = doc2.splitTextToSize(texto, pageWidth - 53);
+      return { aplicacion, lineas, alto: Math.max(10, lineas.length * 3.6 + 4) };
+    });
+    const altoBloque = 17 + (alturasAplicaciones.length ? alturasAplicaciones.reduce((total, item2) => total + item2.alto + 2, 0) : 12) + (Number(pago?.sobrante || 0) > 9e-3 ? 10 : 0) + 5;
+    asegurarEspacio(Math.min(altoBloque, pageHeight - 30));
+    doc2.setFillColor(30, 64, 109);
+    doc2.roundedRect(14, cursorY, pageWidth - 28, 10, 2, 2, "F");
+    doc2.setFont("helvetica", "bold");
+    doc2.setFontSize(9);
+    doc2.setTextColor(255, 255, 255);
+    doc2.text(`${tituloPago} ${String(indicePago + 1).padStart(2, "0")} \xB7 ${formatearFecha(pago?.fecha || /* @__PURE__ */ new Date())}`, 18, cursorY + 6.5);
+    doc2.setFontSize(10.5);
+    doc2.text(formatearDinero(Number(pago?.total || 0)), pageWidth - 18, cursorY + 6.5, { align: "right" });
+    cursorY += 12;
+    doc2.setFont("helvetica", "normal");
+    doc2.setFontSize(7.7);
+    doc2.setTextColor(71, 85, 105);
+    const datosPago = [pago?.medio, pago?.detalle].filter(Boolean).join(" \xB7 ") || "Sin detalle adicional";
+    const lineasDatosPago = doc2.splitTextToSize(datosPago, pageWidth - 36);
+    doc2.text(lineasDatosPago, 18, cursorY + 2.5);
+    cursorY += Math.max(6, lineasDatosPago.length * 3.3 + 2);
+    if (!alturasAplicaciones.length) {
+      doc2.setFillColor(255, 247, 237);
+      doc2.setDrawColor(253, 186, 116);
+      doc2.roundedRect(18, cursorY, pageWidth - 36, 9, 1.5, 1.5, "FD");
+      doc2.setFont("helvetica", "bold");
+      doc2.setFontSize(8);
+      doc2.setTextColor(180, 83, 9);
+      doc2.text("Este pago todav\xEDa no fue aplicado a ning\xFAn comprobante.", 22, cursorY + 5.8);
+      cursorY += 12;
+    } else {
+      alturasAplicaciones.forEach(({ aplicacion, lineas, alto }, indiceAplicacion) => {
+        asegurarEspacio(alto + 4);
+        const saldado = Number(aplicacion?.saldoDespues || 0) <= 9e-3;
+        doc2.setFillColor(saldado ? 240 : 254, saldado ? 253 : 242, saldado ? 250 : 242);
+        doc2.setDrawColor(saldado ? 167 : 254, saldado ? 243 : 202, saldado ? 208 : 202);
+        doc2.roundedRect(18, cursorY, pageWidth - 36, alto, 1.5, 1.5, "FD");
+        doc2.setFillColor(saldado ? 5 : 220, saldado ? 150 : 38, saldado ? 105 : 38);
+        doc2.circle(23, cursorY + alto / 2, 3, "F");
+        doc2.setFont("helvetica", "bold");
+        doc2.setFontSize(8);
+        doc2.setTextColor(255, 255, 255);
+        doc2.text(String(indiceAplicacion + 1), 23, cursorY + alto / 2 + 1, { align: "center" });
+        doc2.setFont("helvetica", "bold");
+        doc2.setFontSize(8.2);
+        doc2.setTextColor(30, 41, 59);
+        doc2.text(lineas, 29, cursorY + 4.2);
+        cursorY += alto + 2;
+      });
+    }
+    if (Number(pago?.sobrante || 0) > 9e-3) {
+      asegurarEspacio(12);
+      doc2.setFillColor(255, 251, 235);
+      doc2.setDrawColor(252, 211, 77);
+      doc2.roundedRect(18, cursorY, pageWidth - 36, 8, 1.5, 1.5, "FD");
+      doc2.setFont("helvetica", "bold");
+      doc2.setFontSize(8);
+      doc2.setTextColor(180, 83, 9);
+      doc2.text(`Quedaron ${formatearDinero(Number(pago.sobrante))} a favor o pendientes de aplicar.`, 22, cursorY + 5.3);
+      cursorY += 11;
+    }
+    cursorY += 4;
+  });
+  return { cursorY, pagina: paginaActual() };
+};
 var AUTO_PRINT_READY_SCRIPT = `
   <script>
     (() => {
@@ -67347,16 +67448,72 @@ Esta acci\xF3n no se puede deshacer. \xBFContinuar?`;
     doc2.setFont("helvetica", "normal");
     doc2.setFontSize(7.5);
     doc2.setTextColor(100, 116, 139);
-    doc2.text("Este resumen muestra remitos de cuenta corriente y pagos aplicados. No incluye recargos de mora.", 14, 65);
-    doc2.setFont("helvetica", "bold");
-    doc2.setFontSize(7);
-    doc2.setTextColor(15, 23, 42);
-    doc2.text("Rxx = remito/venta", 14, 69);
-    doc2.setTextColor(5, 150, 105);
-    doc2.text("Pxx = pago/cobro", 48, 69);
-    doc2.setTextColor(217, 119, 6);
-    doc2.text("l\xEDnea de color = el mismo pago contin\xFAa en otro remito o termina como saldo a favor", 80, 69);
-    const usarDetalleAgrupadoClientesPdf = true;
+    doc2.text("Lectura simple por pago: importe recibido, comprobantes afectados, d\xEDas transcurridos y saldo resultante. No incluye recargos de mora.", 14, 66);
+    const usarResumenSimpleClientesPdf = true;
+    if (usarResumenSimpleClientesPdf) {
+      const movimientosPagoPorId = new Map([...estado?.movimientosDesc || [], ...movimientos || []].filter((mov) => mov?.id).map((mov) => [mov.id, mov]));
+      const pagosResumenMap = /* @__PURE__ */ new Map();
+      remitosBase.forEach((cargo) => {
+        const detalleCargo = cargo?.detallesPago || {};
+        const numero = textoSeguroTrim(detalleCargo?.numeroComprobante, textoSeguroTrim(detalleCargo?.comprobanteNumero, "-"));
+        const tipo = OPCIONES_COMPROBANTE_VENTA.find((opcion) => opcion.value === detalleCargo?.tipoComprobante)?.label || textoSeguroTrim(detalleCargo?.tipoComprobante, "Remito");
+        const comprobante = `${tipo} ${numero}`.trim();
+        (Array.isArray(cargo?.pagosAplicados) ? cargo.pagosAplicados : []).forEach((pago, indicePago) => {
+          const pagoId = textoSeguroTrim(pago?.id, `${pago?.fecha || "sin-fecha"}-${cargo?.id || "cargo"}-${indicePago}`);
+          const movimientoPago = movimientosPagoPorId.get(pagoId) || null;
+          if (!pagosResumenMap.has(pagoId)) {
+            const resumen = movimientoPago ? construirResumenReciboCobro(movimientoPago) : null;
+            const detallesPago = movimientoPago?.detallesPago || {};
+            const metodo = pago?.tipo === "credito" || esMovimientoDescuentoCuentaCorriente(movimientoPago || {}) ? "Nota de cr\xE9dito" : obtenerEtiquetaMetodoPago(movimientoPago?.metodoPago || pago?.metodoPago || "efectivo");
+            const numeroPago = textoSeguroTrim(resumen?.numeroCheque, textoSeguroTrim(detallesPago?.numeroComprobante, textoSeguroTrim(detallesPago?.referencia, "")));
+            const emisor = textoSeguroTrim(resumen?.emisor, textoSeguroTrim(detallesPago?.emisor, textoSeguroTrim(detallesPago?.titular, "")));
+            pagosResumenMap.set(pagoId, { id: pagoId, fecha: pago?.fecha || movimientoPago?.fecha || "", total: Math.abs(Number(movimientoPago?.monto || pago?.monto || 0)), medio: `${metodo}${numeroPago ? ` \xB7 N.\xBA ${numeroPago}` : ""}${emisor ? ` \xB7 Emisor: ${emisor}` : ""}`, detalle: textoSeguroTrim(movimientoPago?.descripcion, textoSeguroTrim(pago?.descripcion, "")), aplicado: 0, aplicaciones: [] });
+          }
+          const resumenPago = pagosResumenMap.get(pagoId);
+          const aplicado = Math.max(0, Number(pago?.monto || 0));
+          const diasGuardados = pago?.diasDesdeRemito;
+          const dias = diasGuardados !== void 0 && diasGuardados !== null && String(diasGuardados).trim() !== "" ? Math.max(0, Number(diasGuardados) || 0) : calcularDiasEntreComprobanteYPago(cargo?.fecha, pago?.fecha || movimientoPago?.fecha);
+          resumenPago.aplicado += aplicado;
+          resumenPago.aplicaciones.push({ comprobante, montoOriginal: Math.max(0, Number(cargo?.montoOriginal ?? cargo?.monto ?? 0)), aplicado, saldoDespues: Math.max(0, Number(pago?.pendienteDespues || 0)), dias, desdeSaldoFavor: Boolean(pago?.desdeSaldoFavor) });
+        });
+      });
+      (estado?.movimientosDesc || []).filter((movimiento) => movimiento?.tipo === "cobro" || esMovimientoDescuentoCuentaCorriente(movimiento)).forEach((movimiento) => {
+        if (!movimiento?.id || pagosResumenMap.has(movimiento.id)) return;
+        const resumen = construirResumenReciboCobro(movimiento);
+        const detallesPago = movimiento?.detallesPago || {};
+        const metodo = esMovimientoDescuentoCuentaCorriente(movimiento) ? "Nota de cr\xE9dito" : obtenerEtiquetaMetodoPago(movimiento?.metodoPago || "efectivo");
+        const numeroPago = textoSeguroTrim(resumen?.numeroCheque, textoSeguroTrim(detallesPago?.numeroComprobante, textoSeguroTrim(detallesPago?.referencia, "")));
+        const emisor = textoSeguroTrim(resumen?.emisor, textoSeguroTrim(detallesPago?.emisor, textoSeguroTrim(detallesPago?.titular, "")));
+        pagosResumenMap.set(movimiento.id, { id: movimiento.id, fecha: movimiento.fecha || "", total: Math.abs(Number(movimiento.monto || 0)), medio: `${metodo}${numeroPago ? ` \xB7 N.\xBA ${numeroPago}` : ""}${emisor ? ` \xB7 Emisor: ${emisor}` : ""}`, detalle: textoSeguroTrim(movimiento.descripcion, ""), aplicado: 0, aplicaciones: [] });
+      });
+      const pagosResumen = Array.from(pagosResumenMap.values()).sort((a3, b2) => new Date(a3.fecha || 0) - new Date(b2.fecha || 0)).map((pago) => ({ ...pago, total: pago.total > 0 ? pago.total : pago.aplicado, sobrante: Math.max(0, (pago.total > 0 ? pago.total : pago.aplicado) - pago.aplicado) }));
+      const resultadoResumen = renderizarAplicacionesPagosPdf({ doc: doc2, pagos: pagosResumen, startY: 75, tituloPago: "PAGO RECIBIDO", tituloVacio: "No hay pagos recibidos para detallar." });
+      let pendienteY = resultadoResumen.cursorY;
+      const pageHeight = doc2.internal.pageSize.getHeight();
+      if (pendienteY > pageHeight - 40) {
+        doc2.addPage();
+        pendienteY = 16;
+      }
+      doc2.setFont("helvetica", "bold");
+      doc2.setFontSize(9);
+      doc2.setTextColor(15, 23, 42);
+      doc2.text("REMITOS QUE TODAV\xCDA TIENEN SALDO", 14, pendienteY + 2);
+      pendienteY += 6;
+      if (pendientesBase.length) {
+        autoTable(doc2, { startY: pendienteY, head: [["Fecha", "Comprobante", "Valor original", "Saldo pendiente"]], body: pendientesBase.map((cargo) => {
+          const detalle = cargo?.detallesPago || {};
+          const numero = textoSeguroTrim(detalle?.numeroComprobante, textoSeguroTrim(detalle?.comprobanteNumero, "-"));
+          const tipo = OPCIONES_COMPROBANTE_VENTA.find((opcion) => opcion.value === detalle?.tipoComprobante)?.label || textoSeguroTrim(detalle?.tipoComprobante, "Remito");
+          return [formatearFecha(cargo.fecha), `${tipo} ${numero}`.trim(), formatearDinero(Number(cargo?.montoOriginal ?? cargo?.monto ?? 0)), formatearDinero(Number(cargo?.pendiente || 0))];
+        }), styles: { fontSize: 7.8, cellPadding: 1.7 }, headStyles: { fillColor: [185, 28, 28], textColor: 255, fontStyle: "bold" }, columnStyles: { 2: { halign: "right" }, 3: { halign: "right", fontStyle: "bold" } }, margin: { left: 14, right: 14 } });
+      } else {
+        doc2.setFont("helvetica", "bold");
+        doc2.setFontSize(8.5);
+        doc2.setTextColor(5, 150, 105);
+        doc2.text("No quedan remitos pendientes.", 18, pendienteY + 5);
+      }
+    }
+    const usarDetalleAgrupadoClientesPdf = !usarResumenSimpleClientesPdf;
     if (usarDetalleAgrupadoClientesPdf) {
       const pageWidthClientePdf = doc2.internal.pageSize.getWidth();
       const pageHeightClientePdf = doc2.internal.pageSize.getHeight();
@@ -67642,7 +67799,7 @@ ${aclaracionCobroClientePdf(pago, movimiento)}`,
         doc2.text("No hay ventas de cuenta corriente para este cliente.", 14, 74);
       }
     }
-    if (!usarDetalleAgrupadoClientesPdf) {
+    if (!usarResumenSimpleClientesPdf && !usarDetalleAgrupadoClientesPdf) {
       const bodyRemitos = remitosBase.map((item2) => {
         const fechaTicket = new Date(item2.fecha);
         const dias = Number.isNaN(fechaTicket.getTime()) ? "-" : String(Math.max(0, Math.floor((Date.now() - fechaTicket.getTime()) / MS_POR_DIA)));
@@ -71149,372 +71306,422 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
     const cargosProveedorPdf = Array.isArray(estado.cargosProcesados) ? estado.cargosProcesados : [];
     const pagosPorId = new Map(pagosProveedorPdf.map((pago) => [pago?.id, pago]));
     const pagosAplicadosIds = /* @__PURE__ */ new Set();
-    docPdf.setFont("helvetica", "bold");
-    docPdf.setFontSize(7);
-    docPdf.setTextColor(15, 23, 42);
-    docPdf.text("Rxx = remito/factura", 14, 75);
-    docPdf.setTextColor(5, 150, 105);
-    docPdf.text("Pxx = pago", 52, 75);
-    docPdf.setTextColor(217, 119, 6);
-    docPdf.text("naranja = sobrante transferido o saldo a favor", 78, 75);
-    let cursorCuentaY = 82;
-    const obtenerPaginaCuentaPdf = () => Number(
-      docPdf.internal?.getCurrentPageInfo?.()?.pageNumber || docPdf.internal?.getNumberOfPages?.() || 1
-    );
-    const asegurarEspacioCuenta = (alto = 35) => {
-      if (cursorCuentaY + alto <= pageHeight - 14) return;
-      docPdf.addPage();
-      cursorCuentaY = 20;
-    };
-    const dibujarConexionPagoPdf = ({ paginaOrigen, yOrigen, paginaDestino, yDestino }) => {
-      if (!paginaOrigen || !paginaDestino) return;
-      const paginaRetorno = obtenerPaginaCuentaPdf();
-      const xConexion = 11;
-      docPdf.setDrawColor(5, 150, 105);
-      docPdf.setFillColor(5, 150, 105);
-      docPdf.setLineWidth(0.65);
-      if (paginaOrigen === paginaDestino) {
-        docPdf.setPage(paginaOrigen);
-        docPdf.circle(xConexion, yOrigen, 1.15, "F");
-        docPdf.line(xConexion, yOrigen, xConexion, yDestino);
-        docPdf.line(xConexion, yDestino, 16.5, yDestino);
-        docPdf.triangle(17.5, yDestino, 14.8, yDestino - 1.5, 14.8, yDestino + 1.5, "F");
-      } else {
-        docPdf.setPage(paginaOrigen);
-        docPdf.circle(xConexion, yOrigen, 1.15, "F");
-        docPdf.line(xConexion, yOrigen, xConexion, pageHeight - 7);
-        docPdf.triangle(xConexion, pageHeight - 5.5, xConexion - 1.5, pageHeight - 8.2, xConexion + 1.5, pageHeight - 8.2, "F");
-        docPdf.setPage(paginaDestino);
-        docPdf.line(xConexion, 7, xConexion, yDestino);
-        docPdf.line(xConexion, yDestino, 16.5, yDestino);
-        docPdf.triangle(17.5, yDestino, 14.8, yDestino - 1.5, 14.8, yDestino + 1.5, "F");
-      }
-      docPdf.setPage(paginaRetorno);
-    };
-    const dibujarConexionSaldoFavorPdf = ({ paginaOrigen, yOrigen, paginaDestino, yDestino }) => {
-      if (!paginaOrigen || !paginaDestino) return;
-      const paginaRetorno = obtenerPaginaCuentaPdf();
-      const xConexion = pageWidth - 11;
-      docPdf.setDrawColor(217, 119, 6);
-      docPdf.setFillColor(217, 119, 6);
-      docPdf.setLineWidth(0.75);
-      if (paginaOrigen === paginaDestino) {
-        docPdf.setPage(paginaOrigen);
-        docPdf.circle(xConexion, yOrigen, 1.2, "F");
-        docPdf.line(pageWidth - 18, yOrigen, xConexion, yOrigen);
-        docPdf.line(xConexion, yOrigen, xConexion, yDestino);
-        docPdf.line(xConexion, yDestino, pageWidth - 14.8, yDestino);
-        docPdf.triangle(pageWidth - 17.5, yDestino, pageWidth - 14.8, yDestino - 1.5, pageWidth - 14.8, yDestino + 1.5, "F");
-      } else {
-        docPdf.setPage(paginaOrigen);
-        docPdf.circle(xConexion, yOrigen, 1.2, "F");
-        docPdf.line(pageWidth - 18, yOrigen, xConexion, yOrigen);
-        docPdf.line(xConexion, yOrigen, xConexion, pageHeight - 7);
-        docPdf.triangle(xConexion, pageHeight - 5.5, xConexion - 1.5, pageHeight - 8.2, xConexion + 1.5, pageHeight - 8.2, "F");
-        docPdf.setPage(paginaDestino);
-        docPdf.line(xConexion, 7, xConexion, yDestino);
-        docPdf.line(xConexion, yDestino, pageWidth - 14.8, yDestino);
-        docPdf.triangle(pageWidth - 17.5, yDestino, pageWidth - 14.8, yDestino - 1.5, pageWidth - 14.8, yDestino + 1.5, "F");
-      }
-      docPdf.setPage(paginaRetorno);
-    };
-    const descripcionPagoProveedorPdf = (pago = {}, aplicado = 0, pedidoCompraId = "", aplicacionCuenta = null) => {
-      const esCheque = ["cheque", "echeq"].includes(normalizarMetodoPago(pago.metodoPago));
-      const cheque = esCheque && pago.numeroComprobante ? `Cheque N.\xBA ${pago.numeroComprobante}` : "";
-      const plazo = esCheque && pago.plazoDias ? ` \xB7 a ${parseNumeroBasico(pago.plazoDias) || 0} d\xEDas` : "";
-      const comprobante = cheque || (pago.numeroComprobante ? `N.\xBA ${pago.numeroComprobante}` : "");
-      const emisor = textoSeguroTrim(pago?.emisor, "");
-      const aplicaciones = Array.isArray(pago?.aplicacionesComprobantes) ? pago.aplicacionesComprobantes : [];
-      const aplicacionActual = pedidoCompraId ? aplicaciones.find((item2) => item2?.pedidoCompraId === pedidoCompraId) : null;
-      const orden = aplicacionActual && aplicaciones.length > 1 ? ` \xB7 distribuci\xF3n ${aplicacionActual.orden || 1}/${aplicaciones.length}` : "";
-      const origenSaldoFavor = aplicacionCuenta?.desdeSaldoFavor ? " \xB7 cr\xE9dito de saldo a favor" : "";
-      return `${obtenerEtiquetaMetodoPago(pago.metodoPago || "transferencia")}${comprobante ? ` \xB7 ${comprobante}` : ""}${emisor ? ` \xB7 Emisor: ${emisor}` : ""}${plazo}${orden}${origenSaldoFavor}`;
-    };
-    const aclaracionPagoProveedorPdf = (pago = {}) => {
-      const saldoFavor = Number(pago?.saldoFavorGenerado ?? pago?.saldoFavorRegistrado ?? 0);
-      const saldoFavorConsumido = Number(pago?.saldoFavorConsumido || 0);
-      const destinosSaldoFavor = cargosProveedorPdf.flatMap((cargo) => (cargo?.pagosAplicados || []).filter((aplicado) => aplicado?.id === pago?.id && aplicado?.desdeSaldoFavor).map((aplicado) => {
-        const comprobanteDestino = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(" ") || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || "000000"}`);
-        return `${comprobanteDestino}: ${formatearDinero(Number(aplicado?.monto || 0))}`;
+    const usarResumenSimpleProveedorPdf = true;
+    if (usarResumenSimpleProveedorPdf) {
+      const pagosResumenMap = new Map(pagosProveedorPdf.filter((pago) => pago?.id).map((pago) => {
+        const esCheque = ["cheque", "echeq"].includes(normalizarMetodoPago(pago?.metodoPago));
+        const numero = textoSeguroTrim(pago?.numeroComprobante, "");
+        const emisor = textoSeguroTrim(pago?.emisor, "");
+        const plazo = esCheque && pago?.plazoDias !== void 0 && pago?.plazoDias !== null && String(pago.plazoDias).trim() !== "" ? ` \xB7 Cheque a ${Math.max(0, parseNumeroBasico(pago.plazoDias))} d\xEDas` : "";
+        return [pago.id, { id: pago.id, fecha: pago.fecha || pago.fechaCreacion || "", total: Math.max(0, Number(pago.monto || 0)), medio: `${obtenerEtiquetaMetodoPago(pago.metodoPago || "transferencia")}${numero ? ` \xB7 N.\xBA ${numero}` : ""}${emisor ? ` \xB7 Emisor: ${emisor}` : ""}${plazo}`, detalle: textoSeguroTrim(pago?.notas, ""), aplicado: 0, aplicaciones: [] }];
       }));
-      return [
-        textoSeguroTrim(pago?.notas, ""),
-        saldoFavorConsumido > 9e-3 ? `Saldo a favor utilizado: ${formatearDinero(saldoFavorConsumido)}` : "",
-        destinosSaldoFavor.length ? `Sobrante aplicado a ${destinosSaldoFavor.join(" \xB7 ")}` : "",
-        saldoFavor > 9e-3 ? `Saldo a favor disponible: ${formatearDinero(saldoFavor)}` : ""
-      ].filter(Boolean).join(" \xB7 ") || "-";
-    };
-    const cargosPdf = cargosProveedorPdf.filter((cargo) => cargo?.imputableSaldo);
-    const referenciaCargoProveedorPdf = new Map(cargosPdf.map((cargo, indice) => {
-      const comprobante = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(" ") || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || "000000"}`);
-      return [cargo.pedidoId || cargo.id, { codigo: `R${String(indice + 1).padStart(2, "0")}`, comprobante }];
-    }));
-    const trazabilidadPagosProveedorPdf = new Map(pagosProveedorPdf.filter((pago) => pago?.id).map((pago) => [pago.id, { id: pago.id, pago, fecha: pago.fecha || pago.fechaCreacion || "", total: Math.max(0, Number(pago.monto || 0)), aplicado: 0, aplicaciones: [], sobrante: 0 }]));
-    cargosPdf.forEach((cargo) => {
-      const referencia = referenciaCargoProveedorPdf.get(cargo.pedidoId || cargo.id) || { codigo: "R--", comprobante: "Comprobante" };
-      (cargo?.pagosAplicados || []).forEach((aplicado) => {
-        if (!aplicado?.id) return;
-        const pago = pagosPorId.get(aplicado.id) || {};
-        const traza = trazabilidadPagosProveedorPdf.get(aplicado.id) || { id: aplicado.id, pago, fecha: pago.fecha || aplicado.fecha || "", total: Math.max(0, Number(pago.monto || 0)), aplicado: 0, aplicaciones: [], sobrante: 0 };
-        const monto = Math.max(0, Number(aplicado.monto || 0));
-        traza.aplicado += monto;
-        traza.aplicaciones.push({ cargoId: cargo.pedidoId || cargo.id, codigo: referencia.codigo, comprobante: referencia.comprobante, monto, desdeSaldoFavor: Boolean(aplicado.desdeSaldoFavor) });
-        trazabilidadPagosProveedorPdf.set(aplicado.id, traza);
+      cargosProveedorPdf.filter((cargo) => cargo?.imputableSaldo).forEach((cargo) => {
+        const comprobante = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(" ") || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || "000000"}`);
+        (Array.isArray(cargo?.pagosAplicados) ? cargo.pagosAplicados : []).forEach((aplicado) => {
+          const pago = pagosPorId.get(aplicado?.id);
+          if (!pago?.id) return;
+          if (!pagosResumenMap.has(pago.id)) pagosResumenMap.set(pago.id, { id: pago.id, fecha: pago.fecha || aplicado.fecha || "", total: Math.max(0, Number(pago.monto || 0)), medio: obtenerEtiquetaMetodoPago(pago.metodoPago || "transferencia"), detalle: textoSeguroTrim(pago?.notas, ""), aplicado: 0, aplicaciones: [] });
+          const resumenPago = pagosResumenMap.get(pago.id);
+          const montoAplicado = Math.max(0, Number(aplicado?.monto || 0));
+          const fechaCargo = cargo?.fechaRemitoProveedor || cargo?.fechaPedido || cargo?.fechaRecepcion || cargo?.fecha;
+          const dias = calcularDiasEntreComprobanteYPago(fechaCargo, pago.fecha || pago.fechaCreacion || aplicado.fecha);
+          resumenPago.aplicado += montoAplicado;
+          resumenPago.aplicaciones.push({ comprobante, montoOriginal: Math.max(0, Number(cargo?.monto || 0)), aplicado: montoAplicado, saldoDespues: Math.max(0, Number(aplicado?.pendienteDespues || 0)), dias, desdeSaldoFavor: Boolean(aplicado?.desdeSaldoFavor) });
+        });
       });
-    });
-    const pagosTrazadosProveedorPdf = Array.from(trazabilidadPagosProveedorPdf.values()).sort((a3, b2) => new Date(a3.fecha || 0) - new Date(b2.fecha || 0));
-    const codigoPagoProveedorPdf = new Map(pagosTrazadosProveedorPdf.map((traza, indice) => [traza.id, `P${String(indice + 1).padStart(2, "0")}`]));
-    pagosTrazadosProveedorPdf.forEach((traza) => {
-      traza.sobrante = Math.max(0, traza.total - traza.aplicado);
-    });
-    const coloresTrazabilidadProveedorPdf = [[5, 150, 105], [37, 99, 235], [124, 58, 237], [217, 119, 6], [8, 145, 178], [190, 24, 93]];
-    const colorPagoProveedorPdf = (pagoId = "") => coloresTrazabilidadProveedorPdf[Math.max(0, pagosTrazadosProveedorPdf.findIndex((traza) => traza.id === pagoId)) % coloresTrazabilidadProveedorPdf.length];
-    const rutaPagoProveedorPdf = (pagoId = "") => {
-      const traza = trazabilidadPagosProveedorPdf.get(pagoId);
-      if (!traza) return "-";
-      const codigo = codigoPagoProveedorPdf.get(pagoId) || "P--";
-      const destinos = traza.aplicaciones.map((aplicacion) => `${aplicacion.codigo} ${formatearDinero(aplicacion.monto)}${aplicacion.desdeSaldoFavor ? " (desde sobrante)" : ""}`).join(" => ");
-      return `${codigo} PAGADO ${formatearDinero(traza.total)}${destinos ? ` => ${destinos}` : ""}${traza.sobrante > 9e-3 ? ` => SALDO A FAVOR ${formatearDinero(traza.sobrante)}` : ""}`;
-    };
-    const puntosPagoProveedorPdf = /* @__PURE__ */ new Map();
-    const dibujarContinuidadPagoProveedorPdf = (pagoId = "", puntos = []) => {
-      if (puntos.length < 2) return;
-      const paginaRetorno = obtenerPaginaCuentaPdf();
-      const [r2, g2, b2] = colorPagoProveedorPdf(pagoId);
-      const x3 = pageWidth - 8.5;
-      docPdf.setDrawColor(r2, g2, b2);
-      docPdf.setFillColor(r2, g2, b2);
-      docPdf.setTextColor(r2, g2, b2);
-      docPdf.setLineWidth(0.7);
-      puntos.forEach((punto, indice) => {
-        docPdf.setPage(punto.pagina);
-        docPdf.line(pageWidth - 17.8, punto.y, x3, punto.y);
-        docPdf.circle(x3, punto.y, 1.05, "F");
-        docPdf.setFont("helvetica", "bold");
-        docPdf.setFontSize(6.4);
-        docPdf.text(codigoPagoProveedorPdf.get(pagoId) || "P--", x3 - 1.8, punto.y - 1.8, { align: "right" });
-        const siguiente = puntos[indice + 1];
-        if (!siguiente) return;
-        if (punto.pagina === siguiente.pagina) {
-          docPdf.line(x3, punto.y, x3, siguiente.y);
-          docPdf.triangle(x3, siguiente.y + 1.6, x3 - 1.35, siguiente.y - 1.1, x3 + 1.35, siguiente.y - 1.1, "F");
-        } else {
-          docPdf.line(x3, punto.y, x3, pageHeight - 6.5);
-          docPdf.triangle(x3, pageHeight - 5, x3 - 1.35, pageHeight - 7.7, x3 + 1.35, pageHeight - 7.7, "F");
-          docPdf.setPage(siguiente.pagina);
-          docPdf.setDrawColor(r2, g2, b2);
-          docPdf.setFillColor(r2, g2, b2);
-          docPdf.line(x3, 6.5, x3, siguiente.y);
-          docPdf.triangle(x3, siguiente.y + 1.6, x3 - 1.35, siguiente.y - 1.1, x3 + 1.35, siguiente.y - 1.1, "F");
-        }
-      });
-      docPdf.setPage(paginaRetorno);
-    };
-    const origenSaldoFavorPorPagoId = /* @__PURE__ */ new Map();
-    const conexionesSaldoFavorPendientesPdf = [];
-    cargosPdf.forEach((cargo) => {
-      const compraSaldada = Number(cargo?.pendiente || 0) <= 9e-3;
-      const comprobante = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(" ") || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || "000000"}`);
-      const referenciaCargo = referenciaCargoProveedorPdf.get(cargo.pedidoId || cargo.id) || { codigo: "R--", comprobante };
-      const pagosDelCargo = (Array.isArray(cargo?.pagosAplicados) ? cargo.pagosAplicados : []).map((aplicado) => ({ aplicado, pago: pagosPorId.get(aplicado?.id) })).filter((item2) => item2.aplicado && item2.pago);
-      const pagosDesdeSaldoFavor = pagosDelCargo.filter(({ aplicado }) => aplicado?.desdeSaldoFavor);
-      const totalSaldoFavorAplicadoCargo = pagosDesdeSaldoFavor.reduce((total, { aplicado }) => total + Number(aplicado?.monto || 0), 0);
-      pagosDelCargo.forEach(({ aplicado }) => pagosAplicadosIds.add(aplicado.id));
-      asegurarEspacioCuenta(55);
-      const paginaCargo = obtenerPaginaCuentaPdf();
-      const inicioCargoY = cursorCuentaY;
-      docPdf.setFillColor(15, 23, 42);
-      docPdf.roundedRect(14, cursorCuentaY, pageWidth - 28, 8, 1.5, 1.5, "F");
-      docPdf.setTextColor(255, 255, 255);
+      const pagosResumen = Array.from(pagosResumenMap.values()).sort((a3, b2) => new Date(a3.fecha || 0) - new Date(b2.fecha || 0)).map((pago) => ({ ...pago, sobrante: Math.max(0, Number(pago.total || 0) - Number(pago.aplicado || 0)) }));
+      const resultadoResumen = renderizarAplicacionesPagosPdf({ doc: docPdf, pagos: pagosResumen, startY: 78, tituloPago: "PAGO REALIZADO", tituloVacio: "No hay pagos realizados para detallar." });
+      let pendienteY = resultadoResumen.cursorY;
+      if (pendienteY > pageHeight - 40) {
+        docPdf.addPage();
+        pendienteY = 16;
+      }
+      const cargosPendientes = cargosProveedorPdf.filter((cargo) => cargo?.imputableSaldo && Number(cargo?.pendiente || 0) > 9e-3);
       docPdf.setFont("helvetica", "bold");
       docPdf.setFontSize(9);
-      docPdf.text(`${referenciaCargo.codigo} \xB7 ${comprobante} \xB7 PC-${cargo.numero || "000000"}`, 18, cursorCuentaY + 5.5);
-      if (compraSaldada) {
-        docPdf.setFillColor(5, 150, 105);
-        docPdf.roundedRect(pageWidth - 61, cursorCuentaY + 1.2, 43, 5.6, 1.3, 1.3, "F");
-        docPdf.setFontSize(7.2);
-        docPdf.text("COMPRA SALDADA", pageWidth - 39.5, cursorCuentaY + 5, { align: "center" });
-      }
-      pagosDesdeSaldoFavor.forEach(({ aplicado, pago }) => conexionesSaldoFavorPendientesPdf.push({ pagoId: pago.id, paginaDestino: paginaCargo, yDestino: inicioCargoY + 4, comprobanteDestino: comprobante, montoAplicado: Number(aplicado?.monto || 0) }));
-      cursorCuentaY += 11;
-      if (totalSaldoFavorAplicadoCargo > 9e-3) {
-        docPdf.setFont("helvetica", "bold");
-        docPdf.setFontSize(7.8);
-        docPdf.setTextColor(180, 83, 9);
-        const origenesCredito = pagosDesdeSaldoFavor.map(({ pago }) => {
-          const numeroPago = textoSeguroTrim(pago?.numeroComprobante, "");
-          return numeroPago ? `pago ${numeroPago}` : `pago del ${formatearFechaCuentaPdf(pago?.fecha || pago?.fechaCreacion)}`;
-        }).join(", ");
-        const lineasOrigenCredito = docPdf.splitTextToSize(`SALDO A FAVOR APLICADO: ${formatearDinero(totalSaldoFavorAplicadoCargo)} \xB7 proviene de ${origenesCredito}`, pageWidth - 36);
-        docPdf.text(lineasOrigenCredito, 18, cursorCuentaY + 3.5);
-        cursorCuentaY += Math.max(6, lineasOrigenCredito.length * 3.4 + 2);
-      }
       docPdf.setTextColor(15, 23, 42);
-      autoTable(docPdf, {
-        startY: cursorCuentaY,
-        head: [["Fecha", "Recepci\xF3n", "Detalle", "Monto", "Saldo"]],
-        body: [[
-          formatearFechaCuentaPdf(cargo.fechaPedido || cargo.fecha),
-          cargo.fechaRecepcion ? formatearFechaCuentaPdf(cargo.fechaRecepcion) : "-",
-          `${cargo.descripcion || "Compra"}${cargo.items?.length ? ` (${cargo.items.length} \xEDtems)` : ""}${Number(cargo.iva21 || 0) || Number(cargo.iva105 || 0) ? ` \xB7 IVA ${formatearDinero(Number(cargo.iva21 || 0) + Number(cargo.iva105 || 0))}` : ""}`,
-          formatearDinero(Number(cargo.monto || 0)),
-          formatearDinero(Number(cargo.pendiente || 0))
-        ]],
-        styles: { fontSize: 7.5, cellPadding: 1.6, overflow: "linebreak" },
-        headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: "bold" },
-        columnStyles: {
-          0: { cellWidth: 36 },
-          1: { cellWidth: 36 },
-          2: { cellWidth: 111 },
-          3: { cellWidth: 48, halign: "right" },
-          4: { cellWidth: 38, halign: "right" }
-        },
-        didParseCell: (data) => {
-          if (data.section === "head" && [3, 4].includes(data.column.index)) data.cell.styles.halign = "right";
-        },
-        margin: { left: 14, right: 14 }
-      });
-      cursorCuentaY = (docPdf.lastAutoTable?.finalY || cursorCuentaY + 15) + 2;
-      if (pagosDelCargo.length) {
-        const paginaPago = obtenerPaginaCuentaPdf();
-        const destinoConexionY = cursorCuentaY + 4;
+      docPdf.text("COMPROBANTES QUE TODAV\xCDA TIENEN SALDO", 14, pendienteY + 2);
+      pendienteY += 6;
+      if (cargosPendientes.length) {
+        autoTable(docPdf, { startY: pendienteY, head: [["Fecha", "Comprobante", "Valor original", "Saldo pendiente"]], body: cargosPendientes.map((cargo) => {
+          const comprobante = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(" ") || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || "000000"}`);
+          return [formatearFechaCuentaPdf(cargo?.fechaRemitoProveedor || cargo?.fechaPedido || cargo?.fechaRecepcion || cargo?.fecha), comprobante, formatearDinero(Number(cargo?.monto || 0)), formatearDinero(Number(cargo?.pendiente || 0))];
+        }), styles: { fontSize: 7.8, cellPadding: 1.7 }, headStyles: { fillColor: [185, 28, 28], textColor: 255, fontStyle: "bold" }, columnStyles: { 2: { halign: "right" }, 3: { halign: "right", fontStyle: "bold" } }, margin: { left: 14, right: 14 } });
+      } else {
         docPdf.setFont("helvetica", "bold");
-        docPdf.setFontSize(8);
+        docPdf.setFontSize(8.5);
         docPdf.setTextColor(5, 150, 105);
-        docPdf.text("Pagos aplicados a este comprobante", 18, cursorCuentaY + 4);
-        cursorCuentaY += 7;
+        docPdf.text("No quedan comprobantes pendientes.", 18, pendienteY + 5);
+      }
+    }
+    if (!usarResumenSimpleProveedorPdf) {
+      docPdf.setFont("helvetica", "bold");
+      docPdf.setFontSize(7);
+      docPdf.setTextColor(15, 23, 42);
+      docPdf.text("Rxx = remito/factura", 14, 75);
+      docPdf.setTextColor(5, 150, 105);
+      docPdf.text("Pxx = pago", 52, 75);
+      docPdf.setTextColor(217, 119, 6);
+      docPdf.text("naranja = sobrante transferido o saldo a favor", 78, 75);
+      let cursorCuentaY = 82;
+      const obtenerPaginaCuentaPdf = () => Number(
+        docPdf.internal?.getCurrentPageInfo?.()?.pageNumber || docPdf.internal?.getNumberOfPages?.() || 1
+      );
+      const asegurarEspacioCuenta = (alto = 35) => {
+        if (cursorCuentaY + alto <= pageHeight - 14) return;
+        docPdf.addPage();
+        cursorCuentaY = 20;
+      };
+      const dibujarConexionPagoPdf = ({ paginaOrigen, yOrigen, paginaDestino, yDestino }) => {
+        if (!paginaOrigen || !paginaDestino) return;
+        const paginaRetorno = obtenerPaginaCuentaPdf();
+        const xConexion = 11;
+        docPdf.setDrawColor(5, 150, 105);
+        docPdf.setFillColor(5, 150, 105);
+        docPdf.setLineWidth(0.65);
+        if (paginaOrigen === paginaDestino) {
+          docPdf.setPage(paginaOrigen);
+          docPdf.circle(xConexion, yOrigen, 1.15, "F");
+          docPdf.line(xConexion, yOrigen, xConexion, yDestino);
+          docPdf.line(xConexion, yDestino, 16.5, yDestino);
+          docPdf.triangle(17.5, yDestino, 14.8, yDestino - 1.5, 14.8, yDestino + 1.5, "F");
+        } else {
+          docPdf.setPage(paginaOrigen);
+          docPdf.circle(xConexion, yOrigen, 1.15, "F");
+          docPdf.line(xConexion, yOrigen, xConexion, pageHeight - 7);
+          docPdf.triangle(xConexion, pageHeight - 5.5, xConexion - 1.5, pageHeight - 8.2, xConexion + 1.5, pageHeight - 8.2, "F");
+          docPdf.setPage(paginaDestino);
+          docPdf.line(xConexion, 7, xConexion, yDestino);
+          docPdf.line(xConexion, yDestino, 16.5, yDestino);
+          docPdf.triangle(17.5, yDestino, 14.8, yDestino - 1.5, 14.8, yDestino + 1.5, "F");
+        }
+        docPdf.setPage(paginaRetorno);
+      };
+      const dibujarConexionSaldoFavorPdf = ({ paginaOrigen, yOrigen, paginaDestino, yDestino }) => {
+        if (!paginaOrigen || !paginaDestino) return;
+        const paginaRetorno = obtenerPaginaCuentaPdf();
+        const xConexion = pageWidth - 11;
+        docPdf.setDrawColor(217, 119, 6);
+        docPdf.setFillColor(217, 119, 6);
+        docPdf.setLineWidth(0.75);
+        if (paginaOrigen === paginaDestino) {
+          docPdf.setPage(paginaOrigen);
+          docPdf.circle(xConexion, yOrigen, 1.2, "F");
+          docPdf.line(pageWidth - 18, yOrigen, xConexion, yOrigen);
+          docPdf.line(xConexion, yOrigen, xConexion, yDestino);
+          docPdf.line(xConexion, yDestino, pageWidth - 14.8, yDestino);
+          docPdf.triangle(pageWidth - 17.5, yDestino, pageWidth - 14.8, yDestino - 1.5, pageWidth - 14.8, yDestino + 1.5, "F");
+        } else {
+          docPdf.setPage(paginaOrigen);
+          docPdf.circle(xConexion, yOrigen, 1.2, "F");
+          docPdf.line(pageWidth - 18, yOrigen, xConexion, yOrigen);
+          docPdf.line(xConexion, yOrigen, xConexion, pageHeight - 7);
+          docPdf.triangle(xConexion, pageHeight - 5.5, xConexion - 1.5, pageHeight - 8.2, xConexion + 1.5, pageHeight - 8.2, "F");
+          docPdf.setPage(paginaDestino);
+          docPdf.line(xConexion, 7, xConexion, yDestino);
+          docPdf.line(xConexion, yDestino, pageWidth - 14.8, yDestino);
+          docPdf.triangle(pageWidth - 17.5, yDestino, pageWidth - 14.8, yDestino - 1.5, pageWidth - 14.8, yDestino + 1.5, "F");
+        }
+        docPdf.setPage(paginaRetorno);
+      };
+      const descripcionPagoProveedorPdf = (pago = {}, aplicado = 0, pedidoCompraId = "", aplicacionCuenta = null) => {
+        const esCheque = ["cheque", "echeq"].includes(normalizarMetodoPago(pago.metodoPago));
+        const cheque = esCheque && pago.numeroComprobante ? `Cheque N.\xBA ${pago.numeroComprobante}` : "";
+        const plazo = esCheque && pago.plazoDias ? ` \xB7 a ${parseNumeroBasico(pago.plazoDias) || 0} d\xEDas` : "";
+        const comprobante = cheque || (pago.numeroComprobante ? `N.\xBA ${pago.numeroComprobante}` : "");
+        const emisor = textoSeguroTrim(pago?.emisor, "");
+        const aplicaciones = Array.isArray(pago?.aplicacionesComprobantes) ? pago.aplicacionesComprobantes : [];
+        const aplicacionActual = pedidoCompraId ? aplicaciones.find((item2) => item2?.pedidoCompraId === pedidoCompraId) : null;
+        const orden = aplicacionActual && aplicaciones.length > 1 ? ` \xB7 distribuci\xF3n ${aplicacionActual.orden || 1}/${aplicaciones.length}` : "";
+        const origenSaldoFavor = aplicacionCuenta?.desdeSaldoFavor ? " \xB7 cr\xE9dito de saldo a favor" : "";
+        return `${obtenerEtiquetaMetodoPago(pago.metodoPago || "transferencia")}${comprobante ? ` \xB7 ${comprobante}` : ""}${emisor ? ` \xB7 Emisor: ${emisor}` : ""}${plazo}${orden}${origenSaldoFavor}`;
+      };
+      const aclaracionPagoProveedorPdf = (pago = {}) => {
+        const saldoFavor = Number(pago?.saldoFavorGenerado ?? pago?.saldoFavorRegistrado ?? 0);
+        const saldoFavorConsumido = Number(pago?.saldoFavorConsumido || 0);
+        const destinosSaldoFavor = cargosProveedorPdf.flatMap((cargo) => (cargo?.pagosAplicados || []).filter((aplicado) => aplicado?.id === pago?.id && aplicado?.desdeSaldoFavor).map((aplicado) => {
+          const comprobanteDestino = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(" ") || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || "000000"}`);
+          return `${comprobanteDestino}: ${formatearDinero(Number(aplicado?.monto || 0))}`;
+        }));
+        return [
+          textoSeguroTrim(pago?.notas, ""),
+          saldoFavorConsumido > 9e-3 ? `Saldo a favor utilizado: ${formatearDinero(saldoFavorConsumido)}` : "",
+          destinosSaldoFavor.length ? `Sobrante aplicado a ${destinosSaldoFavor.join(" \xB7 ")}` : "",
+          saldoFavor > 9e-3 ? `Saldo a favor disponible: ${formatearDinero(saldoFavor)}` : ""
+        ].filter(Boolean).join(" \xB7 ") || "-";
+      };
+      const cargosPdf = cargosProveedorPdf.filter((cargo) => cargo?.imputableSaldo);
+      const referenciaCargoProveedorPdf = new Map(cargosPdf.map((cargo, indice) => {
+        const comprobante = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(" ") || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || "000000"}`);
+        return [cargo.pedidoId || cargo.id, { codigo: `R${String(indice + 1).padStart(2, "0")}`, comprobante }];
+      }));
+      const trazabilidadPagosProveedorPdf = new Map(pagosProveedorPdf.filter((pago) => pago?.id).map((pago) => [pago.id, { id: pago.id, pago, fecha: pago.fecha || pago.fechaCreacion || "", total: Math.max(0, Number(pago.monto || 0)), aplicado: 0, aplicaciones: [], sobrante: 0 }]));
+      cargosPdf.forEach((cargo) => {
+        const referencia = referenciaCargoProveedorPdf.get(cargo.pedidoId || cargo.id) || { codigo: "R--", comprobante: "Comprobante" };
+        (cargo?.pagosAplicados || []).forEach((aplicado) => {
+          if (!aplicado?.id) return;
+          const pago = pagosPorId.get(aplicado.id) || {};
+          const traza = trazabilidadPagosProveedorPdf.get(aplicado.id) || { id: aplicado.id, pago, fecha: pago.fecha || aplicado.fecha || "", total: Math.max(0, Number(pago.monto || 0)), aplicado: 0, aplicaciones: [], sobrante: 0 };
+          const monto = Math.max(0, Number(aplicado.monto || 0));
+          traza.aplicado += monto;
+          traza.aplicaciones.push({ cargoId: cargo.pedidoId || cargo.id, codigo: referencia.codigo, comprobante: referencia.comprobante, monto, desdeSaldoFavor: Boolean(aplicado.desdeSaldoFavor) });
+          trazabilidadPagosProveedorPdf.set(aplicado.id, traza);
+        });
+      });
+      const pagosTrazadosProveedorPdf = Array.from(trazabilidadPagosProveedorPdf.values()).sort((a3, b2) => new Date(a3.fecha || 0) - new Date(b2.fecha || 0));
+      const codigoPagoProveedorPdf = new Map(pagosTrazadosProveedorPdf.map((traza, indice) => [traza.id, `P${String(indice + 1).padStart(2, "0")}`]));
+      pagosTrazadosProveedorPdf.forEach((traza) => {
+        traza.sobrante = Math.max(0, traza.total - traza.aplicado);
+      });
+      const coloresTrazabilidadProveedorPdf = [[5, 150, 105], [37, 99, 235], [124, 58, 237], [217, 119, 6], [8, 145, 178], [190, 24, 93]];
+      const colorPagoProveedorPdf = (pagoId = "") => coloresTrazabilidadProveedorPdf[Math.max(0, pagosTrazadosProveedorPdf.findIndex((traza) => traza.id === pagoId)) % coloresTrazabilidadProveedorPdf.length];
+      const rutaPagoProveedorPdf = (pagoId = "") => {
+        const traza = trazabilidadPagosProveedorPdf.get(pagoId);
+        if (!traza) return "-";
+        const codigo = codigoPagoProveedorPdf.get(pagoId) || "P--";
+        const destinos = traza.aplicaciones.map((aplicacion) => `${aplicacion.codigo} ${formatearDinero(aplicacion.monto)}${aplicacion.desdeSaldoFavor ? " (desde sobrante)" : ""}`).join(" => ");
+        return `${codigo} PAGADO ${formatearDinero(traza.total)}${destinos ? ` => ${destinos}` : ""}${traza.sobrante > 9e-3 ? ` => SALDO A FAVOR ${formatearDinero(traza.sobrante)}` : ""}`;
+      };
+      const puntosPagoProveedorPdf = /* @__PURE__ */ new Map();
+      const dibujarContinuidadPagoProveedorPdf = (pagoId = "", puntos = []) => {
+        if (puntos.length < 2) return;
+        const paginaRetorno = obtenerPaginaCuentaPdf();
+        const [r2, g2, b2] = colorPagoProveedorPdf(pagoId);
+        const x3 = pageWidth - 8.5;
+        docPdf.setDrawColor(r2, g2, b2);
+        docPdf.setFillColor(r2, g2, b2);
+        docPdf.setTextColor(r2, g2, b2);
+        docPdf.setLineWidth(0.7);
+        puntos.forEach((punto, indice) => {
+          docPdf.setPage(punto.pagina);
+          docPdf.line(pageWidth - 17.8, punto.y, x3, punto.y);
+          docPdf.circle(x3, punto.y, 1.05, "F");
+          docPdf.setFont("helvetica", "bold");
+          docPdf.setFontSize(6.4);
+          docPdf.text(codigoPagoProveedorPdf.get(pagoId) || "P--", x3 - 1.8, punto.y - 1.8, { align: "right" });
+          const siguiente = puntos[indice + 1];
+          if (!siguiente) return;
+          if (punto.pagina === siguiente.pagina) {
+            docPdf.line(x3, punto.y, x3, siguiente.y);
+            docPdf.triangle(x3, siguiente.y + 1.6, x3 - 1.35, siguiente.y - 1.1, x3 + 1.35, siguiente.y - 1.1, "F");
+          } else {
+            docPdf.line(x3, punto.y, x3, pageHeight - 6.5);
+            docPdf.triangle(x3, pageHeight - 5, x3 - 1.35, pageHeight - 7.7, x3 + 1.35, pageHeight - 7.7, "F");
+            docPdf.setPage(siguiente.pagina);
+            docPdf.setDrawColor(r2, g2, b2);
+            docPdf.setFillColor(r2, g2, b2);
+            docPdf.line(x3, 6.5, x3, siguiente.y);
+            docPdf.triangle(x3, siguiente.y + 1.6, x3 - 1.35, siguiente.y - 1.1, x3 + 1.35, siguiente.y - 1.1, "F");
+          }
+        });
+        docPdf.setPage(paginaRetorno);
+      };
+      const origenSaldoFavorPorPagoId = /* @__PURE__ */ new Map();
+      const conexionesSaldoFavorPendientesPdf = [];
+      cargosPdf.forEach((cargo) => {
+        const compraSaldada = Number(cargo?.pendiente || 0) <= 9e-3;
+        const comprobante = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(" ") || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || "000000"}`);
+        const referenciaCargo = referenciaCargoProveedorPdf.get(cargo.pedidoId || cargo.id) || { codigo: "R--", comprobante };
+        const pagosDelCargo = (Array.isArray(cargo?.pagosAplicados) ? cargo.pagosAplicados : []).map((aplicado) => ({ aplicado, pago: pagosPorId.get(aplicado?.id) })).filter((item2) => item2.aplicado && item2.pago);
+        const pagosDesdeSaldoFavor = pagosDelCargo.filter(({ aplicado }) => aplicado?.desdeSaldoFavor);
+        const totalSaldoFavorAplicadoCargo = pagosDesdeSaldoFavor.reduce((total, { aplicado }) => total + Number(aplicado?.monto || 0), 0);
+        pagosDelCargo.forEach(({ aplicado }) => pagosAplicadosIds.add(aplicado.id));
+        asegurarEspacioCuenta(55);
+        const paginaCargo = obtenerPaginaCuentaPdf();
+        const inicioCargoY = cursorCuentaY;
+        docPdf.setFillColor(15, 23, 42);
+        docPdf.roundedRect(14, cursorCuentaY, pageWidth - 28, 8, 1.5, 1.5, "F");
+        docPdf.setTextColor(255, 255, 255);
+        docPdf.setFont("helvetica", "bold");
+        docPdf.setFontSize(9);
+        docPdf.text(`${referenciaCargo.codigo} \xB7 ${comprobante} \xB7 PC-${cargo.numero || "000000"}`, 18, cursorCuentaY + 5.5);
+        if (compraSaldada) {
+          docPdf.setFillColor(5, 150, 105);
+          docPdf.roundedRect(pageWidth - 61, cursorCuentaY + 1.2, 43, 5.6, 1.3, 1.3, "F");
+          docPdf.setFontSize(7.2);
+          docPdf.text("COMPRA SALDADA", pageWidth - 39.5, cursorCuentaY + 5, { align: "center" });
+        }
+        pagosDesdeSaldoFavor.forEach(({ aplicado, pago }) => conexionesSaldoFavorPendientesPdf.push({ pagoId: pago.id, paginaDestino: paginaCargo, yDestino: inicioCargoY + 4, comprobanteDestino: comprobante, montoAplicado: Number(aplicado?.monto || 0) }));
+        cursorCuentaY += 11;
+        if (totalSaldoFavorAplicadoCargo > 9e-3) {
+          docPdf.setFont("helvetica", "bold");
+          docPdf.setFontSize(7.8);
+          docPdf.setTextColor(180, 83, 9);
+          const origenesCredito = pagosDesdeSaldoFavor.map(({ pago }) => {
+            const numeroPago = textoSeguroTrim(pago?.numeroComprobante, "");
+            return numeroPago ? `pago ${numeroPago}` : `pago del ${formatearFechaCuentaPdf(pago?.fecha || pago?.fechaCreacion)}`;
+          }).join(", ");
+          const lineasOrigenCredito = docPdf.splitTextToSize(`SALDO A FAVOR APLICADO: ${formatearDinero(totalSaldoFavorAplicadoCargo)} \xB7 proviene de ${origenesCredito}`, pageWidth - 36);
+          docPdf.text(lineasOrigenCredito, 18, cursorCuentaY + 3.5);
+          cursorCuentaY += Math.max(6, lineasOrigenCredito.length * 3.4 + 2);
+        }
+        docPdf.setTextColor(15, 23, 42);
         autoTable(docPdf, {
           startY: cursorCuentaY,
-          head: [["Fecha", "Pago / forma / emisor", "Ruta completa del dinero", "Pago total", "Aplicado aqu\xED", "Saldo remito"]],
-          body: pagosDelCargo.map(({ aplicado, pago }) => [
-            formatearFechaCuentaPdf(pago.fecha || pago.fechaCreacion),
-            `${codigoPagoProveedorPdf.get(pago.id) || "P--"} \xB7 ${descripcionPagoProveedorPdf(pago, Number(aplicado.monto || 0), cargo.pedidoId, aplicado)}`,
-            `${rutaPagoProveedorPdf(pago.id)}
-${aclaracionPagoProveedorPdf(pago)}`,
-            formatearDinero(Number(pago.monto || 0)),
-            formatearDinero(Number(aplicado.monto || 0)),
-            formatearDinero(Number(aplicado.pendienteDespues || 0))
-          ]),
-          styles: { fontSize: 7.2, cellPadding: 1.5, overflow: "linebreak" },
-          headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: "bold" },
+          head: [["Fecha", "Recepci\xF3n", "Detalle", "Monto", "Saldo"]],
+          body: [[
+            formatearFechaCuentaPdf(cargo.fechaPedido || cargo.fecha),
+            cargo.fechaRecepcion ? formatearFechaCuentaPdf(cargo.fechaRecepcion) : "-",
+            `${cargo.descripcion || "Compra"}${cargo.items?.length ? ` (${cargo.items.length} \xEDtems)` : ""}${Number(cargo.iva21 || 0) || Number(cargo.iva105 || 0) ? ` \xB7 IVA ${formatearDinero(Number(cargo.iva21 || 0) + Number(cargo.iva105 || 0))}` : ""}`,
+            formatearDinero(Number(cargo.monto || 0)),
+            formatearDinero(Number(cargo.pendiente || 0))
+          ]],
+          styles: { fontSize: 7.5, cellPadding: 1.6, overflow: "linebreak" },
+          headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: "bold" },
           columnStyles: {
-            0: { cellWidth: 24 },
-            1: { cellWidth: 62 },
-            2: { cellWidth: 68, fontStyle: "bold" },
-            3: { cellWidth: 34, halign: "right" },
-            4: { cellWidth: 36, halign: "right" },
-            5: { cellWidth: 37, halign: "right" }
+            0: { cellWidth: 36 },
+            1: { cellWidth: 36 },
+            2: { cellWidth: 111 },
+            3: { cellWidth: 48, halign: "right" },
+            4: { cellWidth: 38, halign: "right" }
           },
           didParseCell: (data) => {
-            if (data.section === "head" && [3, 4, 5].includes(data.column.index)) data.cell.styles.halign = "right";
-            if (data.section === "body") {
-              const pagoFila = pagosDelCargo[data.row.index]?.pago;
-              const color = colorPagoProveedorPdf(pagoFila?.id);
-              data.cell.styles.fillColor = color.map((valor) => Math.round(246 + valor / 255 * 8));
-              if ([0, 1, 2].includes(data.column.index)) data.cell.styles.fontStyle = "bold";
-              if (data.column.index === 1) data.cell.styles.textColor = color;
-            }
+            if (data.section === "head" && [3, 4].includes(data.column.index)) data.cell.styles.halign = "right";
+          },
+          margin: { left: 14, right: 14 }
+        });
+        cursorCuentaY = (docPdf.lastAutoTable?.finalY || cursorCuentaY + 15) + 2;
+        if (pagosDelCargo.length) {
+          const paginaPago = obtenerPaginaCuentaPdf();
+          const destinoConexionY = cursorCuentaY + 4;
+          docPdf.setFont("helvetica", "bold");
+          docPdf.setFontSize(8);
+          docPdf.setTextColor(5, 150, 105);
+          docPdf.text("Pagos aplicados a este comprobante", 18, cursorCuentaY + 4);
+          cursorCuentaY += 7;
+          autoTable(docPdf, {
+            startY: cursorCuentaY,
+            head: [["Fecha", "Pago / forma / emisor", "Ruta completa del dinero", "Pago total", "Aplicado aqu\xED", "Saldo remito"]],
+            body: pagosDelCargo.map(({ aplicado, pago }) => [
+              formatearFechaCuentaPdf(pago.fecha || pago.fechaCreacion),
+              `${codigoPagoProveedorPdf.get(pago.id) || "P--"} \xB7 ${descripcionPagoProveedorPdf(pago, Number(aplicado.monto || 0), cargo.pedidoId, aplicado)}`,
+              `${rutaPagoProveedorPdf(pago.id)}
+${aclaracionPagoProveedorPdf(pago)}`,
+              formatearDinero(Number(pago.monto || 0)),
+              formatearDinero(Number(aplicado.monto || 0)),
+              formatearDinero(Number(aplicado.pendienteDespues || 0))
+            ]),
+            styles: { fontSize: 7.2, cellPadding: 1.5, overflow: "linebreak" },
+            headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: "bold" },
+            columnStyles: {
+              0: { cellWidth: 24 },
+              1: { cellWidth: 62 },
+              2: { cellWidth: 68, fontStyle: "bold" },
+              3: { cellWidth: 34, halign: "right" },
+              4: { cellWidth: 36, halign: "right" },
+              5: { cellWidth: 37, halign: "right" }
+            },
+            didParseCell: (data) => {
+              if (data.section === "head" && [3, 4, 5].includes(data.column.index)) data.cell.styles.halign = "right";
+              if (data.section === "body") {
+                const pagoFila = pagosDelCargo[data.row.index]?.pago;
+                const color = colorPagoProveedorPdf(pagoFila?.id);
+                data.cell.styles.fillColor = color.map((valor) => Math.round(246 + valor / 255 * 8));
+                if ([0, 1, 2].includes(data.column.index)) data.cell.styles.fontStyle = "bold";
+                if (data.column.index === 1) data.cell.styles.textColor = color;
+              }
+            },
+            didDrawCell: (data) => {
+              if (data.section !== "body" || data.column.index !== 0) return;
+              const itemPago = pagosDelCargo[data.row.index];
+              if (!itemPago?.pago?.id) return;
+              const puntos = puntosPagoProveedorPdf.get(itemPago.pago.id) || [];
+              puntos.push({ pagina: obtenerPaginaCuentaPdf(), y: Number(data.cell?.y || 0) + Number(data.cell?.height || 0) / 2 });
+              puntosPagoProveedorPdf.set(itemPago.pago.id, puntos);
+              if (itemPago?.aplicado?.desdeSaldoFavor || Number(itemPago?.pago?.saldoFavorConsumido || 0) <= 9e-3) return;
+              origenSaldoFavorPorPagoId.set(itemPago.pago.id, { paginaOrigen: obtenerPaginaCuentaPdf(), yOrigen: Number(data.cell?.y || 0) + Number(data.cell?.height || 0) / 2, comprobanteOrigen: comprobante });
+            },
+            margin: { left: 18, right: 18 }
+          });
+          cursorCuentaY = (docPdf.lastAutoTable?.finalY || cursorCuentaY + 14) + 3;
+          dibujarConexionPagoPdf({
+            paginaOrigen: paginaCargo,
+            yOrigen: inicioCargoY + 4,
+            paginaDestino: paginaPago,
+            yDestino: destinoConexionY
+          });
+        } else {
+          docPdf.setFont("helvetica", "italic");
+          docPdf.setFontSize(8);
+          docPdf.setTextColor(100, 116, 139);
+          docPdf.text("Sin pagos aplicados a este comprobante.", 18, cursorCuentaY + 4);
+          cursorCuentaY += 9;
+        }
+        docPdf.setFont("helvetica", "bold");
+        docPdf.setFontSize(8.5);
+        if (compraSaldada) {
+          docPdf.setTextColor(5, 150, 105);
+          docPdf.text(`COMPRA SALDADA - ${comprobante}`, 18, cursorCuentaY + 4);
+        } else {
+          docPdf.setTextColor(185, 28, 28);
+          docPdf.text(`Saldo pendiente de ${comprobante}: ${formatearDinero(Number(cargo.pendiente || 0))}`, 18, cursorCuentaY + 4);
+        }
+        cursorCuentaY += 10;
+      });
+      const pagosGeneralesPdf = pagosProveedorPdf.filter((pago) => !pagosAplicadosIds.has(pago?.id) && !(pago?.pedidoCompraId || (Array.isArray(pago?.pedidoCompraIds) ? pago.pedidoCompraIds.length : 0)));
+      if (pagosGeneralesPdf.length) {
+        asegurarEspacioCuenta(35);
+        docPdf.setFont("helvetica", "bold");
+        docPdf.setFontSize(10);
+        docPdf.setTextColor(15, 23, 42);
+        docPdf.text("PAGOS GENERALES SIN REMITO ASIGNADO", 14, cursorCuentaY);
+        cursorCuentaY += 5;
+        autoTable(docPdf, {
+          startY: cursorCuentaY,
+          head: [["Fecha", "Forma / comprobante / emisor", "Aclaraci\xF3n", "Importe", "Saldo a favor"]],
+          body: pagosGeneralesPdf.map((pago) => [
+            formatearFechaCuentaPdf(pago.fecha || pago.fechaCreacion),
+            descripcionPagoProveedorPdf(pago),
+            aclaracionPagoProveedorPdf(pago),
+            formatearDinero(Number(pago.monto || 0)),
+            Number(pago.saldoFavorGenerado || 0) > 9e-3 ? formatearDinero(pago.saldoFavorGenerado) : "-"
+          ]),
+          styles: { fontSize: 7.5, cellPadding: 1.6, overflow: "linebreak" },
+          headStyles: { fillColor: [100, 116, 139], textColor: 255, fontStyle: "bold" },
+          columnStyles: {
+            0: { cellWidth: 28 },
+            1: { cellWidth: 102 },
+            2: { cellWidth: 55, fontStyle: "bold" },
+            3: { cellWidth: 42, halign: "right" },
+            4: { cellWidth: 42, halign: "right" }
+          },
+          didParseCell: (data) => {
+            if (data.section === "head" && [3, 4].includes(data.column.index)) data.cell.styles.halign = "right";
+            if (data.section === "body" && data.column.index === 2) data.cell.styles.fontStyle = "bold";
           },
           didDrawCell: (data) => {
             if (data.section !== "body" || data.column.index !== 0) return;
-            const itemPago = pagosDelCargo[data.row.index];
-            if (!itemPago?.pago?.id) return;
-            const puntos = puntosPagoProveedorPdf.get(itemPago.pago.id) || [];
-            puntos.push({ pagina: obtenerPaginaCuentaPdf(), y: Number(data.cell?.y || 0) + Number(data.cell?.height || 0) / 2 });
-            puntosPagoProveedorPdf.set(itemPago.pago.id, puntos);
-            if (itemPago?.aplicado?.desdeSaldoFavor || Number(itemPago?.pago?.saldoFavorConsumido || 0) <= 9e-3) return;
-            origenSaldoFavorPorPagoId.set(itemPago.pago.id, { paginaOrigen: obtenerPaginaCuentaPdf(), yOrigen: Number(data.cell?.y || 0) + Number(data.cell?.height || 0) / 2, comprobanteOrigen: comprobante });
+            const pago = pagosGeneralesPdf[data.row.index];
+            if (!pago?.id || Number(pago?.saldoFavorConsumido || 0) <= 9e-3) return;
+            origenSaldoFavorPorPagoId.set(pago.id, { paginaOrigen: obtenerPaginaCuentaPdf(), yOrigen: Number(data.cell?.y || 0) + Number(data.cell?.height || 0) / 2, comprobanteOrigen: textoSeguroTrim(pago?.numeroComprobante, "") || "Pago general" });
           },
-          margin: { left: 18, right: 18 }
+          margin: { left: 14, right: 14 }
         });
-        cursorCuentaY = (docPdf.lastAutoTable?.finalY || cursorCuentaY + 14) + 3;
-        dibujarConexionPagoPdf({
-          paginaOrigen: paginaCargo,
-          yOrigen: inicioCargoY + 4,
-          paginaDestino: paginaPago,
-          yDestino: destinoConexionY
-        });
-      } else {
-        docPdf.setFont("helvetica", "italic");
-        docPdf.setFontSize(8);
-        docPdf.setTextColor(100, 116, 139);
-        docPdf.text("Sin pagos aplicados a este comprobante.", 18, cursorCuentaY + 4);
-        cursorCuentaY += 9;
+        cursorCuentaY = (docPdf.lastAutoTable?.finalY || cursorCuentaY + 14) + 4;
       }
+      conexionesSaldoFavorPendientesPdf.forEach((conexion) => {
+        const origen = origenSaldoFavorPorPagoId.get(conexion.pagoId);
+        if (!origen) return;
+        dibujarConexionSaldoFavorPdf({ paginaOrigen: origen.paginaOrigen, yOrigen: origen.yOrigen, paginaDestino: conexion.paginaDestino, yDestino: conexion.yDestino });
+      });
+      puntosPagoProveedorPdf.forEach((puntos, pagoId) => dibujarContinuidadPagoProveedorPdf(pagoId, puntos));
+      asegurarEspacioCuenta(32);
       docPdf.setFont("helvetica", "bold");
-      docPdf.setFontSize(8.5);
-      if (compraSaldada) {
-        docPdf.setTextColor(5, 150, 105);
-        docPdf.text(`COMPRA SALDADA - ${comprobante}`, 18, cursorCuentaY + 4);
-      } else {
-        docPdf.setTextColor(185, 28, 28);
-        docPdf.text(`Saldo pendiente de ${comprobante}: ${formatearDinero(Number(cargo.pendiente || 0))}`, 18, cursorCuentaY + 4);
-      }
-      cursorCuentaY += 10;
-    });
-    const pagosGeneralesPdf = pagosProveedorPdf.filter((pago) => !pagosAplicadosIds.has(pago?.id) && !(pago?.pedidoCompraId || (Array.isArray(pago?.pedidoCompraIds) ? pago.pedidoCompraIds.length : 0)));
-    if (pagosGeneralesPdf.length) {
-      asegurarEspacioCuenta(35);
-      docPdf.setFont("helvetica", "bold");
-      docPdf.setFontSize(10);
+      docPdf.setFontSize(9);
       docPdf.setTextColor(15, 23, 42);
-      docPdf.text("PAGOS GENERALES SIN REMITO ASIGNADO", 14, cursorCuentaY);
-      cursorCuentaY += 5;
+      docPdf.text("TRAZABILIDAD GENERAL DE PAGOS Y SOBRANTES", 14, cursorCuentaY + 2);
+      cursorCuentaY += 6;
       autoTable(docPdf, {
         startY: cursorCuentaY,
-        head: [["Fecha", "Forma / comprobante / emisor", "Aclaraci\xF3n", "Importe", "Saldo a favor"]],
-        body: pagosGeneralesPdf.map((pago) => [
-          formatearFechaCuentaPdf(pago.fecha || pago.fechaCreacion),
-          descripcionPagoProveedorPdf(pago),
-          aclaracionPagoProveedorPdf(pago),
-          formatearDinero(Number(pago.monto || 0)),
-          Number(pago.saldoFavorGenerado || 0) > 9e-3 ? formatearDinero(pago.saldoFavorGenerado) : "-"
-        ]),
-        styles: { fontSize: 7.5, cellPadding: 1.6, overflow: "linebreak" },
-        headStyles: { fillColor: [100, 116, 139], textColor: 255, fontStyle: "bold" },
-        columnStyles: {
-          0: { cellWidth: 28 },
-          1: { cellWidth: 102 },
-          2: { cellWidth: 55, fontStyle: "bold" },
-          3: { cellWidth: 42, halign: "right" },
-          4: { cellWidth: 42, halign: "right" }
-        },
-        didParseCell: (data) => {
-          if (data.section === "head" && [3, 4].includes(data.column.index)) data.cell.styles.halign = "right";
-          if (data.section === "body" && data.column.index === 2) data.cell.styles.fontStyle = "bold";
-        },
-        didDrawCell: (data) => {
-          if (data.section !== "body" || data.column.index !== 0) return;
-          const pago = pagosGeneralesPdf[data.row.index];
-          if (!pago?.id || Number(pago?.saldoFavorConsumido || 0) <= 9e-3) return;
-          origenSaldoFavorPorPagoId.set(pago.id, { paginaOrigen: obtenerPaginaCuentaPdf(), yOrigen: Number(data.cell?.y || 0) + Number(data.cell?.height || 0) / 2, comprobanteOrigen: textoSeguroTrim(pago?.numeroComprobante, "") || "Pago general" });
-        },
+        head: [["Pago", "Fecha", "Recorrido completo", "Total", "Aplicado", "A favor"]],
+        body: pagosTrazadosProveedorPdf.length ? pagosTrazadosProveedorPdf.map((traza) => [codigoPagoProveedorPdf.get(traza.id) || "P--", formatearFechaCuentaPdf(traza.fecha), rutaPagoProveedorPdf(traza.id), formatearDinero(traza.total), formatearDinero(traza.aplicado), traza.sobrante > 9e-3 ? formatearDinero(traza.sobrante) : "-"]) : [["-", "-", "Sin pagos registrados", "-", "-", "-"]],
+        styles: { fontSize: 7.2, cellPadding: 1.5, overflow: "linebreak" },
+        headStyles: { fillColor: [30, 64, 109], textColor: 255, fontStyle: "bold" },
+        columnStyles: { 0: { cellWidth: 18, fontStyle: "bold" }, 1: { cellWidth: 25 }, 2: { cellWidth: 122, fontStyle: "bold" }, 3: { cellWidth: 32, halign: "right" }, 4: { cellWidth: 32, halign: "right" }, 5: { cellWidth: 32, halign: "right", fontStyle: "bold" } },
         margin: { left: 14, right: 14 }
       });
       cursorCuentaY = (docPdf.lastAutoTable?.finalY || cursorCuentaY + 14) + 4;
     }
-    conexionesSaldoFavorPendientesPdf.forEach((conexion) => {
-      const origen = origenSaldoFavorPorPagoId.get(conexion.pagoId);
-      if (!origen) return;
-      dibujarConexionSaldoFavorPdf({ paginaOrigen: origen.paginaOrigen, yOrigen: origen.yOrigen, paginaDestino: conexion.paginaDestino, yDestino: conexion.yDestino });
-    });
-    puntosPagoProveedorPdf.forEach((puntos, pagoId) => dibujarContinuidadPagoProveedorPdf(pagoId, puntos));
-    asegurarEspacioCuenta(32);
-    docPdf.setFont("helvetica", "bold");
-    docPdf.setFontSize(9);
-    docPdf.setTextColor(15, 23, 42);
-    docPdf.text("TRAZABILIDAD GENERAL DE PAGOS Y SOBRANTES", 14, cursorCuentaY + 2);
-    cursorCuentaY += 6;
-    autoTable(docPdf, {
-      startY: cursorCuentaY,
-      head: [["Pago", "Fecha", "Recorrido completo", "Total", "Aplicado", "A favor"]],
-      body: pagosTrazadosProveedorPdf.length ? pagosTrazadosProveedorPdf.map((traza) => [codigoPagoProveedorPdf.get(traza.id) || "P--", formatearFechaCuentaPdf(traza.fecha), rutaPagoProveedorPdf(traza.id), formatearDinero(traza.total), formatearDinero(traza.aplicado), traza.sobrante > 9e-3 ? formatearDinero(traza.sobrante) : "-"]) : [["-", "-", "Sin pagos registrados", "-", "-", "-"]],
-      styles: { fontSize: 7.2, cellPadding: 1.5, overflow: "linebreak" },
-      headStyles: { fillColor: [30, 64, 109], textColor: 255, fontStyle: "bold" },
-      columnStyles: { 0: { cellWidth: 18, fontStyle: "bold" }, 1: { cellWidth: 25 }, 2: { cellWidth: 122, fontStyle: "bold" }, 3: { cellWidth: 32, halign: "right" }, 4: { cellWidth: 32, halign: "right" }, 5: { cellWidth: 32, halign: "right", fontStyle: "bold" } },
-      margin: { left: 14, right: 14 }
-    });
-    cursorCuentaY = (docPdf.lastAutoTable?.finalY || cursorCuentaY + 14) + 4;
     const adjuntosImagen = pagosProveedorPdf.flatMap(
       (pago) => (Array.isArray(pago?.adjuntos) ? pago.adjuntos : []).filter((adj) => textoSeguroTrim(adj?.tipo, "").startsWith("image/") && textoSeguroTrim(adj?.dataUrl, "")).map((adj) => ({ ...adj, pago }))
     );
