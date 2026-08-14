@@ -1,10 +1,10 @@
-const CACHE_NAME = 'seniorflow-simple-account-pdf-20260814-34';
+const CACHE_NAME = 'seniorflow-seller-receipt-line-20260814-35';
 const ASSETS = [
   './',
   './index.html',
   './stock-app.html',
   './stock-app.js?v=seniorflow-stock-mobile-20260807-08',
-  './app.js?v=seniorflow-simple-account-pdf-20260814-34',
+  './app.js?v=seniorflow-seller-receipt-line-20260814-35',
   './firebase-config.js?v=seniorflow-react-20260715-pdf-pagination-06',
   './manifest.json',
   './manifest-stock-app.json?v=seniorflow-stock-mobile-20260807-08',
@@ -94,7 +94,7 @@ self.addEventListener('fetch', (event) => {
             ? './stock-app.js?v=seniorflow-stock-mobile-20260807-08'
             : url.pathname.endsWith('/ofertas.html')
               ? './ofertas.html?v=seniorflow-react-20260715-pdf-pagination-06'
-              : './app.js?v=seniorflow-simple-account-pdf-20260814-34'));
+              : './app.js?v=seniorflow-seller-receipt-line-20260814-35'));
       }
     })());
     return;
