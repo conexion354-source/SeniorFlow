@@ -59348,6 +59348,7 @@ function AppInterna() {
   const [pagoProveedorAEditar, setPagoProveedorAEditar] = (0, import_react4.useState)(null);
   const [sobrantePagoProveedorDetectado, setSobrantePagoProveedorDetectado] = (0, import_react4.useState)(0);
   const [confirmarSaldoFavorPagoProveedor, setConfirmarSaldoFavorPagoProveedor] = (0, import_react4.useState)(false);
+  const [guardandoPagoProveedor, setGuardandoPagoProveedor] = (0, import_react4.useState)(false);
   const [busquedaMarcas, setBusquedaMarcas] = (0, import_react4.useState)("");
   const [filtroCategoriaInventario, setFiltroCategoriaInventario] = (0, import_react4.useState)("");
   const [filtroProveedorInventario, setFiltroProveedorInventario] = (0, import_react4.useState)("");
@@ -62071,6 +62072,37 @@ Disponible del per\xEDodo: ${formatearDinero(datosReporte.flujoNeto)}`
     if (!formPagoProveedor?.proveedor) return [];
     return (calcularEstadoCuentaProveedor(formPagoProveedor.proveedor).cargosProcesados || []).filter((cargo) => Number(cargo.pendiente || 0) > 9e-3);
   }, [formPagoProveedor?.proveedor, pedidosCompra, pagosProveedores]);
+  const resumenAplicacionPagoProveedor = (0, import_react4.useMemo)(() => {
+    const montoPago = Math.max(0, parseNumeroBasico(formPagoProveedor?.monto));
+    const idsSeleccionados = Array.isArray(formPagoProveedor?.pedidoCompraIds) ? formPagoProveedor.pedidoCompraIds.filter(Boolean) : [];
+    let restante = montoPago;
+    const aplicaciones = idsSeleccionados.map((pedidoCompraId, index2) => {
+      const cargo = cargosPendientesPagoProveedor.find((item2) => item2.pedidoId === pedidoCompraId);
+      if (!cargo) return null;
+      const pendiente = Math.max(0, Number(cargo.pendiente || 0));
+      const aplicado = Math.min(restante, pendiente);
+      restante = Math.max(0, restante - aplicado);
+      return {
+        pedidoCompraId,
+        orden: index2 + 1,
+        pendiente,
+        aplicado,
+        saldoComprobanteDespues: Math.max(0, pendiente - aplicado),
+        restantePagoDespues: restante
+      };
+    }).filter(Boolean);
+    const totalPendienteSeleccionado = aplicaciones.reduce((total, item2) => total + item2.pendiente, 0);
+    const totalAplicado = aplicaciones.reduce((total, item2) => total + item2.aplicado, 0);
+    return {
+      montoPago,
+      aplicaciones,
+      aplicacionesPorId: new Map(aplicaciones.map((item2) => [item2.pedidoCompraId, item2])),
+      totalPendienteSeleccionado,
+      totalAplicado,
+      restantePago: Math.max(0, restante),
+      saldoPendienteSeleccionado: Math.max(0, totalPendienteSeleccionado - totalAplicado)
+    };
+  }, [formPagoProveedor?.monto, formPagoProveedor?.pedidoCompraIds, cargosPendientesPagoProveedor]);
   const marcasVisualizadas = (0, import_react4.useMemo)(() => {
     return (marcas || []).filter((marca) => {
       return coincideBusquedaCompuesta([marca?.nombre], busquedaMarcas);
@@ -69724,6 +69756,7 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
     const plazoCalculado = calcularPlazoEntreFechas(pagoBase?.fechaEmision, pagoBase?.fechaCobro);
     setSobrantePagoProveedorDetectado(0);
     setConfirmarSaldoFavorPagoProveedor(false);
+    setGuardandoPagoProveedor(false);
     setPagoProveedorAEditar(pagoBase);
     setFormPagoProveedor({
       proveedor: nombre,
@@ -69741,7 +69774,7 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
       pedidoCompraId: textoSeguroTrim(pagoBase?.pedidoCompraId || pedidoCompra?.id, ""),
       pedidoCompraNumero: textoSeguroTrim(pagoBase?.pedidoCompraNumero || pedidoCompra?.numero, ""),
       pedidoCompraEstado: textoSeguroTrim(pagoBase?.pedidoCompraEstado || pedidoCompra?.estado, ""),
-      tipoAplicacion: textoSeguroTrim(pagoBase?.tipoAplicacion, pagoBase?.pedidoCompraId || pedidoCompra?.id ? "ticket" : "general"),
+      tipoAplicacion: pagoBase?.pedidoCompraId || pedidoCompra?.id || Array.isArray(pagoBase?.pedidoCompraIds) && pagoBase.pedidoCompraIds.length ? "ticket_multi" : "general",
       pedidoCompraIds: Array.isArray(pagoBase?.pedidoCompraIds) ? [...pagoBase.pedidoCompraIds] : pagoBase?.pedidoCompraId ? [pagoBase.pedidoCompraId] : pedidoCompra?.id ? [pedidoCompra.id] : [],
       impactaCaja: pagoBase?.impactaCaja !== false,
       impactaReportes: pagoBase?.impactaReportes !== false && pagoBase?.noImpactaReportes !== true,
@@ -70011,6 +70044,7 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
   };
   const guardarPagoProveedor = async (e2) => {
     e2.preventDefault();
+    if (guardandoPagoProveedor) return;
     const proveedor = textoSeguroTrim(formPagoProveedor?.proveedor, "");
     const monto = parseNumeroBasico(formPagoProveedor?.monto);
     if (!proveedor || monto <= 0) {
@@ -70022,34 +70056,31 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
     }
     const proveedorDoc = (proveedores || []).find((prov) => normalizarTextoBusqueda(prov?.nombre) === normalizarTextoBusqueda(proveedor));
     const fechaPago = formPagoProveedor.fecha ? (/* @__PURE__ */ new Date(`${formPagoProveedor.fecha}T12:00:00`)).toISOString() : (/* @__PURE__ */ new Date()).toISOString();
-    const tipoAplicacion = textoSeguroTrim(formPagoProveedor?.tipoAplicacion, "general");
+    const tipoAplicacion = textoSeguroTrim(formPagoProveedor?.tipoAplicacion, "general") === "general" ? "general" : "ticket_multi";
     const pedidoCompraIds = tipoAplicacion === "general" ? [] : Array.isArray(formPagoProveedor?.pedidoCompraIds) ? formPagoProveedor.pedidoCompraIds.filter(Boolean) : [];
     if (tipoAplicacion !== "general" && !pedidoCompraIds.length) {
       await notificarSistema("Seleccion\xE1 al menos un remito pendiente para aplicar el pago.", { tipo: "warning", titulo: "Remitos requeridos" });
       return;
     }
-    let restanteAplicacion = monto;
-    const cargosSeleccionadosPago = pedidoCompraIds.map((pedidoId) => cargosPendientesPagoProveedor.find((cargo) => cargo.pedidoId === pedidoId)).filter(Boolean);
-    const aplicacionesComprobantes = cargosSeleccionadosPago.map((cargo, index2) => {
-      const saldoAntes = Math.max(0, Number(cargo.pendiente || 0));
-      const montoAplicado = Math.min(restanteAplicacion, saldoAntes);
-      restanteAplicacion = Math.max(0, restanteAplicacion - montoAplicado);
+    const restanteAplicacion = tipoAplicacion === "general" ? 0 : resumenAplicacionPagoProveedor.restantePago;
+    const aplicacionesComprobantes = tipoAplicacion === "general" ? [] : resumenAplicacionPagoProveedor.aplicaciones.map((resumenAplicacion) => {
+      const cargo = cargosPendientesPagoProveedor.find((item2) => item2.pedidoId === resumenAplicacion.pedidoCompraId);
+      if (!cargo) return null;
       const comprobante = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(" ") || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || "000000"}`);
       return {
-        orden: index2 + 1,
+        orden: resumenAplicacion.orden,
         pedidoCompraId: cargo.pedidoId,
         pedidoCompraNumero: cargo.numero || "",
         comprobante,
         fechaComprobante: cargo.fechaPedido || cargo.fecha || "",
-        saldoAntes,
-        montoAplicado,
-        saldoDespues: Math.max(0, saldoAntes - montoAplicado)
+        saldoAntes: resumenAplicacion.pendiente,
+        montoAplicado: resumenAplicacion.aplicado,
+        saldoDespues: resumenAplicacion.saldoComprobanteDespues
       };
-    }).filter((aplicacion) => aplicacion.montoAplicado > 0);
+    }).filter((aplicacion) => aplicacion && aplicacion.montoAplicado > 0);
     const otrosCargosPendientes = cargosPendientesPagoProveedor.filter((cargo) => !pedidoCompraIds.includes(cargo.pedidoId));
     if (tipoAplicacion !== "general" && restanteAplicacion > 9e-3 && otrosCargosPendientes.length && !confirmarSaldoFavorPagoProveedor) {
       setSobrantePagoProveedorDetectado(restanteAplicacion);
-      setFormPagoProveedor((prev) => ({ ...prev, tipoAplicacion: "ticket_multi" }));
       await notificarSistema(`Despu\xE9s de aplicar el pago queda un sobrante de ${formatearDinero(restanteAplicacion)}. Eleg\xED otro remito o factura pendiente para aplicar ese importe.`, {
         tipo: "warning",
         titulo: "\xBFA qu\xE9 comprobante aplicamos el sobrante?"
@@ -70087,46 +70118,64 @@ Margen estimado: ${resumenGanancia.margen.toFixed(1)}%`,
       noImpactaReportes: false,
       chequesRecibidosIds: Array.isArray(formPagoProveedor?.chequesRecibidosIds) ? formPagoProveedor.chequesRecibidosIds : []
     });
-    let pagoId = pagoProveedorAEditar?.id || "";
-    if (pagoId) {
-      await updateDoc(doc(db, "pagos_proveedores", pagoId), payloadPagoProveedor);
-    } else {
-      const pagoRef = await addDoc(collection(db, "pagos_proveedores"), payloadPagoProveedor);
-      pagoId = pagoRef.id;
-    }
-    await actualizarTrazabilidadChequesProveedor({
-      idsAnteriores: pagoProveedorAEditar?.chequesRecibidosIds || [],
-      idsNuevos: payloadPagoProveedor.chequesRecibidosIds || [],
-      pagoId,
-      proveedor,
-      proveedorId: proveedorDoc?.id || "",
-      pedidoCompraNumero: payloadPagoProveedor.pedidoCompraNumero || "",
-      pedidoCompraIds: payloadPagoProveedor.pedidoCompraIds || []
-    });
-    await sincronizarMovimientoPagoProveedor({ pagoId, pago: { id: pagoId, ...payloadPagoProveedor } });
-    await construirPdfPagoProveedor({ id: pagoId, ...payloadPagoProveedor }, { descargar: false });
-    if (pedidoCompraId) {
-      const pedidoRelacionado = obtenerPedidoCompraPorId(pedidoCompraId);
-      if (pedidoRelacionado) {
-        await updateDoc(doc(db, "pedidos_compra", pedidoRelacionado.id), {
-          pagoRegistradoProveedor: true,
-          pagoRegistradoProveedorEn: (/* @__PURE__ */ new Date()).toISOString(),
-          pagoRegistradoProveedorMonto: monto,
-          pagoRegistradoProveedorMetodo: textoSeguroTrim(formPagoProveedor?.metodoPago, "transferencia"),
-          pagoRegistradoProveedorComprobante: textoSeguroTrim(formPagoProveedor?.numeroComprobante, ""),
-          pagoRegistradoProveedorPedidoEstado: textoSeguroTrim(pedidoRelacionado?.estado, "guardado"),
-          fechaActualizacion: (/* @__PURE__ */ new Date()).toISOString()
-        });
+    setGuardandoPagoProveedor(true);
+    try {
+      let pagoId = pagoProveedorAEditar?.id || "";
+      if (pagoId) {
+        await updateDoc(doc(db, "pagos_proveedores", pagoId), payloadPagoProveedor);
+      } else {
+        const pagoRef = await addDoc(collection(db, "pagos_proveedores"), payloadPagoProveedor);
+        pagoId = pagoRef.id;
       }
+      const ejecutarPasoSecundario = async (etiqueta, accion) => {
+        try {
+          await accion();
+        } catch (error) {
+          console.warn(`Pago guardado; no se pudo completar ${etiqueta}.`, error);
+        }
+      };
+      await ejecutarPasoSecundario("la trazabilidad de cheques", () => actualizarTrazabilidadChequesProveedor({
+        idsAnteriores: pagoProveedorAEditar?.chequesRecibidosIds || [],
+        idsNuevos: payloadPagoProveedor.chequesRecibidosIds || [],
+        pagoId,
+        proveedor,
+        proveedorId: proveedorDoc?.id || "",
+        pedidoCompraNumero: payloadPagoProveedor.pedidoCompraNumero || "",
+        pedidoCompraIds: payloadPagoProveedor.pedidoCompraIds || []
+      }));
+      await ejecutarPasoSecundario("el movimiento de caja", () => sincronizarMovimientoPagoProveedor({ pagoId, pago: { id: pagoId, ...payloadPagoProveedor } }));
+      await ejecutarPasoSecundario("el recibo PDF", () => construirPdfPagoProveedor({ id: pagoId, ...payloadPagoProveedor }, { descargar: false }));
+      if (pedidoCompraId) {
+        const pedidoRelacionado = obtenerPedidoCompraPorId(pedidoCompraId);
+        if (pedidoRelacionado) {
+          await ejecutarPasoSecundario("la actualizaci\xF3n del pedido", () => updateDoc(doc(db, "pedidos_compra", pedidoRelacionado.id), {
+            pagoRegistradoProveedor: true,
+            pagoRegistradoProveedorEn: (/* @__PURE__ */ new Date()).toISOString(),
+            pagoRegistradoProveedorMonto: monto,
+            pagoRegistradoProveedorMetodo: textoSeguroTrim(formPagoProveedor?.metodoPago, "transferencia"),
+            pagoRegistradoProveedorComprobante: textoSeguroTrim(formPagoProveedor?.numeroComprobante, ""),
+            pagoRegistradoProveedorPedidoEstado: textoSeguroTrim(pedidoRelacionado?.estado, "guardado"),
+            fechaActualizacion: (/* @__PURE__ */ new Date()).toISOString()
+          }));
+        }
+      }
+      setPagoProveedorAEditar(null);
+      setSobrantePagoProveedorDetectado(0);
+      setConfirmarSaldoFavorPagoProveedor(false);
+      setModalActivo(null);
+      await notificarSistema("Pago registrado y distribuido en la cuenta del proveedor.", {
+        tipo: "success",
+        titulo: "Pago guardado"
+      });
+    } catch (error) {
+      console.error("No se pudo guardar el pago a proveedor.", error);
+      await notificarSistema(`No se pudo guardar el pago. ${textoSeguroTrim(error?.message, "Revis\xE1 la conexi\xF3n e intent\xE1 nuevamente.")}`, {
+        tipo: "error",
+        titulo: "Error al guardar pago"
+      });
+    } finally {
+      setGuardandoPagoProveedor(false);
     }
-    setPagoProveedorAEditar(null);
-    setSobrantePagoProveedorDetectado(0);
-    setConfirmarSaldoFavorPagoProveedor(false);
-    setModalActivo(null);
-    await notificarSistema("Pago registrado en la cuenta del proveedor.", {
-      tipo: "success",
-      titulo: "Pago guardado"
-    });
   };
   const manejarAdjuntosRecepcionCompra = async (files = []) => {
     const seleccion = Array.from(files || []).slice(0, 6);
@@ -81050,36 +81099,51 @@ ${configuracion.nombre}`;
         setConfirmarSaldoFavorPagoProveedor(false);
         setModalActivo(null);
       },
-      customWidth: "max-w-2xl"
+      customWidth: "max-w-5xl"
     },
-    /* @__PURE__ */ import_react4.default.createElement("form", { onSubmit: guardarPagoProveedor, className: "space-y-4" }, textoSeguroTrim(formPagoProveedor?.pedidoCompraId, "") && /* @__PURE__ */ import_react4.default.createElement("div", { className: "rounded-xl border border-amber-200 bg-amber-50 px-3 py-2" }, /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-[10px] font-black uppercase tracking-wider text-amber-700" }, "Pago anticipado asociado al pedido"), /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-xs font-bold text-amber-800" }, "PC-", textoSeguroTrim(formPagoProveedor?.pedidoCompraNumero, "000000"), " \xB7 ", textoSeguroTrim(formPagoProveedor?.pedidoCompraEstado, "guardado"))), /* @__PURE__ */ import_react4.default.createElement("div", { className: "rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3 space-y-2" }, /* @__PURE__ */ import_react4.default.createElement("label", { className: "block text-[10px] font-black uppercase tracking-wider text-emerald-800" }, "Aplicar pago ", /* @__PURE__ */ import_react4.default.createElement(AyudaCampo, { texto: "Eleg\xED si el pago se registra como saldo general o se aplica a uno o varios remitos pendientes." })), /* @__PURE__ */ import_react4.default.createElement("select", { value: formPagoProveedor.tipoAplicacion || "general", onChange: (e2) => {
-      setSobrantePagoProveedorDetectado(0);
-      setConfirmarSaldoFavorPagoProveedor(false);
-      setFormPagoProveedor((prev) => ({ ...prev, tipoAplicacion: e2.target.value, pedidoCompraIds: e2.target.value === "general" ? [] : prev.pedidoCompraIds?.length ? prev.pedidoCompraIds : cargosPendientesPagoProveedor[0]?.pedidoId ? [cargosPendientesPagoProveedor[0].pedidoId] : [] }));
-    }, className: "w-full px-3 py-2.5 rounded-xl border border-emerald-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500" }, /* @__PURE__ */ import_react4.default.createElement("option", { value: "general" }, "Pago general a la cuenta corriente"), /* @__PURE__ */ import_react4.default.createElement("option", { value: "ticket", disabled: !cargosPendientesPagoProveedor.length }, "Aplicar a un remito pendiente"), /* @__PURE__ */ import_react4.default.createElement("option", { value: "ticket_multi", disabled: !cargosPendientesPagoProveedor.length }, "Aplicar a remitos seleccionados")), formPagoProveedor.tipoAplicacion === "ticket" && /* @__PURE__ */ import_react4.default.createElement("select", { value: formPagoProveedor.pedidoCompraIds?.[0] || "", onChange: (e2) => {
-      const cargo = cargosPendientesPagoProveedor.find((item2) => item2.pedidoId === e2.target.value);
-      setSobrantePagoProveedorDetectado(0);
-      setConfirmarSaldoFavorPagoProveedor(false);
-      setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: e2.target.value ? [e2.target.value] : [], monto: cargo ? cargo.pendiente.toFixed(2) : prev.monto }));
-    }, className: "w-full px-3 py-2.5 rounded-xl border border-emerald-200 bg-white font-bold text-xs outline-none focus:ring-2 focus:ring-emerald-500" }, cargosPendientesPagoProveedor.map((cargo) => /* @__PURE__ */ import_react4.default.createElement("option", { key: `pago-prov-remito-${cargo.pedidoId}`, value: cargo.pedidoId }, formatearFecha(cargo.fecha), " \xB7 PC-", cargo.numero, " \xB7 Pendiente ", formatearDinero(cargo.pendiente)))), sobrantePagoProveedorDetectado > 9e-3 && /* @__PURE__ */ import_react4.default.createElement("div", { className: "rounded-xl border border-amber-300 bg-amber-50 p-3" }, /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-xs font-black text-amber-900" }, "Quedan ", formatearDinero(sobrantePagoProveedorDetectado), " sin aplicar."), /* @__PURE__ */ import_react4.default.createElement("p", { className: "mt-1 text-[10px] font-bold text-amber-800" }, "Seleccion\xE1 abajo otro remito o factura pendiente. Si no quer\xE9s aplicarlo, pod\xE9s dejar expresamente el resto como saldo a favor."), /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: () => {
-      setConfirmarSaldoFavorPagoProveedor(true);
-      setSobrantePagoProveedorDetectado(0);
-    }, className: "mt-2 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-[10px] font-black uppercase text-amber-800 hover:bg-amber-100" }, "Dejar resto como saldo a favor")), formPagoProveedor.tipoAplicacion === "ticket_multi" && /* @__PURE__ */ import_react4.default.createElement("div", { className: "max-h-44 overflow-y-auto divide-y divide-emerald-100 rounded-xl border border-emerald-100 bg-white" }, /* @__PURE__ */ import_react4.default.createElement("div", { className: "flex justify-end px-3 py-2" }, /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: () => {
+    /* @__PURE__ */ import_react4.default.createElement("form", { onSubmit: guardarPagoProveedor, className: "space-y-4" }, textoSeguroTrim(formPagoProveedor?.pedidoCompraId, "") && /* @__PURE__ */ import_react4.default.createElement("div", { className: "rounded-xl border border-amber-200 bg-amber-50 px-3 py-2" }, /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-[10px] font-black uppercase tracking-wider text-amber-700" }, "Pago anticipado asociado al pedido"), /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-xs font-bold text-amber-800" }, "PC-", textoSeguroTrim(formPagoProveedor?.pedidoCompraNumero, "000000"), " \xB7 ", textoSeguroTrim(formPagoProveedor?.pedidoCompraEstado, "guardado"))), /* @__PURE__ */ import_react4.default.createElement("div", { className: "rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 space-y-3" }, /* @__PURE__ */ import_react4.default.createElement("label", { className: "block text-[10px] font-black uppercase tracking-wider text-emerald-800" }, "Aplicaci\xF3n del pago ", /* @__PURE__ */ import_react4.default.createElement(AyudaCampo, { texto: "Eleg\xED pago general o aplicalo a un comprobante. Si sobra dinero, pod\xE9s marcar otro comprobante y ver el saldo restante en el momento." })), /* @__PURE__ */ import_react4.default.createElement(
+      "select",
+      {
+        value: formPagoProveedor.tipoAplicacion === "general" ? "general" : "ticket_multi",
+        onChange: (e2) => {
+          setSobrantePagoProveedorDetectado(0);
+          setConfirmarSaldoFavorPagoProveedor(false);
+          setFormPagoProveedor((prev) => ({
+            ...prev,
+            tipoAplicacion: e2.target.value,
+            pedidoCompraIds: e2.target.value === "general" ? [] : prev.pedidoCompraIds || []
+          }));
+        },
+        className: "w-full px-3 py-2.5 rounded-xl border border-emerald-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+      },
+      /* @__PURE__ */ import_react4.default.createElement("option", { value: "general" }, "Pago general a la cuenta corriente"),
+      /* @__PURE__ */ import_react4.default.createElement("option", { value: "ticket_multi", disabled: !cargosPendientesPagoProveedor.length }, "Aplicar a un remito o factura seleccionado")
+    ), formPagoProveedor.tipoAplicacion !== "general" && /* @__PURE__ */ import_react4.default.createElement(import_react4.default.Fragment, null, /* @__PURE__ */ import_react4.default.createElement("div", { className: "grid grid-cols-2 lg:grid-cols-4 gap-2" }, /* @__PURE__ */ import_react4.default.createElement("div", { className: "rounded-xl border border-slate-200 bg-white px-3 py-2" }, /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-[9px] font-black uppercase tracking-wider text-slate-500" }, "Monto del pago"), /* @__PURE__ */ import_react4.default.createElement("p", { className: "mt-1 text-sm font-black text-slate-900" }, formatearDinero(resumenAplicacionPagoProveedor.montoPago))), /* @__PURE__ */ import_react4.default.createElement("div", { className: "rounded-xl border border-slate-200 bg-white px-3 py-2" }, /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-[9px] font-black uppercase tracking-wider text-slate-500" }, "Pendiente seleccionado"), /* @__PURE__ */ import_react4.default.createElement("p", { className: "mt-1 text-sm font-black text-slate-900" }, formatearDinero(resumenAplicacionPagoProveedor.totalPendienteSeleccionado))), /* @__PURE__ */ import_react4.default.createElement("div", { className: "rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2" }, /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-[9px] font-black uppercase tracking-wider text-emerald-700" }, "Importe aplicado"), /* @__PURE__ */ import_react4.default.createElement("p", { className: "mt-1 text-sm font-black text-emerald-800" }, formatearDinero(resumenAplicacionPagoProveedor.totalAplicado))), /* @__PURE__ */ import_react4.default.createElement("div", { className: `rounded-xl border px-3 py-2 ${resumenAplicacionPagoProveedor.restantePago > 9e-3 ? "border-amber-300 bg-amber-50" : "border-emerald-300 bg-emerald-50"}` }, /* @__PURE__ */ import_react4.default.createElement("p", { className: `text-[9px] font-black uppercase tracking-wider ${resumenAplicacionPagoProveedor.restantePago > 9e-3 ? "text-amber-700" : "text-emerald-700"}` }, "Resta del pago"), /* @__PURE__ */ import_react4.default.createElement("p", { className: `mt-1 text-sm font-black ${resumenAplicacionPagoProveedor.restantePago > 9e-3 ? "text-amber-900" : "text-emerald-800"}` }, formatearDinero(resumenAplicacionPagoProveedor.restantePago)))), /* @__PURE__ */ import_react4.default.createElement("div", { className: "overflow-hidden rounded-xl border border-emerald-100 bg-white" }, /* @__PURE__ */ import_react4.default.createElement("div", { className: "flex items-center justify-between gap-3 border-b border-emerald-100 px-3 py-2" }, /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-[10px] font-black uppercase tracking-wider text-slate-600" }, "Comprobantes pendientes"), /* @__PURE__ */ import_react4.default.createElement("div", { className: "flex items-center gap-3" }, /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: () => {
       setSobrantePagoProveedorDetectado(0);
       setConfirmarSaldoFavorPagoProveedor(false);
       setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: cargosPendientesPagoProveedor.map((cargo) => cargo.pedidoId) }));
-    }, className: "text-[10px] font-black uppercase text-emerald-700" }, "Todos")), cargosPendientesPagoProveedor.map((cargo) => {
+    }, className: "text-[10px] font-black uppercase text-emerald-700" }, "Seleccionar todos"), /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: () => {
+      setSobrantePagoProveedorDetectado(0);
+      setConfirmarSaldoFavorPagoProveedor(false);
+      setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: [] }));
+    }, className: "text-[10px] font-black uppercase text-slate-500" }, "Limpiar"))), /* @__PURE__ */ import_react4.default.createElement("div", { className: "max-h-60 overflow-y-auto divide-y divide-emerald-100" }, cargosPendientesPagoProveedor.map((cargo) => {
       const seleccionado = (formPagoProveedor.pedidoCompraIds || []).includes(cargo.pedidoId);
-      return /* @__PURE__ */ import_react4.default.createElement("label", { key: `pago-prov-remito-multi-${cargo.pedidoId}`, className: "flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-emerald-50" }, /* @__PURE__ */ import_react4.default.createElement("input", { type: "checkbox", checked: seleccionado, onChange: (e2) => {
+      const aplicacion = resumenAplicacionPagoProveedor.aplicacionesPorId.get(cargo.pedidoId);
+      const comprobante = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(" ") || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || "000000"}`);
+      return /* @__PURE__ */ import_react4.default.createElement("label", { key: `pago-prov-remito-multi-${cargo.pedidoId}`, className: `flex items-start gap-3 px-3 py-2.5 cursor-pointer ${seleccionado ? "bg-emerald-50" : "hover:bg-slate-50"}` }, /* @__PURE__ */ import_react4.default.createElement("input", { type: "checkbox", checked: seleccionado, onChange: (e2) => {
         setSobrantePagoProveedorDetectado(0);
         setConfirmarSaldoFavorPagoProveedor(false);
         setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: e2.target.checked ? Array.from(/* @__PURE__ */ new Set([...prev.pedidoCompraIds || [], cargo.pedidoId])) : (prev.pedidoCompraIds || []).filter((id) => id !== cargo.pedidoId) }));
-      }, className: "w-4 h-4 text-emerald-600 rounded border-emerald-300" }), /* @__PURE__ */ import_react4.default.createElement("span", { className: "text-xs font-bold text-slate-700" }, "PC-", cargo.numero, " \xB7 ", formatearFecha(cargo.fecha), " \xB7 Pendiente ", formatearDinero(cargo.pendiente)));
-    })), /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-[10px] font-bold text-emerald-700" }, "El pago se aplica en el orden de los comprobantes seleccionados. Solo la diferencia final confirmada queda como saldo a favor.")), /* @__PURE__ */ import_react4.default.createElement("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-3" }, /* @__PURE__ */ import_react4.default.createElement("div", null, /* @__PURE__ */ import_react4.default.createElement("label", { className: "block text-[10px] font-black text-gray-600 uppercase tracking-wider mb-1" }, "Proveedor"), /* @__PURE__ */ import_react4.default.createElement(
+      }, className: "mt-0.5 w-4 h-4 text-emerald-600 rounded border-emerald-300" }), /* @__PURE__ */ import_react4.default.createElement("span", { className: "min-w-0 flex-1" }, /* @__PURE__ */ import_react4.default.createElement("span", { className: "block text-xs font-black text-slate-800" }, comprobante, " \xB7 ", formatearFecha(cargo.fecha)), /* @__PURE__ */ import_react4.default.createElement("span", { className: "block text-[10px] font-bold text-slate-500" }, "Saldo pendiente: ", formatearDinero(cargo.pendiente)), seleccionado && aplicacion && /* @__PURE__ */ import_react4.default.createElement("span", { className: "mt-1 block text-[10px] font-black text-emerald-700" }, "Aplicar\xE1 ", formatearDinero(aplicacion.aplicado), " \xB7 saldo del comprobante ", formatearDinero(aplicacion.saldoComprobanteDespues), " \xB7 queda del pago ", formatearDinero(aplicacion.restantePagoDespues))));
+    }))), !(formPagoProveedor.pedidoCompraIds || []).length && /* @__PURE__ */ import_react4.default.createElement("p", { className: "rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[10px] font-black text-blue-800" }, "Marc\xE1 el remito o factura al que quer\xE9s aplicar el pago."), (formPagoProveedor.pedidoCompraIds || []).length > 0 && resumenAplicacionPagoProveedor.restantePago > 9e-3 && /* @__PURE__ */ import_react4.default.createElement("div", { className: `rounded-xl border p-3 ${confirmarSaldoFavorPagoProveedor ? "border-emerald-300 bg-emerald-50" : "border-amber-300 bg-amber-50"}` }, /* @__PURE__ */ import_react4.default.createElement("p", { className: `text-xs font-black ${confirmarSaldoFavorPagoProveedor ? "text-emerald-900" : "text-amber-900"}` }, "Quedan ", formatearDinero(resumenAplicacionPagoProveedor.restantePago), " del pago."), /* @__PURE__ */ import_react4.default.createElement("p", { className: `mt-1 text-[10px] font-bold ${confirmarSaldoFavorPagoProveedor ? "text-emerald-800" : "text-amber-800"}` }, confirmarSaldoFavorPagoProveedor ? "Ese importe se registrar\xE1 como saldo a favor del proveedor." : "Marc\xE1 otro comprobante para seguir descontando este importe, o dejalo como saldo a favor."), !confirmarSaldoFavorPagoProveedor && /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", onClick: () => setConfirmarSaldoFavorPagoProveedor(true), className: "mt-2 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-[10px] font-black uppercase text-amber-800 hover:bg-amber-100" }, "Dejar resto como saldo a favor")), /* @__PURE__ */ import_react4.default.createElement("p", { className: "text-[10px] font-bold text-emerald-700" }, "Los comprobantes se pagan en el mismo orden en que los vas marcando."))), /* @__PURE__ */ import_react4.default.createElement("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-3" }, /* @__PURE__ */ import_react4.default.createElement("div", null, /* @__PURE__ */ import_react4.default.createElement("label", { className: "block text-[10px] font-black text-gray-600 uppercase tracking-wider mb-1" }, "Proveedor"), /* @__PURE__ */ import_react4.default.createElement(
       "select",
       {
         value: formPagoProveedor.proveedor || "",
-        onChange: (e2) => setFormPagoProveedor((prev) => ({ ...prev, proveedor: e2.target.value })),
+        onChange: (e2) => {
+          setSobrantePagoProveedorDetectado(0);
+          setConfirmarSaldoFavorPagoProveedor(false);
+          setFormPagoProveedor((prev) => ({ ...prev, proveedor: e2.target.value, pedidoCompraIds: [] }));
+        },
         className: "w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500",
         required: true
       },
@@ -81204,14 +81268,17 @@ ${configuracion.nombre}`;
       "button",
       {
         type: "button",
+        disabled: guardandoPagoProveedor,
         onClick: () => {
           setPagoProveedorAEditar(null);
+          setSobrantePagoProveedorDetectado(0);
+          setConfirmarSaldoFavorPagoProveedor(false);
           setModalActivo(null);
         },
-        className: "sm:w-44 px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-700 text-xs font-black uppercase tracking-wider hover:bg-gray-50"
+        className: "sm:w-44 px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-700 text-xs font-black uppercase tracking-wider hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
       },
       "Cancelar"
-    ), /* @__PURE__ */ import_react4.default.createElement("button", { type: "submit", className: "flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm" }, pagoProveedorAEditar ? "Guardar cambios" : "Guardar pago")))
+    ), /* @__PURE__ */ import_react4.default.createElement("button", { type: "submit", disabled: guardandoPagoProveedor, className: "flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-wait text-white py-3 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm" }, guardandoPagoProveedor ? "Guardando pago..." : pagoProveedorAEditar ? "Guardar cambios" : "Guardar pago")))
   ), /* @__PURE__ */ import_react4.default.createElement(
     SelectorChequesModal,
     {
