@@ -1,10 +1,10 @@
-const CACHE_NAME = 'seniorflow-card-plan-validity-20260815-51';
+const CACHE_NAME = 'seniorflow-price-progress-20260816-53';
 const ASSETS = [
   './',
   './index.html',
   './stock-app.html',
   './stock-app.js?v=seniorflow-stock-mobile-20260807-08',
-  './app.js?v=seniorflow-card-plan-validity-20260815-51',
+  './app.js?v=seniorflow-price-progress-20260816-53',
   './firebase-config.js?v=seniorflow-react-20260715-pdf-pagination-06',
   './manifest.json',
   './manifest-stock-app.json?v=seniorflow-stock-mobile-20260807-08',
@@ -94,7 +94,7 @@ self.addEventListener('fetch', (event) => {
             ? './stock-app.js?v=seniorflow-stock-mobile-20260807-08'
             : url.pathname.endsWith('/ofertas.html')
               ? './ofertas.html?v=seniorflow-react-20260715-pdf-pagination-06'
-              : './app.js?v=seniorflow-card-plan-validity-20260815-51'));
+              : './app.js?v=seniorflow-price-progress-20260816-53'));
       }
     })());
     return;
