@@ -7,7 +7,7 @@ import {
   LogOut, User, UserCog, UserPlus, ShieldCheck, Settings, Image as ImageIcon,
   Search, Loader2, ClipboardList, Send, FilePlus2, CheckCircle, XCircle, Package, Truck,
   Eye, EyeOff, Copy, Monitor, ShoppingCart, Layers, BookOpen,
-  Camera, ScanBarcode, ArrowDownCircle, Mail, MapPin, Globe, History, Download, Upload, Paperclip, ChevronDown, ChevronRight, Bell
+  Camera, ScanBarcode, ArrowDownCircle, Mail, MapPin, Globe, History, Download, Upload, Paperclip, ChevronDown, ChevronRight, Bell, Landmark, Undo2
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -27,7 +27,7 @@ const doc = (database, ...path) => firestoreDoc(database, ...path);
 const COLECCIONES_BACKUP = [
   'usuarios', 'historial_caja', 'movimientos', 'clientes', 'presupuestos', 'ofertas', 'combos',
   'productos', 'variaciones_precios', 'proveedores', 'pagos_proveedores', 'facturas_emitidas',
-  'marcas', 'pedidos_compra', 'respaldos_precios'
+  'marcas', 'pedidos_compra', 'respaldos_precios', 'vendedores', 'retiros_vendedores'
 ];
 
 // --- FUNCIONES UTILITARIAS ---
@@ -254,6 +254,103 @@ const ajustarImagenA4 = (anchoImagen = 1, altoImagen = 1, orientacion = 'portrai
   const drawX = margen + ((areaW - drawW) / 2);
   const drawY = margen + ((areaH - drawH) / 2);
   return { pageW, pageH, margen, areaW, areaH, drawW, drawH, drawX, drawY };
+};
+
+const calcularDiasEntreComprobanteYPago = (fechaComprobante = '', fechaPago = '') => {
+  if (!fechaComprobante || !fechaPago) return null;
+  const inicio = new Date(fechaComprobante || 0);
+  const fin = new Date(fechaPago || 0);
+  if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) return null;
+  return Math.max(0, Math.round((fin.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)));
+};
+
+const renderizarAplicacionesPagosPdf = ({ doc, pagos = [], startY = 20, tituloPago = 'PAGO', tituloVacio = 'Sin pagos registrados' }) => {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  let cursorY = startY;
+  const paginaActual = () => Number(doc.internal?.getCurrentPageInfo?.()?.pageNumber || doc.internal?.getNumberOfPages?.() || 1);
+  const asegurarEspacio = (alto = 30) => {
+    if (cursorY + alto <= pageHeight - 14) return;
+    doc.addPage();
+    cursorY = 16;
+  };
+
+  if (!pagos.length) {
+    asegurarEspacio(18);
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(14, cursorY, pageWidth - 28, 14, 2, 2, 'FD');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(100, 116, 139);
+    doc.text(tituloVacio, 18, cursorY + 8.5);
+    return { cursorY: cursorY + 18, pagina: paginaActual() };
+  }
+
+  pagos.forEach((pago, indicePago) => {
+    const aplicaciones = Array.isArray(pago?.aplicaciones) ? pago.aplicaciones : [];
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.2);
+    const alturasAplicaciones = aplicaciones.map((aplicacion) => {
+      const dias = Number.isFinite(Number(aplicacion?.dias)) ? Number(aplicacion.dias) : null;
+      const estadoTexto = Number(aplicacion?.saldoDespues || 0) <= 0.009
+        ? 'Quedó saldado.'
+        : `Quedó un saldo de ${formatearDinero(Number(aplicacion?.saldoDespues || 0))}.`;
+      const texto = aplicacion?.desdeSaldoFavor
+        ? `Del sobrante de este pago se aplicaron ${formatearDinero(Number(aplicacion?.aplicado || 0))} al ${aplicacion?.comprobante || 'comprobante'} de valor original ${formatearDinero(Number(aplicacion?.montoOriginal || 0))}. ${estadoTexto}`
+        : `Se aplicaron ${formatearDinero(Number(aplicacion?.aplicado || 0))} al ${aplicacion?.comprobante || 'comprobante'} de valor original ${formatearDinero(Number(aplicacion?.montoOriginal || 0))}${dias === null ? '' : `, a los ${dias} días`}. ${estadoTexto}`;
+      const lineas = doc.splitTextToSize(texto, pageWidth - 53);
+      return { aplicacion, lineas, alto: Math.max(10, (lineas.length * 3.6) + 4) };
+    });
+    const altoBloque = 17 + (alturasAplicaciones.length ? alturasAplicaciones.reduce((total, item) => total + item.alto + 2, 0) : 12) + (Number(pago?.sobrante || 0) > 0.009 ? 10 : 0) + 5;
+    asegurarEspacio(Math.min(altoBloque, pageHeight - 30));
+
+    doc.setFillColor(30, 64, 109);
+    doc.roundedRect(14, cursorY, pageWidth - 28, 10, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
+    doc.text(`${tituloPago} ${String(indicePago + 1).padStart(2, '0')} · ${formatearFecha(pago?.fecha || new Date())}`, 18, cursorY + 6.5);
+    doc.setFontSize(10.5);
+    doc.text(formatearDinero(Number(pago?.total || 0)), pageWidth - 18, cursorY + 6.5, { align: 'right' });
+    cursorY += 12;
+
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.7); doc.setTextColor(71, 85, 105);
+    const datosPago = [pago?.medio, pago?.detalle].filter(Boolean).join(' · ') || 'Sin detalle adicional';
+    const lineasDatosPago = doc.splitTextToSize(datosPago, pageWidth - 36);
+    doc.text(lineasDatosPago, 18, cursorY + 2.5);
+    cursorY += Math.max(6, (lineasDatosPago.length * 3.3) + 2);
+
+    if (!alturasAplicaciones.length) {
+      doc.setFillColor(255, 247, 237); doc.setDrawColor(253, 186, 116);
+      doc.roundedRect(18, cursorY, pageWidth - 36, 9, 1.5, 1.5, 'FD');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(180, 83, 9);
+      doc.text('Este pago todavía no fue aplicado a ningún comprobante.', 22, cursorY + 5.8);
+      cursorY += 12;
+    } else {
+      alturasAplicaciones.forEach(({ aplicacion, lineas, alto }, indiceAplicacion) => {
+        asegurarEspacio(alto + 4);
+        const saldado = Number(aplicacion?.saldoDespues || 0) <= 0.009;
+        doc.setFillColor(saldado ? 240 : 254, saldado ? 253 : 242, saldado ? 250 : 242);
+        doc.setDrawColor(saldado ? 167 : 254, saldado ? 243 : 202, saldado ? 208 : 202);
+        doc.roundedRect(18, cursorY, pageWidth - 36, alto, 1.5, 1.5, 'FD');
+        doc.setFillColor(saldado ? 5 : 220, saldado ? 150 : 38, saldado ? 105 : 38);
+        doc.circle(23, cursorY + (alto / 2), 3, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(255, 255, 255);
+        doc.text(String(indiceAplicacion + 1), 23, cursorY + (alto / 2) + 1, { align: 'center' });
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.2); doc.setTextColor(30, 41, 59);
+        doc.text(lineas, 29, cursorY + 4.2);
+        cursorY += alto + 2;
+      });
+    }
+
+    if (Number(pago?.sobrante || 0) > 0.009) {
+      asegurarEspacio(12);
+      doc.setFillColor(255, 251, 235); doc.setDrawColor(252, 211, 77);
+      doc.roundedRect(18, cursorY, pageWidth - 36, 8, 1.5, 1.5, 'FD');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(180, 83, 9);
+      doc.text(`Quedaron ${formatearDinero(Number(pago.sobrante))} a favor o pendientes de aplicar.`, 22, cursorY + 5.3);
+      cursorY += 11;
+    }
+    cursorY += 4;
+  });
+  return { cursorY, pagina: paginaActual() };
 };
 
 const AUTO_PRINT_READY_SCRIPT = `
@@ -510,6 +607,8 @@ const FORM_USUARIO_VACIO = {
   puedeVerStockBajo: false,
   puedeVerRastreo: false,
   puedeVerVariacionPrecios: false
+  ,puedeVerVendedores: false
+  ,puedeVerResumenes: false
 };
 const PERMISOS_USUARIO_OPCIONES = [
   { key: 'puedeVerVentas', label: 'Ventas', description: 'Acceso al panel de ventas.' },
@@ -532,6 +631,8 @@ const PERMISOS_USUARIO_OPCIONES = [
   ,{ key: 'puedeVerStockBajo', label: 'Stock bajo', description: 'Acceso al listado de alertas de stock.' },
   { key: 'puedeVerRastreo', label: 'Rastreo', description: 'Acceso al rastreo de comprobantes y cheques.' },
   { key: 'puedeVerVariacionPrecios', label: 'Variación de precio', description: 'Acceso al historial y ranking de variaciones.' }
+  ,{ key: 'puedeVerVendedores', label: 'Vendedores', description: 'Administrar vendedores, comisiones y retiros.' }
+  ,{ key: 'puedeVerResumenes', label: 'Tarjetas de ventas', description: 'Ver tarjetas de ventas diarias/mensuales en Caja, Ventas y Cuentas corrientes.' }
 ];
 
 const AYUDA_SECCIONES = [
@@ -726,6 +827,7 @@ const crearFormularioProducto = (producto = {}) => {
   ganancia: producto?.ganancia ?? '',
   iva: producto?.iva ?? '21',
   precio: producto?.precio ?? '',
+  redondeoPrecio: producto?.redondeoPrecio ?? 'ninguno',
   unidad: producto?.unidad ?? 'unid',
   cantidad: producto?.cantidad ?? '',
   stockMinimo: producto?.stockMinimo ?? producto?.minimoStock ?? '',
@@ -827,6 +929,13 @@ const promesaConTimeout = (promesa, timeoutMs = 15000, mensaje = 'La operación 
 );
 const esDataUrlPesada = (valor = '') => textoSeguroTrim(valor, '').startsWith('data:');
 const MS_POR_DIA = 1000 * 60 * 60 * 24;
+const calcularPlazoEntreFechas = (fechaEmision = '', fechaCobro = '') => {
+  if (!fechaEmision || !fechaCobro) return '';
+  const inicio = new Date(`${fechaEmision}T12:00:00`);
+  const fin = new Date(`${fechaCobro}T12:00:00`);
+  if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) return '';
+  return String(Math.max(0, Math.round((fin.getTime() - inicio.getTime()) / MS_POR_DIA)));
+};
 const CONTACTO_NEGOCIO_FALLBACK = {
   direccion: COMPANY_DEFAULTS.direccion || '',
   web: COMPANY_DEFAULTS.web || '',
@@ -848,6 +957,8 @@ const CONFIG_DEFAULT = {
   pagoTitular: '',
   pagoBanco: '',
   pagoDetalle: '',
+  tarjetasPlanes: [],
+  redondearVentasHaciaArriba: false,
   recargoMoraPorcentaje: 0,
   recargosAutomaticosActivos: false,
   recargoMoraPorcentajeGlobal: 0,
@@ -860,6 +971,49 @@ const CONFIG_DEFAULT = {
   recorteIaApiKey: '',
   ofertaIaEndpoint: '',
   ofertaIaToken: ''
+};
+const normalizarPlanTarjeta = (plan = {}, index = 0) => ({
+  id: textoSeguroTrim(plan?.id, `plan-${index + 1}`),
+  tarjeta: textoSeguroTrim(plan?.tarjeta, 'Tarjeta'),
+  tipo: ['debito', 'credito'].includes(normalizarMetodoPago(plan?.tipo)) ? normalizarMetodoPago(plan.tipo) : 'credito',
+  plan: textoSeguroTrim(plan?.plan, `${Math.max(1, Math.floor(Number(plan?.cuotas || 1)))} cuota(s)`),
+  cuotas: Math.max(1, Math.floor(Number(plan?.cuotas || 1))),
+  descuentoComercio: Math.min(99.99, Math.max(0, Number(plan?.descuentoComercio || 0))),
+  otrosCargosPorcentaje: Math.min(99.99, Math.max(0, Number(plan?.otrosCargosPorcentaje || 0))),
+  cargoFijo: Math.max(0, Number(plan?.cargoFijo || 0)),
+  diasAcreditacion: Math.max(0, Math.floor(Number(plan?.diasAcreditacion || 0))),
+  vigenciaActiva: Boolean(plan?.vigenciaActiva),
+  vigenciaDesde: textoSeguroTrim(plan?.vigenciaDesde, ''),
+  vigenciaHasta: textoSeguroTrim(plan?.vigenciaHasta, ''),
+  activo: plan?.activo !== false
+});
+const calcularFinanciacionTarjeta = (importeContado = 0, plan = null) => {
+  const contado = Math.max(0, Number(importeContado) || 0);
+  if (!plan) return { contado, totalPosnet: contado, recargo: 0, cuota: contado, cuotas: 1, netoEstimado: contado, porcentajeRecuperacion: 0 };
+  const normalizado = normalizarPlanTarjeta(plan);
+  const tasaTotal = Math.min(99.99, normalizado.descuentoComercio + normalizado.otrosCargosPorcentaje);
+  const divisor = Math.max(0.0001, 1 - (tasaTotal / 100));
+  const totalCalculado = (contado + normalizado.cargoFijo) / divisor;
+  const cuotas = Math.max(1, normalizado.cuotas);
+  const centavosMinimos = Math.ceil((totalCalculado - Number.EPSILON) * 100);
+  const centavosPorCuota = Math.ceil(centavosMinimos / cuotas);
+  const totalPosnet = (centavosPorCuota * cuotas) / 100;
+  const cuota = centavosPorCuota / 100;
+  const netoEstimado = Math.max(0, totalPosnet * divisor - normalizado.cargoFijo);
+  return { contado, totalPosnet, recargo: Math.max(0, totalPosnet - contado), cuota, cuotas, netoEstimado, porcentajeRecuperacion: contado > 0 ? ((totalPosnet / contado) - 1) * 100 : 0, tasaTotal };
+};
+const redondearImporteVentaHaciaArriba = (importe = 0) => {
+  const importeConCentavos = Math.round((Math.max(0, Number(importe) || 0) + Number.EPSILON) * 100) / 100;
+  return Math.ceil(importeConCentavos - Number.EPSILON);
+};
+const redondearPrecioProducto = (importe = 0, modo = 'ninguno') => {
+  const factor = modo === 'cien' ? 100 : (modo === 'mil' ? 1000 : 1);
+  const valor = Number.isFinite(Number(importe)) ? Number(importe) : 0;
+  if (factor <= 1) return valor;
+  const modoAlejarCero = modo === -1 || modo === '-1' || modo === 'alejar_cero';
+  const cociente = valor / factor;
+  const entero = valor < 0 && modoAlejarCero ? Math.floor(cociente) : Math.ceil(cociente);
+  return entero * factor;
 };
 const crearFormularioStockRapidoVacio = () => ({
   proveedor: '',
@@ -955,7 +1109,9 @@ const obtenerEtiquetaMetodoPago = (metodo = '') => {
   const key = normalizarMetodoPago(metodo);
   if (key === 'efectivo') return 'Efectivo';
   if (key === 'transferencia') return 'Transferencia';
-  if (key === 'tarjeta') return 'Tarjeta';
+  if (key === 'tarjeta_credito') return 'Tarjeta de crédito';
+  if (key === 'tarjeta_debito') return 'Tarjeta de débito';
+  if (key === 'tarjeta') return 'Tarjeta de crédito';
   if (key === 'cheque') return 'Cheque';
   if (key === 'echeq') return 'E-Cheq';
   if (key === 'cuenta_corriente') return 'Cuenta corriente';
@@ -1317,6 +1473,22 @@ const obtenerRangoVigenciaOfertaDefault = () => {
   };
 };
 
+const esPlanTarjetaVigenteEnFecha = (plan = {}, fechaReferencia = obtenerFechaInputLocal()) => {
+  const normalizado = normalizarPlanTarjeta(plan);
+  if (!normalizado.vigenciaActiva) return true;
+  const hoy = esFechaInputValida(fechaReferencia) ? fechaReferencia : obtenerFechaInputLocal();
+  const desde = esFechaInputValida(normalizado.vigenciaDesde) ? normalizado.vigenciaDesde : '';
+  const hasta = esFechaInputValida(normalizado.vigenciaHasta) ? normalizado.vigenciaHasta : '';
+  if (desde && hoy < desde) return false;
+  if (hasta && hoy > hasta) return false;
+  return true;
+};
+
+const esPlanTarjetaPromoVigente = (plan = {}, fechaReferencia = obtenerFechaInputLocal()) => {
+  const normalizado = normalizarPlanTarjeta(plan);
+  return Boolean(normalizado.vigenciaActiva && esPlanTarjetaVigenteEnFecha(normalizado, fechaReferencia));
+};
+
 const formatearFechaInputLocal = (fechaInput = '') => {
   if (!esFechaInputValida(fechaInput)) return '';
   return formatearFecha(new Date(`${fechaInput}T12:00:00`));
@@ -1409,7 +1581,14 @@ const crearFormularioPuntoVentaVacio = () => ({
   numeroComprobante: '',
   numeroComprobanteManual: false,
   metodoPago: 'cuenta_corriente',
+  tarjetaPlanId: '',
+  vendedorId: '',
+  vendedorNombre: '',
+  comisionPorcentaje: '',
   notas: '',
+  devolucionOrigenId: '',
+  devolucionOrigenNumero: '',
+  devolucionOrigenTipo: '',
   items: [crearItemPuntoVentaVacio()]
 });
 
@@ -1458,6 +1637,45 @@ const WidgetCard = ({ titulo, monto, icono: Icono, colorClase, subtitulo, onClic
   </div>
 );
 
+const obtenerPaginaLista = (items = [], pagina = 1, porPagina = 25) => {
+  const total = items.length;
+  const totalPaginas = Math.max(1, Math.ceil(total / porPagina));
+  const paginaSegura = Math.min(Math.max(1, pagina), totalPaginas);
+  const inicio = total ? (paginaSegura - 1) * porPagina : 0;
+  return { items: items.slice(inicio, inicio + porPagina), total, totalPaginas, pagina: paginaSegura, inicio, fin: Math.min(inicio + porPagina, total) };
+};
+
+const SFPagination = ({ pagina, porPagina, total, entidad = 'registros', onPaginaChange, onPorPaginaChange }) => {
+  const totalPaginas = Math.max(1, Math.ceil(total / porPagina));
+  const paginaSegura = Math.min(Math.max(1, pagina), totalPaginas);
+  const paginas = Array.from({ length: totalPaginas }, (_, index) => index + 1);
+  const visibles = totalPaginas <= 7
+    ? paginas
+    : [...new Set([1, Math.max(1, paginaSegura - 1), paginaSegura, Math.min(totalPaginas, paginaSegura + 1), totalPaginas])].sort((a, b) => a - b);
+  const inicio = total ? ((paginaSegura - 1) * porPagina) + 1 : 0;
+  const fin = Math.min(paginaSegura * porPagina, total);
+  return (
+    <div className="sf-pagination shrink-0 flex flex-col gap-2 border-t border-slate-100 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-[11px] font-semibold text-slate-500">Mostrando {inicio} a {fin} de {total} {entidad}</p>
+      <div className="flex items-center justify-between gap-2 sm:justify-end">
+        <div className="hidden items-center gap-1 sm:flex">
+          <button type="button" onClick={() => onPaginaChange(paginaSegura - 1)} disabled={paginaSegura === 1} aria-label="Página anterior">‹</button>
+          {visibles.map((numero, index) => <React.Fragment key={numero}>{index > 0 && numero - visibles[index - 1] > 1 && <span className="px-0.5 text-slate-400">…</span>}<button type="button" onClick={() => onPaginaChange(numero)} className={numero === paginaSegura ? 'sf-pagination-active' : ''}>{numero}</button></React.Fragment>)}
+          <button type="button" onClick={() => onPaginaChange(paginaSegura + 1)} disabled={paginaSegura === totalPaginas} aria-label="Página siguiente">›</button>
+        </div>
+        <div className="flex items-center gap-1 sm:hidden">
+          <button type="button" onClick={() => onPaginaChange(paginaSegura - 1)} disabled={paginaSegura === 1}>‹ Anterior</button>
+          <span className="px-1 text-[10px] font-bold text-slate-500">Página {paginaSegura} de {totalPaginas}</span>
+          <button type="button" onClick={() => onPaginaChange(paginaSegura + 1)} disabled={paginaSegura === totalPaginas}>Siguiente ›</button>
+        </div>
+        <select aria-label="Registros por página" value={porPagina} onChange={(event) => onPorPaginaChange(Number(event.target.value))} className="h-8 rounded-md border border-slate-200 bg-white px-2 text-[10px] font-bold text-slate-600 outline-none">
+          {[25, 50, 100].map((cantidad) => <option key={cantidad} value={cantidad}>{cantidad} por página</option>)}
+        </select>
+      </div>
+    </div>
+  );
+};
+
 const Button = ({
   children,
   onClick,
@@ -1500,6 +1718,18 @@ const ButtonPrimary = ({ children, ...props }) => <Button variant="primary" {...
 const ButtonSecondary = ({ children, ...props }) => <Button variant="secondary" {...props}>{children}</Button>;
 const ButtonGhost = ({ children, ...props }) => <Button variant="ghost" {...props}>{children}</Button>;
 const ButtonDanger = ({ children, ...props }) => <Button variant="danger" {...props}>{children}</Button>;
+
+const SFIconAction = ({ icon: Icono, tooltip, action = 'neutral', className = '', type = 'button', ...props }) => (
+  <button
+    type={type}
+    title={tooltip}
+    aria-label={tooltip}
+    className={`sf-icon-action sf-icon-action-${action} ${className}`}
+    {...props}
+  >
+    <Icono size={18} strokeWidth={1.75} />
+  </button>
+);
 
 const Card = ({ children, className = '', hover = true, padding = 'p-6', ...props }) => (
   <div className={`card ${padding} ${hover ? 'hover-lift' : ''} ${className}`} {...props}>
@@ -1741,19 +1971,20 @@ const obtenerMaxWidthModal = (customWidth = 'max-w-md') => {
   return mapa[customWidth] || 'min(80rem, 100vw)';
 };
 
-const Modal = ({ titulo, children, onClose, customWidth = 'max-w-md', extraClases = '', fullScreen = false }) => (
+const Modal = ({ titulo, children, onClose, customWidth = 'max-w-md', extraClases = '', fullScreen = false, footer = null, headerIcon = null, modalVariant = '' }) => (
   <div className={`sf-modal-overlay fixed inset-0 bg-black/50 backdrop-blur-sm flex ${fullScreen ? 'items-stretch p-2 sm:p-3' : 'items-center justify-center p-4'} z-[100] print:hidden ${extraClases}`}>
     <div
       style={{ '--sf-modal-max-width': obtenerMaxWidthModal(customWidth) }}
-      className={`sf-modal-panel bg-white rounded-2xl shadow-xl w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col ${fullScreen ? 'sf-modal-fullscreen max-w-none max-h-[96vh] self-start' : `${customWidth} max-h-[95vh]`}`}
+      className={`sf-modal-panel bg-white rounded-2xl shadow-xl w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col ${modalVariant} ${fullScreen ? 'sf-modal-fullscreen max-w-none self-stretch' : `${customWidth} max-h-[95dvh]`}`}
     >
-      <div className="flex justify-between items-center p-4 border-b border-gray-100 shrink-0 bg-white">
-        <h2 className={`${titulo === 'Punto de Venta' ? 'text-xl' : 'text-lg'} font-bold text-gray-800`}>{titulo}</h2>
+      <div className="sf-modal-header flex justify-between items-center p-4 border-b border-gray-100 shrink-0 bg-white">
+        <div className="flex min-w-0 items-center gap-3">{headerIcon && <span className="sf-modal-header-icon inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full">{headerIcon}</span>}<h2 className={`${titulo === 'Punto de Venta' ? 'text-xl' : 'text-lg'} font-bold text-gray-800`}>{titulo}</h2></div>
         {onClose && (
           <button type="button" onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"><X size={20} /></button>
         )}
       </div>
-      <div className={`sf-modal-body overflow-y-auto custom-scrollbar ${fullScreen ? 'flex-1 min-h-0 p-3' : 'p-5'}`}>{children}</div>
+      <div className={`sf-modal-body overflow-y-auto custom-scrollbar ${fullScreen ? 'flex-1 min-h-0 min-w-0 p-3' : 'p-5'}`}>{children}</div>
+      {footer && <div className="sf-modal-footer shrink-0 border-t border-slate-200 bg-white px-4 py-3">{footer}</div>}
     </div>
   </div>
 );
@@ -1781,6 +2012,241 @@ const SelectorChequesModal = ({ abierto, onClose, busqueda, setBusqueda, cheques
     </div>
   </Modal>
 ) : null;
+
+const FORM_VENDEDOR_VACIO = { nombre: '', documento: '', telefono: '', email: '', direccion: '', notas: '', activo: true };
+
+const calcularPreciosConComisionVendedor = (items = [], porcentaje = 0) => {
+  const tasa = Math.min(100, Math.max(0, parseNumeroBasico(porcentaje) || 0));
+  let totalBase = 0;
+  let totalFinal = 0;
+  const itemsActualizados = (Array.isArray(items) ? items : []).map((item) => {
+    const cantidad = Math.max(0, parseNumeroBasico(item?.cantidad) || 0);
+    const descuento = Math.min(100, Math.max(0, parseNumeroBasico(item?.descuento) || 0));
+    const precioActual = Math.max(0, parseNumeroBasico(item?.precio) || 0);
+    const tienePrecioBaseGuardado = item?.precioAntesComisionVendedor !== undefined && item?.precioAntesComisionVendedor !== null && String(item.precioAntesComisionVendedor).trim() !== '';
+    const precioBaseGuardado = tienePrecioBaseGuardado ? parseNumeroBasico(item.precioAntesComisionVendedor) : NaN;
+    const precioBase = tienePrecioBaseGuardado && Number.isFinite(precioBaseGuardado) && precioBaseGuardado >= 0
+      ? precioBaseGuardado
+      : precioActual;
+    const precioFinal = tasa > 0 ? Math.round((precioBase * (1 + (tasa / 100))) * 100) / 100 : precioBase;
+    const factorDescuento = 1 - (descuento / 100);
+    const subtotalBase = Math.max(0, cantidad * precioBase * factorDescuento);
+    const subtotalFinal = Math.max(0, cantidad * precioFinal * factorDescuento);
+    const comisionMonto = Math.max(0, Math.round((subtotalFinal - subtotalBase) * 100) / 100);
+    totalBase += subtotalBase;
+    totalFinal += subtotalFinal;
+    return {
+      ...item,
+      precioAntesComisionVendedor: precioBase,
+      precio: precioFinal,
+      comisionPrecioIncluida: tasa > 0,
+      comisionPorcentaje: tasa,
+      comisionMonto
+    };
+  });
+  return {
+    items: itemsActualizados,
+    totalBase: Math.round(totalBase * 100) / 100,
+    totalFinal: Math.round(totalFinal * 100) / 100,
+    totalComision: Math.round((totalFinal - totalBase) * 100) / 100
+  };
+};
+
+const restaurarPreciosSinComisionVendedor = (items = []) => (Array.isArray(items) ? items : []).map((item) => {
+  const limpio = { ...item };
+  const tienePrecioBaseGuardado = limpio?.precioAntesComisionVendedor !== undefined && limpio?.precioAntesComisionVendedor !== null && String(limpio.precioAntesComisionVendedor).trim() !== '';
+  const precioBaseGuardado = tienePrecioBaseGuardado ? parseNumeroBasico(limpio.precioAntesComisionVendedor) : NaN;
+  if (tienePrecioBaseGuardado && Number.isFinite(precioBaseGuardado) && precioBaseGuardado >= 0) limpio.precio = precioBaseGuardado;
+  delete limpio.precioAntesComisionVendedor;
+  delete limpio.comisionPrecioIncluida;
+  delete limpio.comisionPorcentaje;
+  delete limpio.comisionMonto;
+  return limpio;
+});
+
+const ModuloVendedores = ({ vendedores = [], retiros = [], movimientos = [], notificar, usuario = null, nombreEmpresa = 'SeniorFlow', onVerVenta = null, onEditarComision = null }) => {
+  const [busqueda, setBusqueda] = useState('');
+  const [vendedorSeleccionadoId, setVendedorSeleccionadoId] = useState('');
+  const [vendedorEditando, setVendedorEditando] = useState(null);
+  const [formVendedor, setFormVendedor] = useState(FORM_VENDEDOR_VACIO);
+  const [modalVendedor, setModalVendedor] = useState(false);
+  const [modalRetiro, setModalRetiro] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [formRetiro, setFormRetiro] = useState({ fecha: obtenerFechaInputLocal(), metodoPago: 'efectivo', notas: '', ventaIds: [], impactaCaja: true });
+
+  const cuentas = useMemo(() => {
+    const resultado = {};
+    vendedores.forEach((vendedor) => {
+      const ventas = movimientos
+        .filter((mov) => mov?.detallesPago?.vendedorId === vendedor.id && mov?.detallesPago?.tipoComprobante !== 'nota_credito')
+        .map((mov) => {
+          const porcentaje = Math.max(0, parseNumeroBasico(mov?.detallesPago?.comisionPorcentaje));
+          const totalVenta = Math.max(0, Number(mov?.monto || 0));
+          const comision = Math.max(0, Number(mov?.detallesPago?.comisionMonto ?? (totalVenta * porcentaje / 100)));
+          const tipo = OPCIONES_COMPROBANTE_VENTA.find((opcion) => opcion.value === mov?.detallesPago?.tipoComprobante)?.label || 'Comprobante';
+          const comprobanteTexto = `${tipo} ${textoSeguroTrim(mov?.detallesPago?.numeroComprobante, 'Sin número')}`;
+          const itemsComision = (Array.isArray(mov?.detallesPago?.comisionItems) && mov.detallesPago.comisionItems.length
+            ? mov.detallesPago.comisionItems
+            : (mov?.detallesPago?.items || []).map((item) => ({ itemId: item?.id, codigo: item?.codigo, descripcion: item?.descripcion, porcentaje: item?.comisionPorcentaje ?? porcentaje, monto: item?.comisionMonto })))
+            .map((item) => ({ ...item, monto: Math.max(0, Number(item?.monto || 0)) }))
+            .filter((item) => item.monto > 0.009);
+          return {
+            id: mov.id,
+            fecha: mov.fecha,
+            comprobanteTexto,
+            comprobante: onVerVenta ? <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onVerVenta(mov); }} className="inline-flex max-w-full items-center gap-1 whitespace-nowrap text-left font-black text-blue-700 hover:text-blue-900 hover:underline" title="Previsualizar e imprimir comprobante"><Eye size={13} className="shrink-0" /><span className="whitespace-nowrap">{comprobanteTexto}</span></button> : <span className="whitespace-nowrap">{comprobanteTexto}</span>,
+            movimiento: mov,
+            cliente: textoSeguroTrim(mov?.detallesPago?.cliente, '-'),
+            totalVenta,
+            porcentaje,
+            comision,
+            itemsComision,
+            pendiente: comision,
+            retirosAplicados: []
+          };
+        })
+        .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+      const porId = new Map(ventas.map((venta) => [venta.id, venta]));
+      const retirosVendedor = retiros
+        .filter((retiro) => retiro?.vendedorId === vendedor.id)
+        .sort((a, b) => new Date(a.fecha || a.fechaCreacion || 0) - new Date(b.fecha || b.fechaCreacion || 0));
+      retirosVendedor.forEach((retiro) => {
+        (Array.isArray(retiro?.aplicacionesVentas) ? retiro.aplicacionesVentas : []).forEach((aplicacion) => {
+          const venta = porId.get(aplicacion?.ventaId);
+          if (!venta || venta.pendiente <= 0) return;
+          const aplicado = Math.min(venta.pendiente, Math.max(0, Number(aplicacion?.montoAplicado || 0)));
+          if (aplicado <= 0) return;
+          venta.pendiente = Math.max(0, venta.pendiente - aplicado);
+          venta.retirosAplicados.push({ ...retiro, montoAplicado: aplicado, saldoDespues: venta.pendiente });
+        });
+      });
+      const totalComisiones = ventas.reduce((total, venta) => total + venta.comision, 0);
+      const totalRetirado = ventas.reduce((total, venta) => total + venta.retirosAplicados.reduce((suma, retiro) => suma + retiro.montoAplicado, 0), 0);
+      resultado[vendedor.id] = { vendedor, ventas, retiros: retirosVendedor, totalComisiones, totalRetirado, saldo: Math.max(0, totalComisiones - totalRetirado) };
+    });
+    return resultado;
+  }, [vendedores, retiros, movimientos, onVerVenta]);
+
+  useEffect(() => {
+    if (!vendedorSeleccionadoId && vendedores.length) setVendedorSeleccionadoId(vendedores[0].id);
+    if (vendedorSeleccionadoId && !vendedores.some((vendedor) => vendedor.id === vendedorSeleccionadoId)) setVendedorSeleccionadoId(vendedores[0]?.id || '');
+  }, [vendedores, vendedorSeleccionadoId]);
+
+  const vendedoresFiltrados = vendedores.filter((vendedor) => coincideBusquedaCompuesta([vendedor.nombre, vendedor.documento, vendedor.telefono, vendedor.email], busqueda));
+  const cuentaSeleccionada = cuentas[vendedorSeleccionadoId] || null;
+  const ventasPendientesRetiro = (cuentaSeleccionada?.ventas || []).filter((venta) => venta.pendiente > 0.009);
+  const resumenRetiro = useMemo(() => {
+    const aplicaciones = (formRetiro.ventaIds || []).map((ventaId, indice) => {
+      const venta = ventasPendientesRetiro.find((item) => item.id === ventaId);
+      if (!venta) return null;
+      const aplicado = Math.max(0, Number(venta.pendiente || 0));
+      return { ventaId, orden: indice + 1, comprobante: venta.comprobanteTexto, saldoAntes: venta.pendiente, montoAplicado: aplicado, saldoDespues: 0 };
+    }).filter(Boolean);
+    const monto = aplicaciones.reduce((total, item) => total + item.montoAplicado, 0);
+    return { monto, aplicaciones, aplicado: monto, restante: 0 };
+  }, [formRetiro.ventaIds, ventasPendientesRetiro]);
+
+  const abrirVendedor = (vendedor = null) => {
+    setVendedorEditando(vendedor);
+    setFormVendedor(vendedor ? { nombre: vendedor.nombre || '', documento: vendedor.documento || '', telefono: vendedor.telefono || '', email: vendedor.email || '', direccion: vendedor.direccion || '', notas: vendedor.notas || '', activo: vendedor.activo !== false } : FORM_VENDEDOR_VACIO);
+    setModalVendedor(true);
+  };
+
+  const guardarVendedor = async (event) => {
+    event.preventDefault();
+    const nombre = textoSeguroTrim(formVendedor.nombre, '');
+    if (!nombre || guardando) return;
+    const duplicado = vendedores.some((vendedor) => vendedor.id !== vendedorEditando?.id && normalizarTextoBusqueda(vendedor.nombre) === normalizarTextoBusqueda(nombre));
+    if (duplicado) { await notificar('Ya existe un vendedor con ese nombre.', { tipo: 'warning', titulo: 'Vendedor duplicado' }); return; }
+    setGuardando(true);
+    try {
+      const payload = limpiarDatoFirestore({ ...formVendedor, nombre, fechaActualizacion: new Date().toISOString(), fechaCreacion: vendedorEditando?.fechaCreacion || new Date().toISOString() });
+      if (vendedorEditando?.id) await updateDoc(doc(db, 'vendedores', vendedorEditando.id), payload);
+      else { const referencia = await addDoc(collection(db, 'vendedores'), payload); setVendedorSeleccionadoId(referencia.id); }
+      setModalVendedor(false);
+      await notificar('Los datos del vendedor fueron guardados.', { tipo: 'success', titulo: 'Vendedor guardado' });
+    } catch (error) {
+      console.error(error);
+      await notificar('No se pudo guardar el vendedor.', { tipo: 'error', titulo: 'Error' });
+    } finally { setGuardando(false); }
+  };
+
+  const abrirRetiro = () => {
+    setFormRetiro({ fecha: obtenerFechaInputLocal(), metodoPago: 'efectivo', notas: '', ventaIds: [], impactaCaja: true });
+    setModalRetiro(true);
+  };
+
+  const guardarRetiro = async (event) => {
+    event.preventDefault();
+    if (!cuentaSeleccionada || guardando) return;
+    if (resumenRetiro.monto <= 0 || !resumenRetiro.aplicaciones.length) { await notificar('Seleccioná al menos un remito para calcular el retiro.', { tipo: 'warning', titulo: 'Retiro incompleto' }); return; }
+    setGuardando(true);
+    try {
+      const fecha = formRetiro.fecha ? new Date(`${formRetiro.fecha}T12:00:00`).toISOString() : new Date().toISOString();
+      const payload = limpiarDatoFirestore({ vendedorId: cuentaSeleccionada.vendedor.id, vendedorNombre: cuentaSeleccionada.vendedor.nombre, monto: resumenRetiro.monto, fecha, metodoPago: formRetiro.metodoPago, notas: textoSeguroTrim(formRetiro.notas, ''), impactaCaja: Boolean(formRetiro.impactaCaja), aplicacionesVentas: resumenRetiro.aplicaciones, usuario: usuario?.nombre || '', fechaCreacion: new Date().toISOString() });
+      const retiroRef = await addDoc(collection(db, 'retiros_vendedores'), payload);
+      if (payload.impactaCaja) {
+        try {
+          const movimientoRef = await addDoc(collection(db, 'movimientos'), { tipo: 'gasto', monto: payload.monto, categoria: 'Pago a vendedores', descripcion: `Pago de comisión a vendedor · ${payload.vendedorNombre}`, metodoPago: payload.metodoPago, fecha: payload.fecha, usuario: usuario?.nombre || '', detallesPago: { origen: 'retiro_vendedor', retiroVendedorId: retiroRef.id, vendedorId: payload.vendedorId, vendedorNombre: payload.vendedorNombre } });
+          await updateDoc(doc(db, 'retiros_vendedores', retiroRef.id), { movimientoCajaId: movimientoRef.id });
+        } catch (errorCaja) { console.warn('El retiro se guardó, pero no pudo sincronizarse con caja.', errorCaja); }
+      }
+      setModalRetiro(false);
+      await notificar('El retiro quedó aplicado a los comprobantes seleccionados.', { tipo: 'success', titulo: 'Retiro guardado' });
+    } catch (error) {
+      console.error(error);
+      await notificar('No se pudo guardar el retiro.', { tipo: 'error', titulo: 'Error' });
+    } finally { setGuardando(false); }
+  };
+
+  const eliminarRetiro = async (retiro) => {
+    const confirmar = await notificar(`¿Eliminar el retiro de ${formatearDinero(retiro.monto)}? Las comisiones volverán a quedar pendientes.`, { tipo: 'confirm', titulo: 'Eliminar retiro', textoAceptar: 'Eliminar' });
+    if (!confirmar) return;
+    if (retiro.movimientoCajaId) { try { await deleteDoc(doc(db, 'movimientos', retiro.movimientoCajaId)); } catch {} }
+    await deleteDoc(doc(db, 'retiros_vendedores', retiro.id));
+  };
+
+  const eliminarVendedor = async (vendedor) => {
+    const cuenta = cuentas[vendedor.id];
+    if ((cuenta?.ventas?.length || 0) || (cuenta?.retiros?.length || 0)) { await notificar('No se puede eliminar porque tiene ventas o retiros asociados. Podés marcarlo como inactivo.', { tipo: 'warning', titulo: 'Vendedor con historial' }); return; }
+    const confirmar = await notificar(`¿Eliminar a ${vendedor.nombre}?`, { tipo: 'confirm', titulo: 'Eliminar vendedor', textoAceptar: 'Eliminar' });
+    if (confirmar) await deleteDoc(doc(db, 'vendedores', vendedor.id));
+  };
+
+  const imprimirCuenta = () => {
+    if (!cuentaSeleccionada) return;
+    const documento = crearPdfA4('landscape', { titulo: `Cuenta vendedor ${cuentaSeleccionada.vendedor.nombre}` });
+    documento.setFillColor(15, 23, 42); documento.roundedRect(14, 10, 268, 22, 2, 2, 'F');
+    documento.setTextColor(255, 255, 255); documento.setFont('helvetica', 'bold'); documento.setFontSize(14); documento.text((nombreEmpresa || 'SENIORFLOW').toUpperCase(), 18, 19);
+    documento.setFontSize(9); documento.text('DETALLE DE COMISIONES DEL VENDEDOR', 18, 26); documento.text(`Emitido: ${formatearFecha(new Date())}`, 278, 19, { align: 'right' });
+    documento.setTextColor(15, 23, 42); documento.setFontSize(12); documento.text(cuentaSeleccionada.vendedor.nombre.toUpperCase(), 14, 42);
+    documento.setFontSize(9); documento.text(`Ventas: ${formatearDinero(cuentaSeleccionada.ventas.reduce((total, venta) => total + venta.totalVenta, 0))}   Comisiones: ${formatearDinero(cuentaSeleccionada.totalComisiones)}   Retiros: ${formatearDinero(cuentaSeleccionada.totalRetirado)}   Saldo a favor: ${formatearDinero(cuentaSeleccionada.saldo)}`, 14, 49);
+    const filas = [];
+    cuentaSeleccionada.ventas.forEach((venta) => {
+      filas.push([formatearFecha(venta.fecha), venta.comprobanteTexto, venta.cliente, formatearDinero(venta.totalVenta), `${formatearCantidad(venta.porcentaje)}%`, formatearDinero(venta.comision), formatearDinero(venta.pendiente)]);
+      venta.itemsComision.forEach((item) => filas.push(['↳ Ítem', '', `${item.codigo ? `${item.codigo} · ` : ''}${item.descripcion || 'Sin detalle'}`, '', `${formatearCantidad(item.porcentaje || venta.porcentaje)}%`, formatearDinero(item.monto), '']));
+      venta.retirosAplicados.forEach((retiro) => filas.push([`↳ ${formatearFecha(retiro.fecha)}`, `RETIRO ${textoSeguroTrim(retiro.numeroComprobante, '')}`, retiro.notas || obtenerEtiquetaMetodoPago(retiro.metodoPago), '', '', `-${formatearDinero(retiro.montoAplicado)}`, `Saldo ${formatearDinero(retiro.saldoDespues)}`]));
+    });
+    autoTable(documento, { startY: 56, head: [['Fecha', 'Remito / comprobante', 'Cliente / detalle', 'Venta', 'Comisión %', 'Comisión / retiro', 'Saldo']], body: filas.length ? filas : [['-', 'Sin movimientos', '-', '-', '-', '-', '-']], theme: 'grid', styles: { fontSize: 7.5, cellPadding: 2 }, headStyles: { fillColor: [30, 64, 109], textColor: 255, fontStyle: 'bold' }, columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' } }, didParseCell: (data) => { if (data.section === 'body' && String(data.row.raw?.[0] || '').startsWith('↳')) { data.cell.styles.textColor = [5, 150, 105]; data.cell.styles.fontStyle = 'bold'; } } });
+    const nombreArchivo = normalizarTextoBusqueda(cuentaSeleccionada.vendedor.nombre).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'vendedor';
+    documento.save(`cuenta_vendedor_${nombreArchivo}.pdf`);
+  };
+
+  return (
+    <div className="sf-module-page h-full min-h-0 flex flex-col gap-4 overflow-hidden animate-in fade-in duration-300 print:hidden">
+      <div className="sf-screen-header shrink-0 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"><div><p className="sf-sales-kicker">Equipo comercial</p><h1>Vendedores</h1><p>Ventas asignadas, comisiones y retiros por comprobante.</p></div><button type="button" onClick={() => abrirVendedor()} className="bg-teal-600 text-white inline-flex items-center gap-2"><UserPlus size={16} /> Nuevo vendedor</button></div>
+      <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-4 overflow-hidden">
+        <div className="min-h-0 flex flex-col rounded-2xl border border-slate-200 bg-white overflow-hidden"><div className="p-3 border-b border-slate-100"><div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={busqueda} onChange={(event) => setBusqueda(event.target.value)} placeholder="Buscar vendedor..." className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm font-bold outline-none focus:ring-2 focus:ring-teal-500" /></div></div><div className="flex-1 overflow-y-auto divide-y divide-slate-100">{vendedoresFiltrados.length ? vendedoresFiltrados.map((vendedor) => { const cuenta = cuentas[vendedor.id] || {}; const seleccionado = vendedor.id === vendedorSeleccionadoId; return <button key={vendedor.id} type="button" onClick={() => setVendedorSeleccionadoId(vendedor.id)} className={`w-full p-3 text-left ${seleccionado ? 'bg-teal-50' : 'hover:bg-slate-50'}`}><div className="flex items-center justify-between gap-2"><span className="font-black text-slate-800">{vendedor.nombre}</span><span className={`rounded-full px-2 py-1 text-[9px] font-black uppercase ${vendedor.activo === false ? 'bg-slate-100 text-slate-500' : 'bg-emerald-100 text-emerald-700'}`}>{vendedor.activo === false ? 'Inactivo' : 'Activo'}</span></div><p className="mt-1 text-xs font-bold text-slate-500">{vendedor.telefono || vendedor.documento || 'Sin contacto'}</p><p className="mt-2 text-xs font-black text-teal-700">Saldo {formatearDinero(cuenta.saldo || 0)}</p></button>; }) : <p className="p-6 text-center text-sm font-bold text-slate-400">No hay vendedores cargados.</p>}</div></div>
+        <div className="min-h-0 min-w-0 flex flex-col rounded-2xl border border-slate-200 bg-white overflow-hidden">{!cuentaSeleccionada ? <div className="m-auto text-center text-slate-400"><Users size={42} className="mx-auto mb-3 opacity-30" /><p className="font-bold">Seleccioná o cargá un vendedor.</p></div> : <><div className="shrink-0 border-b border-slate-100 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="text-xl font-black text-slate-900">{cuentaSeleccionada.vendedor.nombre}</h2><p className="text-xs font-bold text-slate-500">{[cuentaSeleccionada.vendedor.documento, cuentaSeleccionada.vendedor.telefono, cuentaSeleccionada.vendedor.email].filter(Boolean).join(' · ') || 'Sin datos adicionales'}</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => abrirVendedor(cuentaSeleccionada.vendedor)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700"><Edit2 size={14} className="inline mr-1" /> Editar</button><button type="button" onClick={imprimirCuenta} className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700"><Printer size={14} className="inline mr-1" /> Imprimir cuenta</button><button type="button" disabled={!ventasPendientesRetiro.length} onClick={abrirRetiro} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:bg-slate-300"><ArrowDownCircle size={14} className="inline mr-1" /> Registrar retiro</button><button type="button" onClick={() => eliminarVendedor(cuentaSeleccionada.vendedor)} className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700"><Trash2 size={14} /></button></div></div><div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-2"><div className="rounded-xl bg-slate-50 p-3"><p className="text-[9px] font-black uppercase text-slate-500">Ventas asignadas</p><p className="text-base font-black text-slate-900">{cuentaSeleccionada.ventas.length}</p></div><div className="rounded-xl bg-blue-50 p-3"><p className="text-[9px] font-black uppercase text-blue-600">Comisiones</p><p className="text-base font-black text-blue-800">{formatearDinero(cuentaSeleccionada.totalComisiones)}</p></div><div className="rounded-xl bg-amber-50 p-3"><p className="text-[9px] font-black uppercase text-amber-600">Retiros</p><p className="text-base font-black text-amber-800">{formatearDinero(cuentaSeleccionada.totalRetirado)}</p></div><div className="rounded-xl bg-emerald-50 p-3"><p className="text-[9px] font-black uppercase text-emerald-600">Saldo a favor</p><p className="text-base font-black text-emerald-800">{formatearDinero(cuentaSeleccionada.saldo)}</p></div></div></div><div className="flex-1 min-h-0 overflow-auto"><table className="w-full table-fixed text-left text-xs"><colgroup><col className="w-[28%]" /><col className="w-[20%]" /><col className="w-[14%]" /><col className="w-[10%]" /><col className="w-[14%]" /><col className="w-[14%]" /></colgroup><thead className="sticky top-0 bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Comprobante / fecha</th><th className="px-3 py-2">Cliente</th><th className="px-3 py-2 text-right">Venta</th><th className="px-3 py-2 text-right">%</th><th className="px-3 py-2 text-right">Comisión</th><th className="px-3 py-2 text-right">Saldo</th></tr></thead><tbody className="divide-y divide-slate-100">{cuentaSeleccionada.ventas.length ? cuentaSeleccionada.ventas.map((venta) => <React.Fragment key={venta.id}><tr><td className="px-3 py-3 align-top"><div className="min-w-0"><div className="max-w-full font-black text-slate-800">{venta.comprobante}</div><p className="mt-1 whitespace-nowrap text-[10px] font-bold text-slate-400">{formatearFecha(venta.fecha)}</p></div></td><td className="truncate px-3 py-3 font-bold text-slate-600" title={venta.cliente}>{venta.cliente}</td><td className="whitespace-nowrap px-3 py-3 text-right font-black">{formatearDinero(venta.totalVenta)}</td><td className="px-3 py-3 text-right"><button type="button" onClick={() => onEditarComision?.(venta.movimiento)} className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 font-black text-blue-700 hover:bg-blue-100" title="Modificar porcentaje de comisión">{formatearCantidad(venta.porcentaje)}% <Edit2 size={11} /></button></td><td className="whitespace-nowrap px-3 py-3 text-right font-black text-blue-700">{formatearDinero(venta.comision)}</td><td className="whitespace-nowrap px-3 py-3 text-right font-black text-emerald-700">{formatearDinero(venta.pendiente)}</td></tr>{venta.retirosAplicados.map((retiro) => <tr key={`${venta.id}-${retiro.id}`} className="bg-emerald-50/60"><td className="px-3 py-2 pl-7 font-black text-emerald-700">↳ Retiro {formatearFecha(retiro.fecha)}</td><td className="px-3 py-2 font-bold text-emerald-700">{obtenerEtiquetaMetodoPago(retiro.metodoPago)} {retiro.numeroComprobante || ''}</td><td colSpan={2} className="px-3 py-2 font-bold text-emerald-700">{retiro.notas || 'Pago de comisión'}</td><td className="px-3 py-2 text-right font-black text-red-600">-{formatearDinero(retiro.montoAplicado)}</td><td className="px-3 py-2 text-right"><button type="button" onClick={() => eliminarRetiro(retiro)} className="text-red-600" title="Eliminar retiro"><Trash2 size={13} /></button></td></tr>)}</React.Fragment>) : <tr><td colSpan={6} className="p-10 text-center font-bold text-slate-400">Todavía no tiene ventas asignadas.</td></tr>}</tbody></table></div></>}</div>
+      </div>
+
+      {modalVendedor && <Modal titulo={vendedorEditando ? 'Editar vendedor' : 'Nuevo vendedor'} onClose={guardando ? null : () => setModalVendedor(false)} customWidth="max-w-xl"><form onSubmit={guardarVendedor} className="space-y-3"><div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Nombre completo</label><input value={formVendedor.nombre} onChange={(event) => setFormVendedor((prev) => ({ ...prev, nombre: event.target.value }))} required className="w-full rounded-xl border border-slate-200 px-3 py-2.5 font-bold outline-none focus:ring-2 focus:ring-teal-500" /></div><div className="grid sm:grid-cols-2 gap-3"><input value={formVendedor.documento} onChange={(event) => setFormVendedor((prev) => ({ ...prev, documento: event.target.value }))} placeholder="DNI / CUIT" className="rounded-xl border border-slate-200 px-3 py-2.5 font-bold" /><input value={formVendedor.telefono} onChange={(event) => setFormVendedor((prev) => ({ ...prev, telefono: event.target.value }))} placeholder="Teléfono" className="rounded-xl border border-slate-200 px-3 py-2.5 font-bold" /><input type="email" value={formVendedor.email} onChange={(event) => setFormVendedor((prev) => ({ ...prev, email: event.target.value }))} placeholder="Email" className="rounded-xl border border-slate-200 px-3 py-2.5 font-bold" /><input value={formVendedor.direccion} onChange={(event) => setFormVendedor((prev) => ({ ...prev, direccion: event.target.value }))} placeholder="Dirección" className="rounded-xl border border-slate-200 px-3 py-2.5 font-bold" /></div><textarea rows={3} value={formVendedor.notas} onChange={(event) => setFormVendedor((prev) => ({ ...prev, notas: event.target.value }))} placeholder="Notas" className="w-full rounded-xl border border-slate-200 px-3 py-2.5 font-bold" /><label className="flex items-center gap-2 text-xs font-black text-slate-700"><input type="checkbox" checked={formVendedor.activo} onChange={(event) => setFormVendedor((prev) => ({ ...prev, activo: event.target.checked }))} /> Vendedor activo</label><div className="flex gap-2"><button type="button" onClick={() => setModalVendedor(false)} className="w-36 rounded-xl border border-slate-200 py-3 text-xs font-black">Cancelar</button><button type="submit" disabled={guardando} className="flex-1 rounded-xl bg-teal-600 py-3 text-xs font-black text-white disabled:bg-teal-300">{guardando ? 'Guardando...' : 'Guardar vendedor'}</button></div></form></Modal>}
+
+      {modalRetiro && cuentaSeleccionada && <Modal titulo={`Retiro de comisión · ${cuentaSeleccionada.vendedor.nombre}`} onClose={guardando ? null : () => setModalRetiro(false)} customWidth="max-w-4xl"><form onSubmit={guardarRetiro} className="space-y-4"><div className="grid sm:grid-cols-2 gap-3"><div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Fecha</label><input type="date" value={formRetiro.fecha} onChange={(event) => setFormRetiro((prev) => ({ ...prev, fecha: event.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 font-bold" /></div><div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Forma de pago</label><select value={formRetiro.metodoPago} onChange={(event) => setFormRetiro((prev) => ({ ...prev, metodoPago: event.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 font-bold"><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="cheque">Cheque</option></select></div></div><div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 flex items-center justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Total de los remitos seleccionados</p><p className="mt-1 text-xs font-bold text-emerald-700">{resumenRetiro.aplicaciones.length} comprobante(s) incluidos</p></div><p className="text-2xl font-black text-emerald-900">{formatearDinero(resumenRetiro.monto)}</p></div><div className="max-h-64 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100">{ventasPendientesRetiro.map((venta) => { const marcado = formRetiro.ventaIds.includes(venta.id); const aplicacion = resumenRetiro.aplicaciones.find((item) => item.ventaId === venta.id); return <label key={venta.id} className={`flex items-start gap-3 p-3 cursor-pointer ${marcado ? 'bg-emerald-50' : 'hover:bg-slate-50'}`}><input type="checkbox" checked={marcado} onChange={(event) => setFormRetiro((prev) => ({ ...prev, ventaIds: event.target.checked ? [...prev.ventaIds, venta.id] : prev.ventaIds.filter((id) => id !== venta.id) }))} className="mt-1" /><span className="flex-1"><span className="block text-xs font-black text-slate-800">{venta.comprobante} · {formatearFecha(venta.fecha)}</span><span className="text-[10px] font-bold text-slate-500">Comisión pendiente {formatearDinero(venta.pendiente)}</span>{marcado && aplicacion && <span className="block mt-1 text-[10px] font-black text-emerald-700">Se suma {formatearDinero(aplicacion.montoAplicado)} al retiro</span>}</span></label>; })}</div><textarea rows={2} value={formRetiro.notas} onChange={(event) => setFormRetiro((prev) => ({ ...prev, notas: event.target.value }))} placeholder="Aclaración del retiro" className="w-full rounded-xl border border-slate-200 px-3 py-2.5 font-bold" /><label className="flex items-center gap-2 text-xs font-black text-slate-700"><input type="checkbox" checked={formRetiro.impactaCaja} onChange={(event) => setFormRetiro((prev) => ({ ...prev, impactaCaja: event.target.checked }))} /> Descontar este retiro de la caja</label><div className="flex gap-2"><button type="button" onClick={() => setModalRetiro(false)} className="w-36 rounded-xl border border-slate-200 py-3 text-xs font-black">Cancelar</button><button type="submit" disabled={guardando || !resumenRetiro.aplicaciones.length} className="flex-1 rounded-xl bg-emerald-600 py-3 text-xs font-black text-white disabled:bg-emerald-300">{guardando ? 'Guardando...' : `Guardar retiro · ${formatearDinero(resumenRetiro.monto)}`}</button></div></form></Modal>}
+    </div>
+  );
+};
+
 
 const ImagenProductoPreview = ({ imagen = '', logoMarca = '', alt = 'Producto', placeholder = 'image' }) => {
   const [previewPos, setPreviewPos] = useState(null);
@@ -1976,6 +2442,7 @@ function AppInterna() {
   const [seccionesConfiguracionAbiertas, setSeccionesConfiguracionAbiertas] = useState({
     negocio: true,
     cobro: true,
+    tarjetas: true,
     recargos: true,
     inventario: true,
     historialCaja: true,
@@ -1983,12 +2450,37 @@ function AppInterna() {
     diagnostico: true
   });
   const [seccionConfiguracionActiva, setSeccionConfiguracionActiva] = useState('negocio');
+  const [busquedaPlanesTarjetaConfiguracion, setBusquedaPlanesTarjetaConfiguracion] = useState('');
   const [configuracionBackup, setConfiguracionBackup] = useState(() => {
     try { return { habilitado: false, hora: '23:00', ultimoBackup: '', ...JSON.parse(localStorage.getItem('seniorflow_backup_config') || '{}') }; }
     catch (error) { return { habilitado: false, hora: '23:00', ultimoBackup: '' }; }
   });
   const [backupEnCurso, setBackupEnCurso] = useState(false);
   const [restauracionEnCurso, setRestauracionEnCurso] = useState(false);
+  const tarjetasPlanesConfiguracion = useMemo(
+    () => (Array.isArray(configuracion?.tarjetasPlanes) ? configuracion.tarjetasPlanes : []),
+    [configuracion?.tarjetasPlanes]
+  );
+  const planesTarjetaConfiguracionFiltrados = useMemo(() => {
+    const termino = normalizarTextoBusqueda(busquedaPlanesTarjetaConfiguracion);
+    return tarjetasPlanesConfiguracion
+      .map((plan, index) => ({ plan, index }))
+      .filter(({ plan }) => {
+        if (!termino) return true;
+        const planNormalizado = normalizarPlanTarjeta(plan);
+        return normalizarTextoBusqueda([
+          planNormalizado.tipo === 'debito' ? 'debito débito' : 'credito crédito',
+          planNormalizado.tarjeta,
+	          planNormalizado.plan,
+	          planNormalizado.cuotas,
+	          planNormalizado.descuentoComercio,
+	          planNormalizado.otrosCargosPorcentaje,
+	          planNormalizado.vigenciaActiva ? 'vigencia vigente promocion promoción' : '',
+	          planNormalizado.vigenciaDesde,
+	          planNormalizado.vigenciaHasta
+	        ].join(' ')).includes(termino);
+      });
+  }, [busquedaPlanesTarjetaConfiguracion, tarjetasPlanesConfiguracion]);
   const [gestionAccesosAbierta, setGestionAccesosAbierta] = useState(true);
   const [usuarios, setUsuarios] = useState([]);
   const [caja, setCaja] = useState({ estado: 'cerrada', efectivoInicial: 0, chequesInicial: 0, fechaApertura: null });
@@ -2000,29 +2492,65 @@ function AppInterna() {
   const [proveedores, setProveedores] = useState([]);
   const [pagosProveedores, setPagosProveedores] = useState([]);
   const [facturasEmitidas, setFacturasEmitidas] = useState([]);
+  const [vendedores, setVendedores] = useState([]);
+  const [retirosVendedores, setRetirosVendedores] = useState([]);
   const [marcas, setMarcas] = useState([]);
   
   const [usuarioActual, setUsuarioActual] = useState(null);
   const [loginForm, setLoginForm] = useState({ username: '', password: '', error: '' });
+  const [recordarme, setRecordarme] = useState(false);
+  const credencialesConsultadasRef = useRef(false);
   const [vista, setVista] = useState('caja'); 
-  const [paginaMenuLateral, setPaginaMenuLateral] = useState('principal');
+  const [gruposSidebarAbiertos, setGruposSidebarAbiertos] = useState({ ventas: true, inventario: true });
   const [notificacionesLeidas, setNotificacionesLeidas] = useState(() => {
     try { return JSON.parse(window.localStorage.getItem('seniorflow-notificaciones-leidas') || '[]'); } catch { return []; }
   });
   const [notificacionesDescartadas, setNotificacionesDescartadas] = useState(() => {
     try { return JSON.parse(window.localStorage.getItem('seniorflow-notificaciones-descartadas') || '[]'); } catch { return []; }
   });
+
+  useEffect(() => {
+    if (credencialesConsultadasRef.current) return;
+    credencialesConsultadasRef.current = true;
+    let cancelado = false;
+    const recuperarCredencialesRecordadas = async () => {
+      try {
+        const preferenciaRecordada = JSON.parse(window.localStorage.getItem('seniorflow-login-recordarme') || 'null');
+        if (preferenciaRecordada?.activo) {
+          setLoginForm((prev) => ({ ...prev, username: textoSeguro(preferenciaRecordada.username, ''), error: '' }));
+          setRecordarme(true);
+        }
+        if (!window.PasswordCredential || !navigator.credentials?.get) return;
+        const credencial = await navigator.credentials.get({ password: true, mediation: 'silent' });
+        if (cancelado || credencial?.type !== 'password' || credencial?.name !== 'SeniorFlow') return;
+        setLoginForm({ username: credencial.id || '', password: credencial.password || '', error: '' });
+        setRecordarme(Boolean(credencial.id && credencial.password));
+      } catch {}
+    };
+    recuperarCredencialesRecordadas();
+    return () => { cancelado = true; };
+  }, []);
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null); 
   const [modalActivo, setModalActivo] = useState(null); 
+  const [ventaAsignarVendedor, setVentaAsignarVendedor] = useState(null);
+  const [formAsignacionVendedor, setFormAsignacionVendedor] = useState({ vendedorId: '', porcentaje: '' });
+  const [guardandoAsignacionVendedor, setGuardandoAsignacionVendedor] = useState(false);
+  const [asignacionVendedorPuntoVentaAbierta, setAsignacionVendedorPuntoVentaAbierta] = useState(false);
+  const [formAsignacionVendedorPuntoVenta, setFormAsignacionVendedorPuntoVenta] = useState({ vendedorId: '', porcentaje: '' });
   const [movimientoAEditar, setMovimientoAEditar] = useState(null); 
   const [movimientoAEliminar, setMovimientoAEliminar] = useState(null); 
   const [reciboCobroSeleccionado, setReciboCobroSeleccionado] = useState(null);
   const [detallesCuentaCorrienteAbiertos, setDetallesCuentaCorrienteAbiertos] = useState({});
+  const [paginacionCuentaCliente, setPaginacionCuentaCliente] = useState({ pagina: 1, porPagina: 25 });
   const [facturacionCuentaCorriente, setFacturacionCuentaCorriente] = useState(null);
+
+  useEffect(() => {
+    if (modalActivo !== 'punto_venta' && asignacionVendedorPuntoVentaAbierta) setAsignacionVendedorPuntoVentaAbierta(false);
+  }, [modalActivo, asignacionVendedorPuntoVentaAbierta]);
   const [busquedaRastreoCheques, setBusquedaRastreoCheques] = useState('');
   const [rastreoChequesAbiertos, setRastreoChequesAbiertos] = useState({});
 
-  const [formData, setFormData] = useState({ monto: '', efectivo: '', cheques: '', tieneCheques: false, descripcion: '', metodoPago: 'efectivo', detallesPago: {} });
+  const [formData, setFormData] = useState({ monto: '', efectivo: '', cheques: '', tieneCheques: false, descripcion: '', metodoPago: 'efectivo', detallesPago: {}, impactaCajaReportes: true });
   const [montoCierreReal, setMontoCierreReal] = useState('');
   
   const [formUsuario, setFormUsuario] = useState(FORM_USUARIO_VACIO);
@@ -2134,13 +2662,17 @@ function AppInterna() {
   const [reporteFechaHastaReporte, setReporteFechaHastaReporte] = useState('');
 
   const [busquedaDirectorio, setBusquedaDirectorio] = useState('');
+  const [paginacionListados, setPaginacionListados] = useState(() => ({
+    clientes: { pagina: 1, porPagina: 25 },
+    ventas: { pagina: 1, porPagina: 25 },
+    inventario: { pagina: 1, porPagina: 25 }
+  }));
   const [busquedaAyuda, setBusquedaAyuda] = useState('');
   const [seccionAyudaActiva, setSeccionAyudaActiva] = useState('inicio');
   const [mostrarSoloConSaldoPendiente, setMostrarSoloConSaldoPendiente] = useState(false);
   const [busquedaPresupuestos, setBusquedaPresupuestos] = useState('');
   const [busquedaInventario, setBusquedaInventario] = useState('');
   const [ordenInventario, setOrdenInventario] = useState('nombre');
-  const [limiteRenderInventario, setLimiteRenderInventario] = useState(160);
   const [menuOrdenInventarioAbierto, setMenuOrdenInventarioAbierto] = useState(false);
   const [displayInventarioActivo, setDisplayInventarioActivo] = useState(false);
   const [productoDisplayInventario, setProductoDisplayInventario] = useState(null);
@@ -2172,9 +2704,13 @@ function AppInterna() {
     tipoAplicacion: 'general',
     pedidoCompraIds: [],
     impactaCaja: true,
+    impactaReportes: true,
     chequesRecibidosIds: []
   });
   const [pagoProveedorAEditar, setPagoProveedorAEditar] = useState(null);
+  const [sobrantePagoProveedorDetectado, setSobrantePagoProveedorDetectado] = useState(0);
+  const [confirmarSaldoFavorPagoProveedor, setConfirmarSaldoFavorPagoProveedor] = useState(false);
+  const [guardandoPagoProveedor, setGuardandoPagoProveedor] = useState(false);
   const [busquedaMarcas, setBusquedaMarcas] = useState('');
   const [filtroCategoriaInventario, setFiltroCategoriaInventario] = useState('');
   const [filtroProveedorInventario, setFiltroProveedorInventario] = useState('');
@@ -2208,11 +2744,17 @@ function AppInterna() {
   const [pedidoCompraEstado, setPedidoCompraEstado] = useState('guardado');
   const [pedidoCompraNotas, setPedidoCompraNotas] = useState('');
   const [pedidoCompraFechaPedido, setPedidoCompraFechaPedido] = useState(() => obtenerFechaInputLocal());
+  const [pedidoCompraFechaRecepcion, setPedidoCompraFechaRecepcion] = useState('');
+  const [pedidoCompraRemitoProveedor, setPedidoCompraRemitoProveedor] = useState('');
   const [pedidoCompraTransporte, setPedidoCompraTransporte] = useState('');
   const [compraImpactaInventario, setCompraImpactaInventario] = useState(true);
   const [mostrarTransportePedidoCompraPdf, setMostrarTransportePedidoCompraPdf] = useState(false);
   const [pedidoCompraDescuentoPct, setPedidoCompraDescuentoPct] = useState('');
   const [pedidoCompraAjusteMonto, setPedidoCompraAjusteMonto] = useState('');
+  const [pedidoCompraIva21, setPedidoCompraIva21] = useState('');
+  const [pedidoCompraIva105, setPedidoCompraIva105] = useState('');
+  const [pedidoCompraIngresosBrutos, setPedidoCompraIngresosBrutos] = useState('');
+  const [pedidoCompraFlete, setPedidoCompraFlete] = useState('');
   const [recepcionCompraPedido, setRecepcionCompraPedido] = useState(null);
   const [recepcionCompraItems, setRecepcionCompraItems] = useState([]);
   const [formRecepcionCompra, setFormRecepcionCompra] = useState({
@@ -2275,6 +2817,7 @@ function AppInterna() {
   const [respaldosPrecios, setRespaldosPrecios] = useState([]);
   const [cargandoRespaldosPrecios, setCargandoRespaldosPrecios] = useState(false);
   const [restaurandoRespaldoPrecios, setRestaurandoRespaldoPrecios] = useState('');
+  const [operacionPreciosEnCurso, setOperacionPreciosEnCurso] = useState({ activo: false, titulo: '', fase: '', total: 0, procesadas: 0, detalle: '' });
   const [proveedorCompraSeleccionado, setProveedorCompraSeleccionado] = useState('');
   const [itemsPedidoCompra, setItemsPedidoCompra] = useState([]);
   const [busquedaProductosPedidoCompra, setBusquedaProductosPedidoCompra] = useState('');
@@ -2340,6 +2883,7 @@ function AppInterna() {
   const [formRemitoR, setFormRemitoR] = useState(() => crearFormularioRemitoRVacio());
   const [mostrarSugerenciasClientePuntoVenta, setMostrarSugerenciasClientePuntoVenta] = useState(false);
   const [mostrarSugerenciasClienteRemitoR, setMostrarSugerenciasClienteRemitoR] = useState(false);
+  const [selectorTarjetaPuntoVentaAbierto, setSelectorTarjetaPuntoVentaAbierto] = useState('');
   const [selectorClientesPuntoVentaAbierto, setSelectorClientesPuntoVentaAbierto] = useState(false);
   const [busquedaSelectorClientePuntoVenta, setBusquedaSelectorClientePuntoVenta] = useState('');
   const [modalItemServicioPuntoVentaAbierto, setModalItemServicioPuntoVentaAbierto] = useState(false);
@@ -2750,6 +3294,18 @@ function AppInterna() {
         setFacturasEmitidas(loaded);
     }, (err) => console.error(err));
 
+    const unsubVendedores = onSnapshot(collection(db, 'vendedores'), (snapshot) => {
+        const loaded = []; snapshot.forEach(item => loaded.push({ id: item.id, ...item.data() }));
+        loaded.sort((a, b) => (a?.nombre || '').localeCompare((b?.nombre || ''), 'es', { sensitivity: 'base' }));
+        setVendedores(loaded);
+    }, (err) => console.error('No se pudieron cargar los vendedores.', err));
+
+    const unsubRetirosVendedores = onSnapshot(collection(db, 'retiros_vendedores'), (snapshot) => {
+        const loaded = []; snapshot.forEach(item => loaded.push({ id: item.id, ...item.data() }));
+        loaded.sort((a, b) => new Date(b?.fecha || b?.fechaCreacion || 0) - new Date(a?.fecha || a?.fechaCreacion || 0));
+        setRetirosVendedores(loaded);
+    }, (err) => console.error('No se pudieron cargar los retiros de vendedores.', err));
+
     const unsubMarcas = onSnapshot(collection(db, 'marcas'), (snapshot) => {
         const nombresMarcas = new Map();
         snapshot.forEach((item) => {
@@ -2782,7 +3338,7 @@ function AppInterna() {
         setPedidosCompra(loaded);
     }, (err) => console.error(err));
 
-    return () => { clearTimeout(dbReadyTimer); unsubConfig(); unsubCaja(); unsubHistorialCaja(); unsubUsuarios(); unsubMovs(); unsubClientes(); unsubPresupuestos(); unsubOfertas(); unsubCombos(); unsubProductos(); unsubVariacionesPrecios(); unsubProveedores(); unsubPagosProveedores(); unsubFacturasEmitidas(); unsubMarcas(); unsubPedidosCompra(); };
+    return () => { clearTimeout(dbReadyTimer); unsubConfig(); unsubCaja(); unsubHistorialCaja(); unsubUsuarios(); unsubMovs(); unsubClientes(); unsubPresupuestos(); unsubOfertas(); unsubCombos(); unsubProductos(); unsubVariacionesPrecios(); unsubProveedores(); unsubPagosProveedores(); unsubFacturasEmitidas(); unsubVendedores(); unsubRetirosVendedores(); unsubMarcas(); unsubPedidosCompra(); };
   }, [firebaseUser]);
 
   useEffect(() => {
@@ -3016,65 +3572,164 @@ function AppInterna() {
     if (inicio > fin) [inicio, fin] = [fin, inicio];
 
     const movsFiltrados = movimientos.filter(m => {
-      if (m?.noImpactaCaja) return false;
+      if (m?.noImpactaCaja || m?.noImpactaReportes) return false;
       const mDate = new Date(m.fecha);
       return mDate >= inicio && mDate <= fin;
     });
     
-    let ingr = 0; let egr = 0; let cobros = 0; let retirosCaja = 0;
-    let flujoEfectivo = 0; let flujoTransferencia = 0; let flujoTarjeta = 0; let flujoCheque = 0;
+    let ventas = 0; let ventasCobradas = 0; let otrosIngresos = 0; let cobros = 0;
+    let gastosOperativos = 0; let pagosProveedores = 0; let retirosCaja = 0;
 
-    movsFiltrados.forEach(m => {
-      // Para balances generales (Ganancias / Pérdidas del negocio)
-      if (m.tipo === 'venta' || m.tipo === 'ingreso_extra') ingr += m.monto;
-      if (m.tipo === 'gasto') egr += m.monto; // Retiros NO son gastos, no afectan el neto general.
-      if (m.tipo === 'cobro') cobros += m.monto;
-      if (m.tipo === 'retiro_caja') retirosCaja += m.monto;
+    movsFiltrados.forEach((m) => {
+      const monto = Math.max(0, parseNumeroBasico(m?.monto) || 0);
+      const metodo = normalizarMetodoPago(m?.metodoPago);
+      const signoVenta = obtenerSignoPuntoVenta(m);
+      const esPagoProveedor = Boolean(
+        m?.pagoProveedorId
+        || m?.detallesPago?.origen === 'pago_proveedor'
+        || normalizarTextoBusqueda(m?.categoria || '').includes('pago a proveedor')
+      );
 
-      // Para el balance real desglosado por medios de pago
-      let factor = (m.tipo === 'gasto' || m.tipo === 'retiro_caja') ? -1 : 1;
-      const metodo = normalizarMetodoPago(m.metodoPago);
-      if (metodo === 'efectivo') flujoEfectivo += m.monto * factor;
-      if (metodo.includes('transfer')) flujoTransferencia += m.monto * factor;
-      if (metodo === 'tarjeta') flujoTarjeta += m.monto * factor;
-      if (metodo === 'cheque') flujoCheque += m.monto * factor;
+      if (m.tipo === 'venta') {
+        ventas += signoVenta * monto;
+        // Una venta a cuenta no es dinero disponible hasta que se registra su cobro.
+        if (metodo !== 'cuenta_corriente') ventasCobradas += signoVenta * monto;
+      }
+      if (m.tipo === 'ingreso_extra') otrosIngresos += monto;
+      if (m.tipo === 'cobro') cobros += monto;
+      if (m.tipo === 'gasto') {
+        if (esPagoProveedor) pagosProveedores += monto;
+        else gastosOperativos += monto;
+      }
+      if (m.tipo === 'retiro_caja') retirosCaja += monto;
     });
 
-    return { 
-      movimientos: movsFiltrados, 
-      ingresos: ingr, egresos: egr, cobros, retiros: retirosCaja, 
-      neto: (ingr + cobros) - egr, // El retiro no resta de la ganancia neta
-      flujoEfectivo, flujoTransferencia, flujoTarjeta, flujoCheque,
-      inicio, fin 
+    const egresos = gastosOperativos + pagosProveedores;
+    // Resultado del negocio: no suma cobros para no duplicar ventas que antes fueron a cuenta corriente.
+    const neto = ventas + otrosIngresos - egresos;
+    // Flujo disponible: solamente dinero efectivamente cobrado, menos egresos y retiros.
+    const flujoNeto = ventasCobradas + cobros + otrosIngresos - egresos - retirosCaja;
+    const impuestos = { ventas21: 0, ventas105: 0, compras21: 0, compras105: 0 };
+    (pedidosCompra || []).forEach((p) => { const fecha = new Date(p.fechaComprobante || p.fechaPedido || p.fechaCreacion); if (fecha >= inicio && fecha <= fin) { impuestos.compras21 += Math.max(0, Number(p.iva21) || 0); impuestos.compras105 += Math.max(0, Number(p.iva105) || 0); } });
+    movsFiltrados.forEach((m) => { if (m.tipo !== 'venta' || !['factura_a','factura_b','Factura A','Factura B'].includes(m?.detallesPago?.tipoComprobante)) return; (m.detallesPago?.items || []).forEach((item) => { const productoVenta = (productos || []).find((producto) => producto?.id === item?.productoId); const tasa = String(item.iva ?? item.alicuotaIva ?? productoVenta?.iva ?? '').replace('%', '').replace(',', '.').trim(); const cantidad = Math.max(0, Number(item.cantidad) || 0); const precio = Math.max(0, Number(item.precio) || 0); const descuento = Math.max(0, Number(item.descuento) || 0); const base = Math.max(0, Number(item.subtotal ?? item.total ?? (cantidad * precio * (1 - descuento / 100))) || 0); if (tasa === '21') impuestos.ventas21 += base * 21 / 121; if (tasa === '10.5') impuestos.ventas105 += base * 10.5 / 110.5; }); });
+
+    const vendedoresReportePorId = new Map((vendedores || []).map((vendedor) => [vendedor.id, {
+      vendedorId: vendedor.id,
+      vendedorNombre: textoSeguroTrim(vendedor?.nombre, 'Vendedor'),
+      ventas: 0,
+      comisiones: 0,
+      pagos: 0,
+      balancePeriodo: 0,
+      comprobantes: 0
+    }]));
+    movsFiltrados.filter((movimiento) => movimiento?.tipo === 'venta' && movimiento?.detallesPago?.vendedorId).forEach((movimiento) => {
+      const vendedorId = movimiento.detallesPago.vendedorId;
+      const fila = vendedoresReportePorId.get(vendedorId) || { vendedorId, vendedorNombre: textoSeguroTrim(movimiento?.detallesPago?.vendedorNombre, 'Vendedor'), ventas: 0, comisiones: 0, pagos: 0, balancePeriodo: 0, comprobantes: 0 };
+      const signo = obtenerSignoPuntoVenta(movimiento);
+      fila.ventas += signo * Math.max(0, Number(movimiento?.monto || 0));
+      fila.comisiones += signo * Math.max(0, Number(movimiento?.detallesPago?.comisionMonto || 0));
+      fila.comprobantes += 1;
+      vendedoresReportePorId.set(vendedorId, fila);
+    });
+    (retirosVendedores || []).forEach((retiro) => {
+      const fechaRetiro = new Date(retiro?.fecha || retiro?.fechaCreacion || 0);
+      if (Number.isNaN(fechaRetiro.getTime()) || fechaRetiro < inicio || fechaRetiro > fin) return;
+      const vendedorId = textoSeguroTrim(retiro?.vendedorId, '');
+      if (!vendedorId) return;
+      const fila = vendedoresReportePorId.get(vendedorId) || { vendedorId, vendedorNombre: textoSeguroTrim(retiro?.vendedorNombre, 'Vendedor'), ventas: 0, comisiones: 0, pagos: 0, balancePeriodo: 0, comprobantes: 0 };
+      fila.pagos += Math.max(0, Number(retiro?.monto || 0));
+      vendedoresReportePorId.set(vendedorId, fila);
+    });
+    const vendedoresReporte = Array.from(vendedoresReportePorId.values())
+      .map((fila) => ({ ...fila, balancePeriodo: fila.comisiones - fila.pagos }))
+      .filter((fila) => Math.abs(fila.ventas) > 0.009 || Math.abs(fila.comisiones) > 0.009 || Math.abs(fila.pagos) > 0.009)
+      .sort((a, b) => b.comisiones - a.comisiones || a.vendedorNombre.localeCompare(b.vendedorNombre, 'es'));
+    const reporteVendedores = {
+      filas: vendedoresReporte,
+      ventas: vendedoresReporte.reduce((total, fila) => total + fila.ventas, 0),
+      comisiones: vendedoresReporte.reduce((total, fila) => total + fila.comisiones, 0),
+      pagos: vendedoresReporte.reduce((total, fila) => total + fila.pagos, 0),
+      balancePeriodo: vendedoresReporte.reduce((total, fila) => total + fila.balancePeriodo, 0)
     };
-  }, [movimientos, reporteTiempo, reporteMesSeleccionado, reporteFechaDesdeReporte, reporteFechaHastaReporte]);
+
+    const tarjetasReportePorPlan = new Map();
+    movsFiltrados
+      .filter((movimiento) => movimiento?.tipo === 'venta' && ['tarjeta', 'tarjeta_credito', 'tarjeta_debito'].includes(normalizarMetodoPago(movimiento?.metodoPago)))
+      .forEach((movimiento) => {
+        const detalle = movimiento?.detallesPago || {};
+        const metodo = normalizarMetodoPago(movimiento?.metodoPago);
+        const tipo = textoSeguroTrim(detalle?.tarjetaTipo, metodo === 'tarjeta_debito' ? 'debito' : 'credito');
+        const tarjeta = textoSeguroTrim(detalle?.tarjetaNombre, 'Tarjeta');
+        const cuotas = Math.max(1, Math.round(Number(detalle?.tarjetaCuotas) || 1));
+        const plan = textoSeguroTrim(detalle?.tarjetaPlanNombre, cuotas === 1 ? '1 pago' : `${cuotas} cuotas`);
+        const signo = obtenerSignoPuntoVenta(movimiento);
+        const totalPosnet = signo * Math.max(0, Number(detalle?.tarjetaTotalPosnet ?? movimiento?.monto) || 0);
+        const totalContado = signo * Math.max(0, Number(detalle?.tarjetaTotalContado ?? detalle?.totalAntesRedondeo ?? movimiento?.monto) || 0);
+        const recargo = signo * Math.max(0, Number(detalle?.tarjetaRecargoFinanciero ?? (Math.abs(totalPosnet) - Math.abs(totalContado))) || 0);
+        const netoEstimado = signo * Math.max(0, Number(detalle?.tarjetaNetoEstimado ?? detalle?.tarjetaTotalContado ?? movimiento?.monto) || 0);
+        const clave = `${tipo}|${tarjeta}|${plan}|${cuotas}`;
+        const fila = tarjetasReportePorPlan.get(clave) || { clave, tipo, tarjeta, plan, cuotas, operaciones: 0, totalContado: 0, recargo: 0, totalPosnet: 0, netoEstimado: 0 };
+        fila.operaciones += signo;
+        fila.totalContado += totalContado;
+        fila.recargo += recargo;
+        fila.totalPosnet += totalPosnet;
+        fila.netoEstimado += netoEstimado;
+        tarjetasReportePorPlan.set(clave, fila);
+      });
+    const tarjetasReporteFilas = Array.from(tarjetasReportePorPlan.values())
+      .filter((fila) => Math.abs(fila.totalPosnet) > 0.009 || fila.operaciones !== 0)
+      .sort((a, b) => b.totalPosnet - a.totalPosnet || a.tarjeta.localeCompare(b.tarjeta, 'es'));
+    const reporteTarjetas = {
+      filas: tarjetasReporteFilas,
+      operaciones: tarjetasReporteFilas.reduce((total, fila) => total + fila.operaciones, 0),
+      totalContado: tarjetasReporteFilas.reduce((total, fila) => total + fila.totalContado, 0),
+      recargo: tarjetasReporteFilas.reduce((total, fila) => total + fila.recargo, 0),
+      totalPosnet: tarjetasReporteFilas.reduce((total, fila) => total + fila.totalPosnet, 0),
+      netoEstimado: tarjetasReporteFilas.reduce((total, fila) => total + fila.netoEstimado, 0)
+    };
+
+    return {
+      movimientos: movsFiltrados,
+      ventas, ventasCobradas, otrosIngresos, cobros,
+      gastosOperativos, pagosProveedores, egresos, retiros: retirosCaja,
+      neto, flujoNeto, inicio, fin, impuestos, vendedores: reporteVendedores, tarjetas: reporteTarjetas
+    };
+  }, [movimientos, pedidosCompra, productos, vendedores, retirosVendedores, reporteTiempo, reporteMesSeleccionado, reporteFechaDesdeReporte, reporteFechaHastaReporte]);
 
   const mostrarDetalleIndicadorReporte = async (clave) => {
     const periodo = `Período: ${formatearFecha(datosReporte.inicio)} al ${formatearFecha(datosReporte.fin)}.`;
     const detalles = {
-      ingresos: {
-        titulo: 'Detalle de Ingresos Totales',
-        mensaje: `${periodo}\nIncluye ventas e ingresos extra.\nTotal: ${formatearDinero(datosReporte.ingresos)}`
+      ventas: {
+        titulo: 'Detalle de Ventas',
+        mensaje: `${periodo}\nIncluye todas las ventas y notas de crédito del período.\nTotal facturado: ${formatearDinero(datosReporte.ventas)}`
       },
       cobros: {
         titulo: 'Detalle de Cobros (Cuentas)',
         mensaje: `${periodo}\nIncluye cobros registrados de cuenta corriente.\nTotal: ${formatearDinero(datosReporte.cobros)}`
       },
-      egresos: {
-        titulo: 'Detalle de Egresos Totales',
-        mensaje: `${periodo}\nIncluye gastos operativos.\nTotal: ${formatearDinero(datosReporte.egresos)}`
+      otrosIngresos: {
+        titulo: 'Detalle de Otros Ingresos',
+        mensaje: `${periodo}\nIncluye ingresos manuales registrados con impacto en reportes.\nTotal: ${formatearDinero(datosReporte.otrosIngresos)}`
       },
-      transferencias: {
-        titulo: 'Detalle de Transferencias Netas',
-        mensaje: `${periodo}\nFlujo neto por transferencias (ingresos - egresos).\nTotal: ${formatearDinero(datosReporte.flujoTransferencia)}`
+      gastos: {
+        titulo: 'Detalle de Gastos Diarios',
+        mensaje: `${periodo}\nIncluye gastos operativos, sin duplicar pagos a proveedores.\nTotal: ${formatearDinero(datosReporte.gastosOperativos)}`
+      },
+      proveedores: {
+        titulo: 'Detalle de Pagos a Proveedores',
+        mensaje: `${periodo}\nIncluye únicamente los pagos reales a proveedores que impactan caja y reportes.\nTotal: ${formatearDinero(datosReporte.pagosProveedores)}`
       },
       retiros: {
         titulo: 'Detalle de Retiros de Efectivo',
         mensaje: `${periodo}\nIncluye retiros de caja registrados.\nTotal: ${formatearDinero(datosReporte.retiros)}`
       },
       ganancia: {
-        titulo: 'Detalle de Ganancia Neta',
-        mensaje: `${periodo}\nCálculo: (Ingresos + Cobros) - Egresos.\nResultado: ${formatearDinero(datosReporte.neto)}`
+        titulo: 'Resultado del Negocio',
+        mensaje: `${periodo}\nCálculo: Ventas + Otros ingresos - Gastos diarios - Pagos a proveedores. Los cobros no se vuelven a sumar para no duplicar ventas a cuenta.\nResultado: ${formatearDinero(datosReporte.neto)}`
+      },
+      flujo: {
+        titulo: 'Flujo Neto Disponible',
+        mensaje: `${periodo}\nCálculo: Ventas cobradas + Cobros de cuenta + Otros ingresos - Egresos - Retiros.\nDisponible del período: ${formatearDinero(datosReporte.flujoNeto)}`
       }
     };
     const detalle = detalles[clave];
@@ -3108,6 +3763,8 @@ function AppInterna() {
         return rol === 'cajero' || Boolean(usuario?.puedeVerCaja);
       case 'ventas':
         return ['cajero', 'vendedor'].includes(rol) || Boolean(usuario?.puedeVerVentas);
+      case 'vendedores':
+        return Boolean(usuario?.puedeVerVendedores);
       case 'clientes':
         return ['cajero', 'vendedor'].includes(rol) || Boolean(usuario?.puedeVerClientes);
       case 'cuentas_corrientes':
@@ -3153,9 +3810,12 @@ function AppInterna() {
     if ((usuario?.rol || '').toLowerCase() === 'admin') return true;
     return Boolean(configuracion?.mostrarHistorialCajaAUsuarios);
   };
+  const usuarioPuedeVerResumenes = (usuario = usuarioActual) => (
+    (usuario?.rol || '').toLowerCase() === 'admin' || Boolean(usuario?.puedeVerResumenes)
+  );
 
   const obtenerVistaInicialUsuario = (usuario = usuarioActual) => {
-    const vistas = ['caja', 'notificaciones', 'ventas', 'clientes', 'combos', 'flyer', 'inventario', 'mod_masiva', 'variacion_precios', 'sugerencias', 'compras', 'proveedores', 'comparativa', 'presupuestos', 'reportes', 'rastreo', 'ajustes', 'ayuda'];
+    const vistas = ['caja', 'notificaciones', 'ventas', 'vendedores', 'clientes', 'combos', 'flyer', 'inventario', 'mod_masiva', 'variacion_precios', 'sugerencias', 'compras', 'proveedores', 'comparativa', 'presupuestos', 'reportes', 'rastreo', 'ajustes', 'ayuda'];
     return vistas.find((vistaItem) => usuarioPuedeVerModulo(vistaItem, usuario)) || 'caja';
   };
 
@@ -3613,6 +4273,15 @@ function AppInterna() {
     return movimientosClienteSeleccionado.filter((mov) => !esRecargoMoraMovimiento(mov));
   }, [movimientosClienteSeleccionado, usuarioActual?.rol]);
 
+  const movimientosClienteSeleccionadoPaginados = useMemo(
+    () => obtenerPaginaLista(movimientosClienteSeleccionadoVisibles, paginacionCuentaCliente.pagina, paginacionCuentaCliente.porPagina),
+    [movimientosClienteSeleccionadoVisibles, paginacionCuentaCliente]
+  );
+
+  useEffect(() => {
+    setPaginacionCuentaCliente((prev) => ({ ...prev, pagina: 1 }));
+  }, [clienteSeleccionado?.id, movimientosClienteSeleccionadoVisibles.length]);
+
   const facturasClienteSeleccionado = useMemo(() => {
     if (!clienteSeleccionado) return [];
     const nombreCliente = normalizarTextoBusqueda(clienteSeleccionado?.nombre || '');
@@ -4042,6 +4711,11 @@ function AppInterna() {
     return enriquecidos.map(({ cliente }) => cliente);
   }, [clientesVisiblesSegunAcceso, busquedaDirectorio, estadoCuentaClientes, mostrarSoloConSaldoPendiente]);
 
+  const clientesPaginados = useMemo(
+    () => obtenerPaginaLista(clientesVisualizados, paginacionListados.clientes.pagina, paginacionListados.clientes.porPagina),
+    [clientesVisualizados, paginacionListados.clientes]
+  );
+
   const presupuestosVisualizados = useMemo(() => {
     return presupuestos.filter((p) => {
       const numero = Number.isFinite(parseInt(p?.numero, 10)) ? parseInt(p?.numero, 10) : 0;
@@ -4093,14 +4767,23 @@ function AppInterna() {
     });
   }, [productos, busquedaInventarioDiferida, filtroCategoriaInventario, filtroProveedorInventario, filtroMarcaInventario, ordenInventario]);
 
-  useEffect(() => {
-    setLimiteRenderInventario(160);
-  }, [busquedaInventarioDiferida, filtroCategoriaInventario, filtroProveedorInventario, filtroMarcaInventario, ordenInventario]);
-
   const productosInventarioRenderizados = useMemo(
-    () => productosVisualizados.slice(0, limiteRenderInventario),
-    [productosVisualizados, limiteRenderInventario]
+    () => obtenerPaginaLista(productosVisualizados, paginacionListados.inventario.pagina, paginacionListados.inventario.porPagina).items,
+    [productosVisualizados, paginacionListados.inventario]
   );
+
+  const inventarioPaginado = useMemo(
+    () => obtenerPaginaLista(productosVisualizados, paginacionListados.inventario.pagina, paginacionListados.inventario.porPagina),
+    [productosVisualizados, paginacionListados.inventario]
+  );
+
+  useEffect(() => {
+    setPaginacionListados((prev) => ({
+      ...prev,
+      clientes: { ...prev.clientes, pagina: 1 },
+      inventario: { ...prev.inventario, pagina: 1 }
+    }));
+  }, [busquedaDirectorio, mostrarSoloConSaldoPendiente, busquedaInventarioDiferida, filtroCategoriaInventario, filtroProveedorInventario, filtroMarcaInventario, ordenInventario]);
 
   const productosStockBajo = useMemo(() => (
     (productos || [])
@@ -4940,11 +5623,17 @@ function AppInterna() {
           .filter(Boolean)
           .filter((item) => normalizarTextoBusqueda(item?.proveedor || '') === key);
         if (!filasProveedor.length) return [];
-        const monto = filasProveedor.reduce((acc, item) => acc + Number(item.subtotal || 0), 0);
+        // Las compras directas ya guardan el neto por ítem y el total real
+        // separado. La cuenta corriente debe tomar ese total, no solo el neto.
+        const esCompraDirecta = textoSeguroTrim(pedido?.tipoRegistro, '') === 'compra_directa';
+        const montoItems = filasProveedor.reduce((acc, item) => acc + Number(item.subtotal || 0), 0);
+        const monto = esCompraDirecta
+          ? Math.max(0, parseNumeroBasico(pedido?.totalEstimado) || montoItems)
+          : montoItems;
         const estadoPedido = textoSeguroTrim(pedido?.estado, 'guardado');
         const pagoPedido = obtenerPagoProveedorDePedido(pedido?.id, proveedorNombre);
-        const fechaPedido = pedido?.fechaCreacion || pedido?.fechaComprobante || pedido?.fechaActualizacion || new Date().toISOString();
-        const fechaRecepcion = pedido?.fechaRecepcion || '';
+        const fechaPedido = pedido?.fechaPedido || pedido?.fechaComprobante || pedido?.fechaCreacion || pedido?.fechaActualizacion || new Date().toISOString();
+        const fechaRecepcion = pedido?.fechaRemitoProveedor || pedido?.fechaRecepcion || '';
         const fechaPago = pagoPedido?.fecha || pedido?.pagoRegistradoProveedorEn || '';
         const recibido = estadoPedido === 'recibido';
         return [{
@@ -4953,6 +5642,8 @@ function AppInterna() {
           numero: textoSeguroTrim(pedido?.numero, '000000'),
           remitoProveedor: textoSeguroTrim(pedido?.remitoProveedor, ''),
           fechaRemitoProveedor: textoSeguroTrim(pedido?.fechaRemitoProveedor, ''),
+          tipoComprobanteProveedor: textoSeguroTrim(pedido?.tipoComprobanteProveedor, ''),
+          numeroComprobanteProveedor: textoSeguroTrim(pedido?.numeroComprobanteProveedor, ''),
           proveedor: proveedorNombre,
           fecha: fechaRecepcion || fechaPedido,
           fechaPedido,
@@ -4964,6 +5655,10 @@ function AppInterna() {
           estadoPedido,
           descuentoPorcentaje: parseNumeroBasico(pedido?.descuentoPorcentaje),
           ajusteMonto: parseNumeroConSigno(pedido?.ajusteMonto),
+          iva21: Math.max(0, parseNumeroBasico(pedido?.iva21)),
+          iva105: Math.max(0, parseNumeroBasico(pedido?.iva105)),
+          ingresosBrutos: Math.max(0, parseNumeroBasico(pedido?.ingresosBrutos)),
+          flete: Math.max(0, parseNumeroBasico(pedido?.flete)),
           impuestoProvincial: parseNumeroBasico(pedido?.detalleRecepcion?.impuestoProvincial),
           otrosImpuestos: parseNumeroBasico(pedido?.detalleRecepcion?.otrosImpuestos),
           monto,
@@ -4983,8 +5678,58 @@ function AppInterna() {
       .map((pago) => ({ ...pago, monto: Math.max(0, parseNumeroBasico(pago?.monto)) }))
       .sort((a, b) => new Date(a.fecha || a.fechaCreacion || 0) - new Date(b.fecha || b.fechaCreacion || 0));
 
+    const aplicarSaldoFavorAComprasPosteriores = (pago, saldoDisponible = 0) => {
+      let restante = Math.max(0, Number(saldoDisponible || 0));
+      if (restante <= 0.009) return 0;
+      const fechaPagoMs = new Date(pago?.fecha || pago?.fechaCreacion || 0).getTime();
+      const cargosPosteriores = cargosProcesados
+        .filter((cargo) => {
+          if (Number(cargo?.pendiente || 0) <= 0.009) return false;
+          const fechaCargoMs = new Date(cargo?.fecha || cargo?.fechaRecepcion || cargo?.fechaPedido || 0).getTime();
+          if (!Number.isFinite(fechaPagoMs) || fechaPagoMs <= 0) return true;
+          return Number.isFinite(fechaCargoMs) && fechaCargoMs >= fechaPagoMs;
+        })
+        .sort((a, b) => new Date(a.fecha || 0) - new Date(b.fecha || 0));
+      cargosPosteriores.forEach((cargo) => {
+        if (restante <= 0.009) return;
+        const saldoFavorAntes = restante;
+        const aplicado = Math.min(restante, Math.max(0, Number(cargo.pendiente || 0)));
+        if (aplicado <= 0) return;
+        cargo.pendiente = Math.max(0, Number(cargo.pendiente || 0) - aplicado);
+        cargo.pagosAplicados = [...(cargo.pagosAplicados || []), { id: pago.id, fecha: pago.fecha, monto: aplicado, pendienteDespues: cargo.pendiente, desdeSaldoFavor: true, saldoFavorAntes, saldoFavorDespues: Math.max(0, saldoFavorAntes - aplicado) }];
+        restante = Math.max(0, restante - aplicado);
+        pago.saldoFavorConsumido = Number(pago.saldoFavorConsumido || 0) + aplicado;
+      });
+      return restante;
+    };
+
     pagos.forEach((pago) => {
       let restante = Math.max(0, Number(pago.monto || 0));
+      const aplicacionesGuardadas = Array.isArray(pago?.aplicacionesComprobantes)
+        ? pago.aplicacionesComprobantes.filter((aplicacion) => textoSeguroTrim(aplicacion?.pedidoCompraId, '') && Number(aplicacion?.montoAplicado || 0) > 0)
+        : [];
+      if (aplicacionesGuardadas.length) {
+        aplicacionesGuardadas.forEach((aplicacion) => {
+          if (restante <= 0) return;
+          const cargo = cargosProcesados.find((item) => item.pedidoId === aplicacion.pedidoCompraId);
+          if (!cargo || cargo.pendiente <= 0) return;
+          const aplicado = Math.min(restante, cargo.pendiente, Math.max(0, Number(aplicacion.montoAplicado || 0)));
+          if (aplicado <= 0) return;
+          cargo.pendiente = Math.max(0, cargo.pendiente - aplicado);
+          cargo.pagosAplicados = [...(cargo.pagosAplicados || []), {
+            id: pago.id,
+            fecha: pago.fecha,
+            monto: aplicado,
+            pendienteDespues: cargo.pendiente,
+            ordenAplicacion: aplicacion.orden || 0,
+            totalAplicaciones: aplicacionesGuardadas.length
+          }];
+          restante -= aplicado;
+        });
+        restante = aplicarSaldoFavorAComprasPosteriores(pago, restante);
+        pago.saldoFavorGenerado = Math.max(0, restante);
+        return;
+      }
       const idsObjetivo = Array.isArray(pago?.pedidoCompraIds) && pago.pedidoCompraIds.length
         ? pago.pedidoCompraIds
         : (pago?.pedidoCompraId ? [pago.pedidoCompraId] : []);
@@ -4998,6 +5743,7 @@ function AppInterna() {
         cargo.pagosAplicados = [...(cargo.pagosAplicados || []), { id: pago.id, fecha: pago.fecha, monto: aplicado, pendienteDespues: cargo.pendiente }];
         restante -= aplicado;
       });
+      restante = aplicarSaldoFavorAComprasPosteriores(pago, restante);
       pago.saldoFavorGenerado = Math.max(0, restante);
     });
 
@@ -5070,6 +5816,40 @@ function AppInterna() {
       .filter((cargo) => Number(cargo.pendiente || 0) > 0.009);
   }, [formPagoProveedor?.proveedor, pedidosCompra, pagosProveedores]);
 
+  const resumenAplicacionPagoProveedor = useMemo(() => {
+    const montoPago = Math.max(0, parseNumeroBasico(formPagoProveedor?.monto));
+    const idsSeleccionados = Array.isArray(formPagoProveedor?.pedidoCompraIds)
+      ? formPagoProveedor.pedidoCompraIds.filter(Boolean)
+      : [];
+    let restante = montoPago;
+    const aplicaciones = idsSeleccionados.map((pedidoCompraId, index) => {
+      const cargo = cargosPendientesPagoProveedor.find((item) => item.pedidoId === pedidoCompraId);
+      if (!cargo) return null;
+      const pendiente = Math.max(0, Number(cargo.pendiente || 0));
+      const aplicado = Math.min(restante, pendiente);
+      restante = Math.max(0, restante - aplicado);
+      return {
+        pedidoCompraId,
+        orden: index + 1,
+        pendiente,
+        aplicado,
+        saldoComprobanteDespues: Math.max(0, pendiente - aplicado),
+        restantePagoDespues: restante
+      };
+    }).filter(Boolean);
+    const totalPendienteSeleccionado = aplicaciones.reduce((total, item) => total + item.pendiente, 0);
+    const totalAplicado = aplicaciones.reduce((total, item) => total + item.aplicado, 0);
+    return {
+      montoPago,
+      aplicaciones,
+      aplicacionesPorId: new Map(aplicaciones.map((item) => [item.pedidoCompraId, item])),
+      totalPendienteSeleccionado,
+      totalAplicado,
+      restantePago: Math.max(0, restante),
+      saldoPendienteSeleccionado: Math.max(0, totalPendienteSeleccionado - totalAplicado)
+    };
+  }, [formPagoProveedor?.monto, formPagoProveedor?.pedidoCompraIds, cargosPendientesPagoProveedor]);
+
   const marcasVisualizadas = useMemo(() => {
     return (marcas || []).filter((marca) => {
       return coincideBusquedaCompuesta([marca?.nombre], busquedaMarcas);
@@ -5083,7 +5863,7 @@ function AppInterna() {
 
 
   // --- MANEJADORES DE BASE DE DATOS (FIREBASE) ---
-  const manejarLogin = (e) => {
+  const manejarLogin = async (e) => {
     e.preventDefault();
     if (!usuariosCargados || !Array.isArray(usuarios) || usuarios.length === 0) {
       setLoginForm((prev) => ({ ...prev, error: 'Todavía estamos cargando los usuarios. Esperá un momento.' }));
@@ -5104,7 +5884,27 @@ function AppInterna() {
       ].some((valor) => normalizarCredencial(valor) === usuarioIngresado)
       && textoSeguro(u?.password, '').replace(/[\u200B-\u200D\uFEFF]/g, '').trim() === passwordIngresado
     ));
-    if (user) { setUsuarioActual(user); setLoginForm({ username: '', password: '', error: '' }); setVista(obtenerVistaInicialUsuario(user)); } 
+    if (user) {
+      try {
+        if (recordarme) {
+          window.localStorage.setItem('seniorflow-login-recordarme', JSON.stringify({ activo: true, username: usuarioIngresado }));
+        } else {
+          window.localStorage.removeItem('seniorflow-login-recordarme');
+        }
+        if (recordarme && window.PasswordCredential && navigator.credentials?.store) {
+          await navigator.credentials.store(new window.PasswordCredential({
+            id: usuarioIngresado,
+            password: passwordIngresado,
+            name: 'SeniorFlow'
+          }));
+        } else if (!recordarme && navigator.credentials?.preventSilentAccess) {
+          await navigator.credentials.preventSilentAccess();
+        }
+      } catch {}
+      setUsuarioActual(user);
+      setLoginForm({ username: '', password: '', error: '' });
+      setVista(obtenerVistaInicialUsuario(user));
+    } 
     else { setLoginForm({ ...loginForm, error: 'Usuario o contraseña incorrectos.' }); }
   };
 
@@ -5296,6 +6096,15 @@ function AppInterna() {
     [movimientosPuntoVenta, fechaDesdeVentas, fechaHastaVentas]
   );
 
+  const ventasPaginadas = useMemo(
+    () => obtenerPaginaLista(movimientosPuntoVentaPeriodo, paginacionListados.ventas.pagina, paginacionListados.ventas.porPagina),
+    [movimientosPuntoVentaPeriodo, paginacionListados.ventas]
+  );
+
+  useEffect(() => {
+    setPaginacionListados((prev) => ({ ...prev, ventas: { ...prev.ventas, pagina: 1 } }));
+  }, [fechaDesdeVentas, fechaHastaVentas]);
+
   const totalPuntoVentaPeriodo = useMemo(
     () => movimientosPuntoVentaPeriodo
       .filter((mov) => mov?.detallesPago?.origen !== 'remito_r')
@@ -5387,21 +6196,103 @@ function AppInterna() {
     [totalPuntoVentaPeriodo, totalPuntoVentaCuentaCorriente]
   );
 
-  const totalFormularioPuntoVenta = useMemo(
+  const redondeoVentasHaciaArribaActivo = Boolean(configuracion?.redondearVentasHaciaArriba);
+  const totalFormularioPuntoVentaBase = useMemo(
     () => (formPuntoVenta.items || []).reduce((acc, item) => {
       const cantidad = Math.max(0, parseNumeroBasico(item?.cantidad) || 0);
-      const precio = Math.max(0, parseNumeroBasico(item?.precio) || 0);
+      const precioBase = Math.max(0, parseNumeroBasico(item?.precio) || 0);
+      const precio = redondeoVentasHaciaArribaActivo ? redondearImporteVentaHaciaArriba(precioBase) : precioBase;
       const descuento = Math.min(100, Math.max(0, parseNumeroBasico(item?.descuento) || 0));
       const subtotal = cantidad * precio;
-      return acc + Math.max(0, subtotal - (subtotal * descuento / 100));
+      const subtotalConDescuento = Math.max(0, subtotal - (subtotal * descuento / 100));
+      return acc + (redondeoVentasHaciaArribaActivo ? redondearImporteVentaHaciaArriba(subtotalConDescuento) : subtotalConDescuento);
     }, 0),
-    [formPuntoVenta.items]
+    [formPuntoVenta.items, redondeoVentasHaciaArribaActivo]
   );
+  const totalFormularioPuntoVenta = useMemo(
+    () => redondeoVentasHaciaArribaActivo
+      ? redondearImporteVentaHaciaArriba(totalFormularioPuntoVentaBase)
+      : totalFormularioPuntoVentaBase,
+    [redondeoVentasHaciaArribaActivo, totalFormularioPuntoVentaBase]
+  );
+  const ajusteRedondeoFormularioPuntoVenta = totalFormularioPuntoVenta - totalFormularioPuntoVentaBase;
+  const planesTarjetaConfigurados = useMemo(
+    () => (Array.isArray(configuracion?.tarjetasPlanes) ? configuracion.tarjetasPlanes : []).map(normalizarPlanTarjeta),
+    [configuracion?.tarjetasPlanes]
+  );
+  const metodoPagoPuntoVentaNormalizado = normalizarMetodoPago(formPuntoVenta.metodoPago);
+  const tipoTarjetaPuntoVenta = metodoPagoPuntoVentaNormalizado === 'tarjeta_debito' ? 'debito' : 'credito';
+  const esPlanTarjetaNombradoPuntoVenta = (plan = {}) => {
+    const claveTarjeta = normalizarTextoBusqueda(plan?.tarjeta || '');
+    return Boolean(claveTarjeta && claveTarjeta !== 'tarjeta');
+  };
+  const planesTarjetaActivos = useMemo(() => planesTarjetaConfigurados.filter((plan) => plan.activo !== false && plan.tipo === tipoTarjetaPuntoVenta && esPlanTarjetaNombradoPuntoVenta(plan) && esPlanTarjetaVigenteEnFecha(plan)), [planesTarjetaConfigurados, tipoTarjetaPuntoVenta]);
+  const planTarjetaPuntoVenta = useMemo(
+    () => planesTarjetaActivos.find((plan) => plan.id === formPuntoVenta.tarjetaPlanId) || null,
+    [planesTarjetaActivos, formPuntoVenta.tarjetaPlanId]
+  );
+  const tarjetasDisponiblesPuntoVenta = useMemo(() => {
+    const vistas = new Map();
+    planesTarjetaActivos.forEach((plan) => {
+      const nombre = textoSeguroTrim(plan?.tarjeta, '');
+      const clave = normalizarTextoBusqueda(nombre);
+      if (clave && !vistas.has(clave)) vistas.set(clave, nombre);
+    });
+    return Array.from(vistas.entries()).map(([clave, nombre]) => ({ clave, nombre }));
+  }, [planesTarjetaActivos]);
+  const tarjetaSeleccionadaPuntoVenta = normalizarTextoBusqueda(planTarjetaPuntoVenta?.tarjeta || '');
+  const planesTarjetaPorTarjetaPuntoVenta = useMemo(
+    () => planesTarjetaActivos.filter((plan) => !tarjetaSeleccionadaPuntoVenta || normalizarTextoBusqueda(plan?.tarjeta || '') === tarjetaSeleccionadaPuntoVenta),
+    [planesTarjetaActivos, tarjetaSeleccionadaPuntoVenta]
+  );
+  const financiacionTarjetaPuntoVenta = useMemo(
+    () => calcularFinanciacionTarjeta(totalFormularioPuntoVenta, planTarjetaPuntoVenta),
+    [totalFormularioPuntoVenta, planTarjetaPuntoVenta]
+  );
+  const esTarjetaPuntoVenta = ['tarjeta', 'tarjeta_credito', 'tarjeta_debito'].includes(metodoPagoPuntoVentaNormalizado);
+  const totalCobroPuntoVenta = esTarjetaPuntoVenta && planTarjetaPuntoVenta ? financiacionTarjetaPuntoVenta.totalPosnet : totalFormularioPuntoVenta;
+  const totalCobroPuntoVentaVisible = Math.abs(totalCobroPuntoVenta) < 0.005 ? 0 : Math.max(0, totalCobroPuntoVenta);
+  const mostrarResumenTarjetaPuntoVenta = Boolean(esTarjetaPuntoVenta && planTarjetaPuntoVenta && totalFormularioPuntoVenta > 0.009);
   const totalFormularioPuntoVentaTexto = formatearDinero(totalFormularioPuntoVenta);
   const totalFormularioPuntoVentaFontSizeRem = Math.max(
     1.05,
     Math.min(2.25, 20 / Math.max(10, totalFormularioPuntoVentaTexto.length))
   );
+  const porcentajeComisionPuntoVentaVista = Math.min(100, Math.max(0, parseNumeroBasico(formAsignacionVendedorPuntoVenta.porcentaje) || 0));
+  const simulacionComisionPuntoVentaVista = useMemo(
+    () => calcularPreciosConComisionVendedor(formPuntoVenta.items || [], porcentajeComisionPuntoVentaVista),
+    [formPuntoVenta.items, porcentajeComisionPuntoVentaVista]
+  );
+  const comisionPuntoVentaVista = simulacionComisionPuntoVentaVista.totalComision;
+  const totalConComisionPuntoVentaVista = simulacionComisionPuntoVentaVista.totalFinal;
+
+  const abrirAsignacionVendedorPuntoVenta = async () => {
+    if (formPuntoVenta.tipoComprobante === 'nota_credito') { await notificarSistema('Las notas de crédito no generan una nueva comisión de vendedor.', { tipo: 'info', titulo: 'Comisión no aplicable' }); return; }
+    if (!vendedores.some((vendedor) => vendedor.activo !== false)) { await notificarSistema('Primero cargá al menos un vendedor activo desde el menú Vendedores.', { tipo: 'warning', titulo: 'Sin vendedores activos' }); return; }
+    setFormAsignacionVendedorPuntoVenta({ vendedorId: textoSeguroTrim(formPuntoVenta.vendedorId, ''), porcentaje: formPuntoVenta.comisionPorcentaje ?? '' });
+    setAsignacionVendedorPuntoVentaAbierta(true);
+  };
+
+  const confirmarAsignacionVendedorPuntoVenta = async (event) => {
+    event.preventDefault();
+    const vendedor = vendedores.find((item) => item.id === formAsignacionVendedorPuntoVenta.vendedorId && (item.activo !== false || item.id === formPuntoVenta.vendedorId));
+    const porcentaje = Math.min(100, Math.max(0, parseNumeroBasico(formAsignacionVendedorPuntoVenta.porcentaje) || 0));
+    if (!vendedor || porcentaje <= 0) { await notificarSistema('Seleccioná un vendedor activo e ingresá un porcentaje mayor a cero.', { tipo: 'warning', titulo: 'Asignación incompleta' }); return; }
+    setFormPuntoVenta((prev) => {
+      const preciosConComision = calcularPreciosConComisionVendedor(prev.items || [], porcentaje);
+      return { ...prev, items: preciosConComision.items, vendedorId: vendedor.id, vendedorNombre: vendedor.nombre, comisionPorcentaje: porcentaje, comisionMonto: preciosConComision.totalComision };
+    });
+    setAsignacionVendedorPuntoVentaAbierta(false);
+  };
+
+  const quitarAsignacionVendedorPuntoVenta = async () => {
+    const ventaId = textoSeguroTrim(formPuntoVenta.idMovimiento, '');
+    const tieneRetiros = ventaId && retirosVendedores.some((retiro) => (retiro?.aplicacionesVentas || []).some((aplicacion) => aplicacion?.ventaId === ventaId));
+    if (tieneRetiros) { await notificarSistema('No se puede quitar el vendedor porque esta comisión ya tiene retiros aplicados.', { tipo: 'warning', titulo: 'Venta con retiros' }); return; }
+    setFormPuntoVenta((prev) => ({ ...prev, items: restaurarPreciosSinComisionVendedor(prev.items || []), vendedorId: '', vendedorNombre: '', comisionPorcentaje: '', comisionMonto: 0 }));
+    setFormAsignacionVendedorPuntoVenta({ vendedorId: '', porcentaje: '' });
+    setAsignacionVendedorPuntoVentaAbierta(false);
+  };
 
   const itemsPantallaClientePuntoVenta = useMemo(() => {
     const buscarProductoVisual = (item = {}) => {
@@ -5420,10 +6311,12 @@ function AppInterna() {
       .map((item) => {
         const producto = buscarProductoVisual(item);
         const cantidad = Math.max(0, parseNumeroBasico(item?.cantidad) || 0);
-        const precio = Math.max(0, parseNumeroBasico(item?.precio) || 0);
+        const precioBase = Math.max(0, parseNumeroBasico(item?.precio) || 0);
+        const precio = redondeoVentasHaciaArribaActivo ? redondearImporteVentaHaciaArriba(precioBase) : precioBase;
         const descuento = Math.min(100, Math.max(0, parseNumeroBasico(item?.descuento) || 0));
         const bruto = cantidad * precio;
-        const subtotal = Math.max(0, bruto - (bruto * descuento / 100));
+        const subtotalBase = Math.max(0, bruto - (bruto * descuento / 100));
+        const subtotal = redondeoVentasHaciaArribaActivo ? redondearImporteVentaHaciaArriba(subtotalBase) : subtotalBase;
         return {
           id: item?.id || `pv-display-${Math.random().toString(36).slice(2, 8)}`,
           productoId: item?.productoId || producto?.id || '',
@@ -5440,7 +6333,7 @@ function AppInterna() {
         };
       })
       .filter((item) => item.descripcion || item.codigo || item.precio > 0);
-  }, [formPuntoVenta.items, productos]);
+  }, [formPuntoVenta.items, productos, redondeoVentasHaciaArribaActivo]);
 
   const itemDestacadoPantallaClientePuntoVenta = useMemo(
     () => [...itemsPantallaClientePuntoVenta].reverse().find((item) => item.descripcion || item.precio > 0) || null,
@@ -5459,7 +6352,7 @@ function AppInterna() {
 
   const obtenerResumenPagoPantallaClientePuntoVenta = (opciones = {}) => {
     const metodo = normalizarMetodoPago(opciones?.metodoPago || formPuntoVenta.metodoPago);
-    const total = Number(opciones?.total ?? totalFormularioPuntoVenta) || 0;
+    const total = Number(opciones?.total ?? totalCobroPuntoVenta) || 0;
     const recibido = Number(opciones?.recibido ?? recibidoEfectivoPuntoVentaNumero) || 0;
     const vuelto = Math.max(0, recibido - total);
     const alias = textoSeguroTrim(configuracion?.pagoAlias, '');
@@ -5502,6 +6395,21 @@ function AppInterna() {
         cbu,
         banco,
         cliente
+      };
+    }
+    if (['tarjeta', 'tarjeta_credito', 'tarjeta_debito'].includes(metodo)) {
+      return {
+        metodo,
+        titulo: cierre ? tituloGracias : `Pago con ${obtenerEtiquetaMetodoPago(metodo)}`,
+        detalle: cierre ? 'Compra finalizada correctamente.' : 'Revisá el plan, el total del POSNET y el valor de cada cuota.',
+        total,
+        cliente,
+        tarjeta: textoSeguroTrim(planTarjetaPuntoVenta?.tarjeta, 'Tarjeta'),
+        plan: textoSeguroTrim(planTarjetaPuntoVenta?.plan, ''),
+        cuotas: Math.max(1, Number(financiacionTarjetaPuntoVenta?.cuotas) || 1),
+        cuota: Math.max(0, Number(financiacionTarjetaPuntoVenta?.cuota) || 0),
+        contado: Math.max(0, Number(totalFormularioPuntoVenta) || 0),
+        recargo: Math.max(0, Number(financiacionTarjetaPuntoVenta?.recargo) || 0)
       };
     }
     return {
@@ -5587,6 +6495,21 @@ function AppInterna() {
         `).join('')
       : '<div class="empty compare-empty">Agregá hasta 4 productos para compararlos.</div>';
 
+    const opcionesTarjetaPantallaCliente = esTarjetaPuntoVenta && totalFormularioPuntoVenta > 0.009
+      ? planesTarjetaActivos.slice(0, 8).map((plan) => {
+        const simulacion = calcularFinanciacionTarjeta(totalFormularioPuntoVenta, plan);
+        const seleccionado = planTarjetaPuntoVenta?.id === plan.id;
+        return `
+          <article class="card-plan-option ${seleccionado ? 'selected' : ''}">
+            <div class="card-plan-name"><span>${plan.tipo === 'debito' ? 'DÉBITO' : 'CRÉDITO'}</span><strong>${escaparHtmlPantallaCliente(plan.tarjeta)} · ${escaparHtmlPantallaCliente(plan.plan)}</strong></div>
+            <div class="card-plan-installment"><strong>${simulacion.cuotas} × ${formatearDinero(simulacion.cuota)}</strong><span>Total con tarjeta ${formatearDinero(simulacion.totalPosnet)}</span></div>
+          </article>`;
+      }).join('')
+      : '';
+    const planesTarjetaPantallaClienteHtml = opcionesTarjetaPantallaCliente
+      ? `<div class="card-plans-display"><div class="card-plans-head"><p>Opciones con tarjeta</p><strong>${tipoTarjetaPuntoVenta === 'debito' ? 'Débito' : 'Crédito'}</strong></div><div class="card-plan-options">${opcionesTarjetaPantallaCliente}</div></div>`
+      : '';
+
     const imagenDestacada = destacado?.imagen
       ? `<img src="${escaparHtmlPantallaCliente(destacado.imagen)}" alt="">`
       : `<div class="feature-empty">${escaparHtmlPantallaCliente(negocio.slice(0, 2).toUpperCase())}</div>`;
@@ -5628,6 +6551,15 @@ function AppInterna() {
             <div><span>Alias</span><strong>${escaparHtmlPantallaCliente(resumenPago.alias || '-')}</strong></div>
             ${resumenPago.cbu ? `<div class="pay-compact"><span>CBU/CVU</span><strong>${escaparHtmlPantallaCliente(resumenPago.cbu)}</strong></div>` : ''}
             ${resumenPago.banco ? `<div><span>Cuenta</span><strong>${escaparHtmlPantallaCliente(resumenPago.banco)}</strong></div>` : ''}
+          </div>`;
+      }
+      if (['tarjeta', 'tarjeta_credito', 'tarjeta_debito'].includes(resumenPago.metodo)) {
+        return `
+          <div class="pay-lines">
+            <div><span>Total a pagar</span><strong>${formatearDinero(resumenPago.total)}</strong></div>
+            <div class="pay-compact"><span>Tarjeta / plan</span><strong>${escaparHtmlPantallaCliente(`${resumenPago.tarjeta || 'Tarjeta'}${resumenPago.plan ? ` · ${resumenPago.plan}` : ''}`)}</strong></div>
+            <div class="pay-ok"><span>Cuotas</span><strong>${resumenPago.cuotas} × ${formatearDinero(resumenPago.cuota)}</strong></div>
+            <div><span>Precio contado</span><strong>${formatearDinero(resumenPago.contado)}</strong></div>
           </div>`;
       }
       return `
@@ -5860,6 +6792,19 @@ function AppInterna() {
     .cart-summary-info p { margin: 0; color: #6b7280; font-size: 13px; font-weight: 950; text-transform: uppercase; letter-spacing: .12em; }
     .cart-summary-info h3 { margin: 0; color: #111827; font-size: clamp(24px, 2.6vw, 38px); line-height: 1; font-weight: 950; letter-spacing: 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     .cart-summary-info strong { color: #111827; font-size: clamp(34px, 3.8vw, 58px); line-height: .95; font-weight: 950; letter-spacing: 0; white-space: nowrap; }
+    .card-plans-display { min-height: 0; display: flex; flex: 1 1 auto; flex-direction: column; gap: 12px; }
+    .card-plans-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .card-plans-head p { margin: 0; color: #111827; font-size: 18px; font-weight: 950; }
+    .card-plans-head strong { border-radius: 999px; background: #312e81; color: white; padding: 6px 10px; font-size: 11px; font-weight: 950; text-transform: uppercase; letter-spacing: .08em; }
+    .card-plan-options { min-height: 0; display: grid; align-content: start; gap: 8px; overflow-y: auto; }
+    .card-plan-option { display: grid; gap: 8px; border: 1px solid #cbd5e1; border-radius: 14px; background: white; padding: 11px; }
+    .card-plan-option.selected { border: 2px solid #4f46e5; background: #eef2ff; box-shadow: 0 8px 20px rgba(79, 70, 229, .12); }
+    .card-plan-name { min-width: 0; display: grid; gap: 3px; }
+    .card-plan-name span { color: #6366f1; font-size: 9px; font-weight: 950; letter-spacing: .1em; }
+    .card-plan-name strong { color: #111827; font-size: 14px; line-height: 1.15; font-weight: 950; overflow-wrap: anywhere; }
+    .card-plan-installment { display: grid; gap: 3px; }
+    .card-plan-installment strong { color: #047857; font-size: 22px; line-height: 1; font-weight: 950; white-space: nowrap; }
+    .card-plan-installment span { color: #64748b; font-size: 11px; font-weight: 800; }
     .customer-compare-mode { padding: clamp(18px, 2.5vw, 34px); }
     .customer-compare-mode .compare { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(12px, 1.5vw, 20px); border: 0; border-radius: 0; box-shadow: none; background: #ffffff; }
     @media (max-width: 860px) {
@@ -5915,18 +6860,19 @@ function AppInterna() {
             <div class="cart-display-list">${filasCarrito}</div>
             <div class="cart-display-total">
               <span>Total en carrito</span>
-              <strong>${formatearDinero(totalFormularioPuntoVenta)}</strong>
+              <strong>${formatearDinero(totalCobroPuntoVentaVisible)}</strong>
             </div>
           </section>
           <aside class="cart-summary-panel">
-            <div class="cart-summary-image">
-              ${destacado?.imagen ? `<img src="${escaparHtmlPantallaCliente(destacado.imagen)}" alt="${escaparHtmlPantallaCliente(destacado.descripcion || 'Producto')}">` : `<div class="customer-empty-image">${escaparHtmlPantallaCliente(negocio.slice(0, 2).toUpperCase())}</div>`}
-            </div>
-            <div class="cart-summary-info">
-              <p>Último producto</p>
-              <h3>${escaparHtmlPantallaCliente(destacado?.descripcion || 'Esperando producto')}</h3>
-              <strong>${destacado ? formatearDinero(destacado.subtotal) : formatearDinero(0)}</strong>
-            </div>
+            ${planesTarjetaPantallaClienteHtml || `
+              <div class="cart-summary-image">
+                ${destacado?.imagen ? `<img src="${escaparHtmlPantallaCliente(destacado.imagen)}" alt="${escaparHtmlPantallaCliente(destacado.descripcion || 'Producto')}">` : `<div class="customer-empty-image">${escaparHtmlPantallaCliente(negocio.slice(0, 2).toUpperCase())}</div>`}
+              </div>
+              <div class="cart-summary-info">
+                <p>Último producto</p>
+                <h3>${escaparHtmlPantallaCliente(destacado?.descripcion || 'Esperando producto')}</h3>
+                <strong>${destacado ? formatearDinero(destacado.subtotal) : formatearDinero(0)}</strong>
+              </div>`}
           </aside>
         </section>
       ` : `
@@ -6243,6 +7189,13 @@ function AppInterna() {
     });
   };
 
+  const cancelarPagoPendientePuntoVenta = () => {
+    setPagoPendientePuntoVenta(null);
+    setEfectivoRecibidoPuntoVenta('');
+    setCierrePantallaClientePuntoVenta(null);
+    refrescarPantallaClientePuntoVentaPronto();
+  };
+
   useEffect(() => {
     if (!pantallaClientePuntoVentaActiva) return;
     if (displayInventarioActivo) return;
@@ -6254,6 +7207,7 @@ function AppInterna() {
     itemsPantallaClientePuntoVenta,
     itemDestacadoPantallaClientePuntoVenta,
     totalFormularioPuntoVenta,
+    totalCobroPuntoVenta,
     efectivoRecibidoPuntoVenta,
     cierrePantallaClientePuntoVenta,
     pagoPendientePuntoVenta,
@@ -6804,11 +7758,32 @@ const abrirPuntoVenta = () => {
     }));
   };
 
-  const agregarItemPuntoVenta = () => {
+  const abrirSelectorProductoPuntoVenta = () => {
+    const lineaVacia = (formPuntoVenta.items || []).find((item) => (
+      !textoSeguroTrim(item?.codigo, '') && !textoSeguroTrim(item?.descripcion, '') && !parseNumeroBasico(item?.precio)
+    ));
+    const itemNuevo = lineaVacia || crearItemPuntoVentaVacio();
+    if (!lineaVacia) {
+      setFormPuntoVenta((prev) => ({ ...prev, items: [...(prev.items || []), itemNuevo] }));
+    }
+    setItemIdPuntoVentaParaStock(itemNuevo.id);
+    setItemIndexParaStock(null);
+    setProductosStockSeleccionados([]);
+    setBusquedaStockModal('');
+    setModalActivo('seleccionar_stock');
+  };
+
+  const agregarItemManualPuntoVenta = () => {
+    if (formPuntoVenta.devolucionOrigenId) return;
     setFormPuntoVenta((prev) => ({
       ...prev,
       items: [...(prev.items || []), crearItemPuntoVentaVacio()]
     }));
+  };
+
+  const normalizarPrecioPuntoVenta = (precio = 0) => {
+    const importe = Math.max(0, parseNumeroBasico(precio) || 0);
+    return String(redondeoVentasHaciaArribaActivo ? redondearImporteVentaHaciaArriba(importe) : importe);
   };
 
   const agregarItemRemitoR = () => {
@@ -6826,8 +7801,23 @@ const abrirPuntoVenta = () => {
         const valorNormalizado = (campo === 'cantidad' || campo === 'precio')
           ? (valor || '').toString().replace(',', '.')
           : valor;
+        if (campo === 'precio') {
+          if (redondeoVentasHaciaArribaActivo) {
+            return {
+              ...item,
+              // Conservamos el importe ingresado para poder restaurarlo si se desactiva el redondeo,
+              // pero la línea siempre opera, muestra y guarda el valor sin centavos.
+              precioSinRedondear: valorNormalizado,
+              precio: valorNormalizado.trim() === '' ? '' : normalizarPrecioPuntoVenta(valorNormalizado)
+            };
+          }
+          const { precioSinRedondear, ...itemSinRedondeo } = item;
+          return { ...itemSinRedondeo, precio: valorNormalizado };
+        }
         const itemActualizado = { ...item, [campo]: valorNormalizado };
-        if (!['codigo', 'descripcion'].includes(campo)) return itemActualizado;
+        // La descripción es libre para servicios y cargas manuales. Solo el código
+        // vincula o desvincula un producto del inventario.
+        if (campo !== 'codigo') return itemActualizado;
         const productoVinculado = item?.productoId
           ? (productos || []).find((producto) => producto.id === item.productoId)
           : null;
@@ -6837,9 +7827,7 @@ const abrirPuntoVenta = () => {
           normalizarCodigoParaComparar(productoVinculado?.codigoInterno || ''),
           normalizarCodigoParaComparar(productoVinculado?.codigoBarras || '')
         ].filter(Boolean).includes(codigoItem);
-        const descripcionSigueCoincidiendo = productoVinculado
-          && normalizarTextoBusqueda(itemActualizado.descripcion || '') === normalizarTextoBusqueda(productoVinculado?.descripcion || '');
-        if (codigoSigueCoincidiendo || descripcionSigueCoincidiendo) return itemActualizado;
+        if (codigoSigueCoincidiendo) return itemActualizado;
         return {
           ...itemActualizado,
           productoId: '',
@@ -6874,24 +7862,28 @@ const abrirPuntoVenta = () => {
           normalizarCodigoParaComparar(p?.codigoBarras || '')
         ].filter(Boolean).some((codigoItem) => codigoItem === criterio)) || null)
       : null;
-    setFormPuntoVenta((prev) => ({
-      ...prev,
-      items: (prev.items || []).map((item) => {
-        if (item.id !== itemId) return item;
-        if (!producto) return { ...item, codigo: valorCodigo, productoId: '', imagen: '', logoMarca: '' };
-        return {
+    setFormPuntoVenta((prev) => {
+      const items = [...(prev.items || [])];
+      const indice = items.findIndex((item) => item.id === itemId);
+      if (indice < 0) return prev;
+      const item = items[indice];
+      if (!producto) {
+        items[indice] = { ...item, codigo: valorCodigo, productoId: '', imagen: '', logoMarca: '' };
+        return { ...prev, items };
+      }
+      items[indice] = {
           ...item,
           productoId: producto.id || '',
           codigo: textoSeguroTrim(producto?.codigo, valorCodigo),
           descripcion: textoSeguroTrim(producto?.descripcion, item.descripcion),
           marca: textoSeguroTrim(producto?.marca, item.marca || ''),
-          precio: obtenerPrecioVentaProductoActualizado(producto) > 0 ? String(obtenerPrecioVentaProductoActualizado(producto)) : item.precio,
+          precio: obtenerPrecioVentaProductoActualizado(producto) > 0 ? normalizarPrecioPuntoVenta(obtenerPrecioVentaProductoActualizado(producto)) : item.precio,
           unidad: textoSeguroTrim(producto?.unidad, item.unidad || 'unid'),
           imagen: textoSeguroTrim(producto?.imagen, item.imagen || ''),
           logoMarca: textoSeguroTrim(producto?.logoMarca, item.logoMarca || '')
         };
-      })
-    }));
+      return { ...prev, items };
+    });
   };
 
   const buscarProductoPorCodigoExacto = (codigo = '') => {
@@ -6935,8 +7927,9 @@ const abrirPuntoVenta = () => {
               codigo: textoSeguroTrim(producto?.codigo, valorCodigo),
               descripcion: textoSeguroTrim(producto?.descripcion, item.descripcion),
               marca: textoSeguroTrim(producto?.marca, item.marca || ''),
-              precio: obtenerPrecioVentaProductoActualizado(producto) > 0 ? String(obtenerPrecioVentaProductoActualizado(producto)) : item.precio,
+              precio: obtenerPrecioVentaProductoActualizado(producto) > 0 ? normalizarPrecioPuntoVenta(obtenerPrecioVentaProductoActualizado(producto)) : item.precio,
               unidad: textoSeguroTrim(producto?.unidad, item.unidad || 'unid'),
+              iva: textoSeguroTrim(producto?.iva, item.iva || 'sin_iva'),
               imagen: textoSeguroTrim(producto?.imagen, item.imagen || ''),
               logoMarca: textoSeguroTrim(producto?.logoMarca, item.logoMarca || '')
             }
@@ -6958,6 +7951,7 @@ const abrirPuntoVenta = () => {
           codigo: textoSeguroTrim(producto?.codigo, valorCodigo),
           descripcion: textoSeguroTrim(producto?.descripcion, item.descripcion),
           unidad: textoSeguroTrim(producto?.unidad, item.unidad || 'unid'),
+          iva: textoSeguroTrim(producto?.iva, item.iva || 'sin_iva'),
           imagen: textoSeguroTrim(producto?.imagen, item.imagen || '')
         };
       })
@@ -6997,7 +7991,7 @@ const abrirPuntoVenta = () => {
           codigo: textoSeguroTrim(producto?.codigo, item.codigo),
           descripcion: textoSeguroTrim(producto?.descripcion, item.descripcion),
           marca: textoSeguroTrim(producto?.marca, item.marca || ''),
-          precio: obtenerPrecioVentaProductoActualizado(producto) > 0 ? String(obtenerPrecioVentaProductoActualizado(producto)) : item.precio,
+          precio: obtenerPrecioVentaProductoActualizado(producto) > 0 ? normalizarPrecioPuntoVenta(obtenerPrecioVentaProductoActualizado(producto)) : item.precio,
           unidad: textoSeguroTrim(producto?.unidad, item.unidad || 'unid'),
           imagen: textoSeguroTrim(producto?.imagen, item.imagen || ''),
           logoMarca: textoSeguroTrim(producto?.logoMarca, item.logoMarca || '')
@@ -7072,8 +8066,13 @@ const abrirPuntoVenta = () => {
           unidad: textoSeguroTrim(item?.unidad, 'unid'),
           precio: String(parseNumeroBasico(item?.precio) || 0),
           descuento: String(Math.min(100, Math.max(0, parseNumeroBasico(item?.descuento) || 0))),
+          iva: textoSeguroTrim(item?.iva, 'sin_iva'),
           imagen: textoSeguroTrim(item?.imagen, ''),
           logoMarca: textoSeguroTrim(item?.logoMarca, ''),
+          comisionPorcentaje: Math.max(0, Number(item?.comisionPorcentaje || 0)),
+          comisionMonto: Math.max(0, Number(item?.comisionMonto || 0)),
+          precioAntesComisionVendedor: Number.isFinite(Number(item?.precioAntesComisionVendedor)) ? Number(item.precioAntesComisionVendedor) : undefined,
+          comisionPrecioIncluida: Boolean(item?.comisionPrecioIncluida),
           esItemServicio: Boolean(item?.esItemServicio),
           componentesServicio: Array.isArray(item?.componentesServicio) ? item.componentesServicio : [],
           precioProductos: parseNumeroBasico(item?.precioProductos) || 0,
@@ -7093,7 +8092,11 @@ const abrirPuntoVenta = () => {
       tipoComprobante: detalles?.tipoComprobante || 'remito_x',
       numeroComprobante: textoSeguroTrim(detalles?.numeroComprobante, ''),
       numeroComprobanteManual: true,
-      metodoPago: normalizarMetodoPago(mov?.metodoPago) || 'cuenta_corriente',
+      metodoPago: normalizarMetodoPago(mov?.metodoPago) === 'tarjeta' ? 'tarjeta_credito' : (normalizarMetodoPago(mov?.metodoPago) || 'cuenta_corriente'),
+      tarjetaPlanId: textoSeguroTrim(detalles?.tarjetaPlanId, ''),
+      vendedorId: textoSeguroTrim(detalles?.vendedorId, ''),
+      vendedorNombre: textoSeguroTrim(detalles?.vendedorNombre, ''),
+      comisionPorcentaje: detalles?.comisionPorcentaje ?? '',
       notas: textoSeguroTrim(detalles?.notas, ''),
       items
     });
@@ -7105,7 +8108,7 @@ const abrirPuntoVenta = () => {
       const restantes = (prev.items || []).filter((item) => item.id !== itemId);
       return {
         ...prev,
-        items: restantes.length ? restantes : [crearItemPuntoVentaVacio()]
+        items: restantes
       };
     });
   };
@@ -7143,7 +8146,7 @@ const abrirPuntoVenta = () => {
       descripcion: componentesServicio.map((componente) => componente.descripcion).join(' + '),
       cantidad: '1',
       unidad: 'servicio',
-      precio: String(precioProductos + manoObra),
+      precio: normalizarPrecioPuntoVenta(precioProductos + manoObra),
       descuento: '0',
       esItemServicio: true,
       componentesServicio,
@@ -7254,8 +8257,9 @@ const abrirPuntoVenta = () => {
   };
 
   const guardarPuntoVenta = async (e, opciones = {}) => {
-    if (e?.preventDefault) e.preventDefault();
-    const itemsNormalizados = (formPuntoVenta.items || [])
+    try {
+      if (e?.preventDefault) e.preventDefault();
+    let itemsNormalizados = (formPuntoVenta.items || [])
       .map((item) => ({
         ...item,
         productoId: textoSeguroTrim(item?.productoId, ''),
@@ -7268,6 +8272,7 @@ const abrirPuntoVenta = () => {
         descuento: Math.min(100, Math.max(0, parseNumeroBasico(item?.descuento) || 0)),
         imagen: textoSeguroTrim(item?.imagen, ''),
         logoMarca: textoSeguroTrim(item?.logoMarca, ''),
+        iva: textoSeguroTrim(item?.iva, textoSeguroTrim((productos || []).find((producto) => producto?.id === item?.productoId)?.iva, 'sin_iva')),
         esItemServicio: Boolean(item?.esItemServicio),
         componentesServicio: Array.isArray(item?.componentesServicio)
           ? item.componentesServicio.map((componente) => ({
@@ -7292,10 +8297,72 @@ const abrirPuntoVenta = () => {
       return;
     }
 
-    const total = itemsNormalizados.reduce((acc, item) => {
+    // Una devolución vinculada siempre conserva los productos y precios del
+    // comprobante origen. Solo se permite indicar cuánto vuelve el cliente.
+    const devolucionOrigenId = textoSeguroTrim(formPuntoVenta.devolucionOrigenId, '');
+    if (devolucionOrigenId) {
+      const comprobanteOrigen = (movimientos || []).find((mov) => mov?.id === devolucionOrigenId);
+      const resumenDevolucion = obtenerResumenDevolucionComprobante(comprobanteOrigen);
+      if (!comprobanteOrigen || !resumenDevolucion.length) {
+        await notificarSistema('No se encontró el comprobante original de esta devolución.', {
+          tipo: 'error', titulo: 'Comprobante no disponible'
+        });
+        return;
+      }
+      const origenPorClave = new Map(resumenDevolucion.map((item) => [item.claveDevolucion, item]));
+      for (const item of itemsNormalizados) {
+        const origen = origenPorClave.get(textoSeguroTrim(item?.claveDevolucion, ''));
+        if (!origen || item.cantidad > origen.cantidadDisponible + 0.0001) {
+          await notificarSistema(`La cantidad a devolver de “${item.descripcion || 'este ítem'}” supera lo que queda disponible del remito.`, {
+            tipo: 'warning', titulo: 'Cantidad no disponible'
+          });
+          return;
+        }
+      }
+      itemsNormalizados = itemsNormalizados.map((item) => {
+        const origen = origenPorClave.get(textoSeguroTrim(item?.claveDevolucion, ''));
+        return origen ? {
+          ...item,
+          productoId: origen.productoId,
+          codigo: origen.codigo,
+          descripcion: origen.descripcion,
+          unidad: origen.unidad,
+          precio: origen.precio,
+          descuento: origen.descuento,
+          imagen: origen.imagen || item.imagen || '',
+          claveDevolucion: origen.claveDevolucion
+        } : item;
+      });
+    }
+
+    const vendedorIdPuntoVenta = textoSeguroTrim(formPuntoVenta.vendedorId, '');
+    const porcentajeComisionPuntoVenta = Math.min(100, Math.max(0, parseNumeroBasico(formPuntoVenta.comisionPorcentaje) || 0));
+    const preciosComisionPuntoVenta = formPuntoVenta.tipoComprobante !== 'nota_credito' && vendedorIdPuntoVenta && porcentajeComisionPuntoVenta > 0
+      ? calcularPreciosConComisionVendedor(itemsNormalizados, porcentajeComisionPuntoVenta)
+      : { items: restaurarPreciosSinComisionVendedor(itemsNormalizados), totalComision: 0 };
+    itemsNormalizados = preciosComisionPuntoVenta.items;
+
+    const totalBase = itemsNormalizados.reduce((acc, item) => {
       const subtotal = item.cantidad * item.precio;
       return acc + Math.max(0, subtotal - (subtotal * item.descuento / 100));
     }, 0);
+    const redondeoHaciaArribaAplicado = Boolean(configuracion?.redondearVentasHaciaArriba);
+    const totalContado = redondeoHaciaArribaAplicado
+      ? redondearImporteVentaHaciaArriba(totalBase)
+      : totalBase;
+    const ajusteRedondeo = totalContado - totalBase;
+    const metodoFormulario = normalizarMetodoPago(formPuntoVenta.metodoPago);
+    const esMetodoTarjetaVenta = ['tarjeta', 'tarjeta_credito', 'tarjeta_debito'].includes(metodoFormulario);
+    const tipoTarjetaVenta = metodoFormulario === 'tarjeta_debito' ? 'debito' : 'credito';
+    const planTarjetaVenta = esMetodoTarjetaVenta
+      ? (Array.isArray(configuracion?.tarjetasPlanes) ? configuracion.tarjetasPlanes : []).map(normalizarPlanTarjeta).find((plan) => plan.id === formPuntoVenta.tarjetaPlanId)
+      : null;
+    if (esMetodoTarjetaVenta && (!planTarjetaVenta || planTarjetaVenta.tipo !== tipoTarjetaVenta)) {
+      await notificarSistema('Seleccioná la tarjeta y el plan de cuotas antes de guardar la venta.', { tipo: 'warning', titulo: 'Plan de tarjeta requerido' });
+      return;
+    }
+    const financiacionTarjetaVenta = calcularFinanciacionTarjeta(totalContado, planTarjetaVenta);
+    const total = esMetodoTarjetaVenta ? financiacionTarjetaVenta.totalPosnet : totalContado;
     if (total <= 0.009) {
       await notificarSistema('El total del comprobante debe ser mayor a cero.', {
         tipo: 'warning',
@@ -7303,7 +8370,18 @@ const abrirPuntoVenta = () => {
       });
       return;
     }
-    const metodoFormulario = normalizarMetodoPago(formPuntoVenta.metodoPago);
+    const tipoComp = formPuntoVenta.tipoComprobante || 'factura_c';
+    const esNotaCredito = tipoComp === 'nota_credito';
+    const movimientoOriginal = formPuntoVenta.idMovimiento ? movimientos.find((mov) => mov.id === formPuntoVenta.idMovimiento) : null;
+    const vendedorPuntoVenta = !esNotaCredito && vendedorIdPuntoVenta ? vendedores.find((vendedor) => vendedor.id === vendedorIdPuntoVenta && (vendedor.activo !== false || vendedor.id === movimientoOriginal?.detallesPago?.vendedorId)) : null;
+    if (!esNotaCredito && (vendedorIdPuntoVenta || porcentajeComisionPuntoVenta > 0) && (!vendedorPuntoVenta || porcentajeComisionPuntoVenta <= 0)) { await notificarSistema('La asignación del vendedor está incompleta. Volvé a elegir el vendedor y el porcentaje.', { tipo: 'warning', titulo: 'Revisar comisión' }); return; }
+    const comisionMontoPuntoVenta = vendedorPuntoVenta ? preciosComisionPuntoVenta.totalComision : 0;
+    const retirosAplicadosVenta = movimientoOriginal?.id ? retirosVendedores.flatMap((retiro) => (retiro?.aplicacionesVentas || []).filter((aplicacion) => aplicacion?.ventaId === movimientoOriginal.id)) : [];
+    const totalRetiradoVenta = retirosAplicadosVenta.reduce((suma, aplicacion) => suma + Math.max(0, Number(aplicacion?.montoAplicado || 0)), 0);
+    const vendedorAnteriorId = textoSeguroTrim(movimientoOriginal?.detallesPago?.vendedorId, '');
+    if (totalRetiradoVenta > 0.009 && vendedorAnteriorId !== textoSeguroTrim(vendedorPuntoVenta?.id, '')) { await notificarSistema('Esta venta ya tiene retiros aplicados. No se puede cambiar ni quitar el vendedor.', { tipo: 'warning', titulo: 'Venta con retiros' }); return; }
+    if (comisionMontoPuntoVenta + 0.009 < totalRetiradoVenta) { await notificarSistema(`La comisión no puede quedar por debajo de lo ya retirado (${formatearDinero(totalRetiradoVenta)}).`, { tipo: 'warning', titulo: 'Comisión insuficiente' }); return; }
+    const itemsVentaNormalizados = itemsNormalizados;
     if (!opciones?.confirmarPago && ['efectivo', 'transferencia'].includes(metodoFormulario)) {
       setPagoPendientePuntoVenta(metodoFormulario);
       setCierrePantallaClientePuntoVenta(null);
@@ -7390,8 +8468,6 @@ const abrirPuntoVenta = () => {
       ? formPuntoVenta.fechaComprobante
       : obtenerFechaInputLocal();
     const fechaMovimiento = combinarFechaInputConHoraReferenciaISO(fechaDocInput, new Date());
-    const tipoComp = formPuntoVenta.tipoComprobante || 'factura_c';
-    const esNotaCredito = tipoComp === 'nota_credito';
     const clienteDestino = clienteId ? clientes.find((cliente) => cliente.id === clienteId) : null;
     const plazoCuentaCorriente = Math.max(0, Math.floor(Number(clienteDestino?.plazoCuentaCorrienteDias || 0)));
     const fechaVencimientoCuentaCorriente = esCuentaCorriente && !esNotaCredito && plazoCuentaCorriente > 0
@@ -7403,9 +8479,6 @@ const abrirPuntoVenta = () => {
       obtenerSiguienteNumeroComprobanteVenta(tipoComp, formPuntoVenta.idMovimiento || '')
     );
     const descripcionBase = `${etiquetaComprobante}${numeroComprobante ? ` N° ${numeroComprobante}` : ''} - ${clienteNombre}`;
-    const movimientoOriginal = formPuntoVenta.idMovimiento
-      ? movimientos.find((mov) => mov.id === formPuntoVenta.idMovimiento)
-      : null;
     let saldoBaseClienteDestino = null;
 
     if (movimientoOriginal?.id) {
@@ -7427,7 +8500,7 @@ const abrirPuntoVenta = () => {
     if (guardandoPuntoVentaRef.current) return;
     guardandoPuntoVentaRef.current = true;
     const liberarBloqueoVenta = () => { guardandoPuntoVentaRef.current = false; };
-    setTimeout(liberarBloqueoVenta, 5000);
+    setTimeout(liberarBloqueoVenta, 30000);
 
     if (esCuentaCorriente && clienteId && !esNotaCredito) {
       const limiteCuentaCorriente = Math.max(0, Number(clienteDestino?.limiteCuentaCorriente || 0));
@@ -7440,6 +8513,7 @@ const abrirPuntoVenta = () => {
           `No se puede cargar esta venta en cuenta corriente. El cliente tiene ${formatearDinero(saldoActual)} pendiente y el límite es ${formatearDinero(limiteCuentaCorriente)}. Esta venta dejaría la cuenta en ${formatearDinero(saldoConVenta)}.`,
           { tipo: 'warning', titulo: 'Límite de cuenta corriente superado' }
         );
+        liberarBloqueoVenta();
         return;
       }
     }
@@ -7452,7 +8526,17 @@ const abrirPuntoVenta = () => {
       const saldoActualizado = esNotaCredito
         ? Math.max(0, saldoActual - total)
         : saldoActual + total;
-      await updateDoc(doc(db, 'clientes', clienteId), { saldo: saldoActualizado });
+      try {
+        await updateDoc(doc(db, 'clientes', clienteId), { saldo: saldoActualizado });
+      } catch (error) {
+        console.error('No se pudo actualizar la cuenta corriente antes de guardar la venta', error);
+        liberarBloqueoVenta();
+        await notificarSistema('No se pudo actualizar la cuenta corriente. La venta no fue guardada; revisá la conexión e intentá nuevamente.', {
+          tipo: 'danger',
+          titulo: 'Cuenta corriente no actualizada'
+        });
+        return;
+      }
     }
 
     const payloadVenta = {
@@ -7468,30 +8552,76 @@ const abrirPuntoVenta = () => {
         presupuestoId: textoSeguroTrim(formPuntoVenta.origenPresupuestoId, ''),
         comboId: textoSeguroTrim(formPuntoVenta.origenComboId, ''),
         presupuestoNumero: textoSeguroTrim(formPuntoVenta.presupuestoNumero, ''),
+        devolucionOrigenId,
+        devolucionOrigenNumero: textoSeguroTrim(formPuntoVenta.devolucionOrigenNumero, ''),
+        devolucionOrigenTipo: textoSeguroTrim(formPuntoVenta.devolucionOrigenTipo, ''),
+        devolucionVinculada: Boolean(devolucionOrigenId),
         tipoComprobante: tipoComp,
         numeroComprobante,
         fechaComprobante: fechaDocInput,
         fechaVencimientoCuentaCorriente,
         notas: textoSeguroTrim(formPuntoVenta.notas, ''),
+        ...(vendedorPuntoVenta ? {
+          vendedorId: vendedorPuntoVenta.id,
+          vendedorNombre: vendedorPuntoVenta.nombre,
+          comisionPorcentaje: porcentajeComisionPuntoVenta,
+          comisionMonto: comisionMontoPuntoVenta,
+          comisionPrecioIncluida: true,
+          montoSinComisionVendedor: preciosComisionPuntoVenta.totalBase,
+          comisionItems: itemsVentaNormalizados.map((item) => ({ itemId: textoSeguroTrim(item?.id, ''), productoId: textoSeguroTrim(item?.productoId, ''), codigo: textoSeguroTrim(item?.codigo, ''), descripcion: textoSeguroTrim(item?.descripcion, ''), porcentaje: porcentajeComisionPuntoVenta, monto: Math.max(0, Number(item?.comisionMonto || 0)) })),
+          comisionAsignadaEn: textoSeguroTrim(movimientoOriginal?.detallesPago?.comisionAsignadaEn, new Date().toISOString()),
+          comisionAsignadaPor: usuarioActual?.nombre || usuarioActual?.username || ''
+        } : {}),
+        redondeoHaciaArribaAplicado,
+        totalAntesRedondeo: totalBase,
+        ajusteRedondeo,
         efectivoRecibido: recibidoEfectivo,
         vuelto: vueltoEfectivo,
         aliasTransferencia: metodoFormulario === 'transferencia' ? textoSeguroTrim(configuracion?.pagoAlias, '') : '',
-        items: itemsNormalizados
+        ...(esMetodoTarjetaVenta && planTarjetaVenta ? {
+          tarjetaPlanId: planTarjetaVenta.id,
+          tarjetaTipo: planTarjetaVenta.tipo,
+          tarjetaNombre: planTarjetaVenta.tarjeta,
+          tarjetaPlanNombre: planTarjetaVenta.plan,
+          tarjetaCuotas: planTarjetaVenta.cuotas,
+          tarjetaDescuentoComercio: planTarjetaVenta.descuentoComercio,
+          tarjetaOtrosCargosPorcentaje: planTarjetaVenta.otrosCargosPorcentaje,
+          tarjetaCargoFijo: planTarjetaVenta.cargoFijo,
+          tarjetaDiasAcreditacion: planTarjetaVenta.diasAcreditacion,
+          tarjetaPorcentajeRecuperacion: financiacionTarjetaVenta.porcentajeRecuperacion,
+          tarjetaTotalContado: totalContado,
+          tarjetaRecargoFinanciero: financiacionTarjetaVenta.recargo,
+          tarjetaTotalPosnet: financiacionTarjetaVenta.totalPosnet,
+          tarjetaValorCuota: financiacionTarjetaVenta.cuota,
+          tarjetaNetoEstimado: financiacionTarjetaVenta.netoEstimado
+        } : {}),
+        items: itemsVentaNormalizados
       },
       fecha: fechaMovimiento,
-      usuario: usuarioActual.nombre
+      usuario: usuarioActual?.nombre || usuarioActual?.username || 'Sistema'
     };
+    const payloadVentaFirestore = limpiarDatoFirestore(payloadVenta);
 
-    if (movimientoOriginal?.id) {
-      await updateDoc(doc(db, 'movimientos', movimientoOriginal.id), payloadVenta);
-    } else {
-      await addDoc(collection(db, 'movimientos'), payloadVenta);
+    try {
+      if (movimientoOriginal?.id) {
+        await updateDoc(doc(db, 'movimientos', movimientoOriginal.id), payloadVentaFirestore);
+      } else {
+        await addDoc(collection(db, 'movimientos'), payloadVentaFirestore);
+      }
+      await aplicarImpactoStockPuntoVenta({
+        movimientoOriginal,
+        itemsNuevos: itemsVentaNormalizados,
+        tipoComprobanteNuevo: tipoComp
+      });
+    } catch (error) {
+      console.error('No se pudo guardar la venta', error);
+      liberarBloqueoVenta();
+      await notificarSistema(`No se pudo guardar la venta. ${error?.message || 'Revisá la conexión y los datos cargados.'}`, {
+        tipo: 'danger',
+        titulo: 'Error al guardar venta'
+      });
+      return;
     }
-    await aplicarImpactoStockPuntoVenta({
-      movimientoOriginal,
-      itemsNuevos: itemsNormalizados,
-      tipoComprobanteNuevo: tipoComp
-    });
 
     await notificarSistema(movimientoOriginal?.id ? 'Comprobante de venta actualizado correctamente.' : 'Comprobante de venta registrado correctamente.', {
       tipo: 'success',
@@ -7515,6 +8645,14 @@ const abrirPuntoVenta = () => {
     setModalActivo(null);
     refrescarPantallaClientePuntoVentaPronto();
     liberarBloqueoVenta();
+    } catch (error) {
+      console.error('Error inesperado al guardar la venta', error);
+      guardandoPuntoVentaRef.current = false;
+      await notificarSistema(`No se pudo completar la venta. ${error?.message || 'Revisá los datos y la conexión.'}`, {
+        tipo: 'danger',
+        titulo: 'Error al guardar venta'
+      });
+    }
   };
 
   const obtenerImagenItemRemitoR = (item = {}) => {
@@ -7558,6 +8696,116 @@ const abrirPuntoVenta = () => {
       cantidad: item.cantidad,
       unidad: item.unidad
     }));
+
+  // Los comprobantes antiguos no siempre guardaban los ítems en el mismo lugar.
+  // Centralizamos la lectura para que el detalle y el PDF sigan siendo recuperables.
+  const normalizarItemDocumentoVenta = (item = {}, index = 0) => ({
+    ...item,
+    id: textoSeguroTrim(item?.id || item?.itemId || item?.productoId, `item-${index}`),
+    productoId: textoSeguroTrim(item?.productoId || item?.idProducto, ''),
+    codigo: textoSeguroTrim(item?.codigo || item?.codigoProducto || item?.codigoInterno || item?.sku, ''),
+    descripcion: textoSeguroTrim(item?.descripcion || item?.detalle || item?.nombre || item?.producto || item?.descripcionProducto, ''),
+    cantidad: Math.max(0, parseNumeroBasico(item?.cantidad ?? item?.cant ?? item?.unidades ?? item?.cantidadVenta) || 0),
+    precio: Math.max(0, parseNumeroBasico(item?.precio ?? item?.precioUnitario ?? item?.importeUnitario ?? item?.valor) || 0),
+    descuento: Math.min(100, Math.max(0, parseNumeroBasico(item?.descuento ?? item?.descuentoPorcentaje) || 0)),
+    unidad: textoSeguroTrim(item?.unidad || item?.unidadMedida, 'unid')
+  });
+
+  const obtenerItemsDocumentoVenta = (mov = null) => {
+    if (!mov) return [];
+    const extraer = (registro = null) => {
+      const detalle = registro?.detallesPago || {};
+      const candidatas = [
+        detalle?.items,
+        detalle?.productos,
+        detalle?.detalleItems,
+        detalle?.detalle?.items,
+        registro?.items,
+        registro?.productos,
+        registro?.detalle?.items,
+        registro?.detalles?.items,
+        registro?.venta?.items
+      ];
+      const lista = candidatas.find((items) => Array.isArray(items) && items.some((item) => (
+        textoSeguroTrim(item?.descripcion || item?.detalle || item?.nombre || item?.producto, '')
+        || textoSeguroTrim(item?.codigo || item?.codigoProducto || item?.codigoInterno || item?.sku, '')
+      )));
+      return Array.isArray(lista) ? lista.map(normalizarItemDocumentoVenta).filter((item) => item.descripcion || item.codigo) : [];
+    };
+
+    const propios = extraer(mov);
+    if (propios.length) return propios;
+
+    const detalle = mov?.detallesPago || {};
+    const idsOrigen = [
+      detalle?.origenMovimientoId,
+      detalle?.movimientoOrigenId,
+      detalle?.ventaId,
+      detalle?.remitoOrigenId,
+      mov?.origenMovimientoId,
+      mov?.ventaId
+    ].map((id) => textoSeguroTrim(id, '')).filter(Boolean);
+    for (const idOrigen of idsOrigen) {
+      const origen = (movimientos || []).find((registro) => registro?.id === idOrigen);
+      const itemsOrigen = extraer(origen);
+      if (itemsOrigen.length) return itemsOrigen;
+    }
+    return [];
+  };
+
+  const obtenerClaveDevolucionItem = (item = {}, index = 0) => {
+    const productoId = textoSeguroTrim(item?.productoId, '');
+    if (productoId) return `producto:${productoId}`;
+    const codigo = normalizarCodigoParaComparar(item?.codigo || '');
+    if (codigo) return `codigo:${codigo}`;
+    return `detalle:${normalizarTextoBusqueda(item?.descripcion || '')}:${index}`;
+  };
+
+  const obtenerResumenDevolucionComprobante = (comprobante = null) => {
+    if (!comprobante?.id) return [];
+    const itemsOrigen = obtenerItemsDocumentoVenta(comprobante);
+    const devueltoPorClave = new Map();
+    (movimientos || []).forEach((movimiento) => {
+      const detalle = movimiento?.detallesPago || {};
+      if (movimiento?.id === comprobante.id || detalle?.tipoComprobante !== 'nota_credito' || detalle?.devolucionOrigenId !== comprobante.id) return;
+      obtenerItemsDocumentoVenta(movimiento).forEach((item, index) => {
+        const clave = textoSeguroTrim(item?.claveDevolucion, '') || obtenerClaveDevolucionItem(item, index);
+        devueltoPorClave.set(clave, (devueltoPorClave.get(clave) || 0) + Math.max(0, parseNumeroBasico(item?.cantidad) || 0));
+      });
+    });
+    return itemsOrigen.map((item, index) => {
+      const claveDevolucion = obtenerClaveDevolucionItem(item, index);
+      const cantidadVendida = Math.max(0, parseNumeroBasico(item?.cantidad) || 0);
+      const cantidadDevuelta = Math.min(cantidadVendida, devueltoPorClave.get(claveDevolucion) || 0);
+      return { ...item, claveDevolucion, cantidadVendida, cantidadDevuelta, cantidadDisponible: Math.max(0, cantidadVendida - cantidadDevuelta) };
+    });
+  };
+
+  const abrirDevolucionDesdeComprobanteVenta = async (mov = null) => {
+    const detalle = mov?.detallesPago || {};
+    const tipoOrigen = textoSeguroTrim(detalle?.tipoComprobante, '');
+    if (!mov?.id || mov?.tipo !== 'venta' || ['nota_credito', 'remito_r'].includes(tipoOrigen) || detalle?.origen === 'remito_r') {
+      await notificarSistema('La devolución solo puede iniciarse desde un comprobante de venta con productos.', { tipo: 'warning', titulo: 'Devolución no disponible' });
+      return;
+    }
+    const resumen = obtenerResumenDevolucionComprobante(mov).filter((item) => item.cantidadDisponible > 0.0001);
+    if (!resumen.length) {
+      await notificarSistema('Todos los ítems de este comprobante ya fueron devueltos.', { tipo: 'info', titulo: 'Sin cantidades disponibles' });
+      return;
+    }
+    const etiquetaOrigen = OPCIONES_COMPROBANTE_VENTA.find((op) => op.value === tipoOrigen)?.label || 'Comprobante';
+    setPagoPendientePuntoVenta(null);
+    setCierrePantallaClientePuntoVenta(null);
+    setFormPuntoVenta({
+      ...crearFormularioPuntoVentaVacio(), modoCliente: 'existente', clienteId: textoSeguroTrim(detalle?.clienteId, ''),
+      busquedaCliente: textoSeguroTrim(detalle?.cliente, ''), clienteNombre: textoSeguroTrim(detalle?.cliente, 'Consumidor Final'), whatsapp: textoSeguroTrim(detalle?.whatsapp, ''),
+      fechaComprobante: obtenerFechaInputLocal(), tipoComprobante: 'nota_credito', numeroComprobante: obtenerSiguienteNumeroComprobanteVenta('nota_credito'), numeroComprobanteManual: false,
+      metodoPago: normalizarMetodoPago(mov?.metodoPago) === 'tarjeta' ? 'tarjeta_credito' : (normalizarMetodoPago(mov?.metodoPago) || 'cuenta_corriente'), devolucionOrigenId: mov.id, devolucionOrigenNumero: textoSeguroTrim(detalle?.numeroComprobante, ''), devolucionOrigenTipo: tipoOrigen,
+      notas: `Devolución vinculada a ${etiquetaOrigen}${detalle?.numeroComprobante ? ` N° ${detalle.numeroComprobante}` : ''}.`,
+      items: resumen.map((item, index) => ({ ...crearItemPuntoVentaVacio(), id: `dev-${mov.id}-${index}-${Date.now()}`, productoId: item.productoId, codigo: item.codigo, descripcion: item.descripcion, cantidad: '0', unidad: item.unidad, precio: String(item.precio || 0), descuento: String(item.descuento || 0), imagen: textoSeguroTrim(item?.imagen, ''), claveDevolucion: item.claveDevolucion, cantidadMaximaDevolucion: item.cantidadDisponible }))
+    });
+    setModalActivo('punto_venta');
+  };
 
   const guardarRemitoR = async (e) => {
     if (e?.preventDefault) e.preventDefault();
@@ -7722,7 +8970,7 @@ const abrirPuntoVenta = () => {
   const construirHtmlRemitoR = (mov = null, autoPrint = false) => {
     if (!mov) return '';
     const detalles = mov?.detallesPago || {};
-    const items = Array.isArray(detalles?.items) ? detalles.items : [];
+    const items = obtenerItemsDocumentoVenta(mov);
     const incluirImagenes = Boolean(detalles?.incluirImagenes);
     const empresa = textoSeguroTrim(configuracion?.nombre, NOMBRE_EMPRESA_FALLBACK);
     const logoEmpresa = textoSeguroTrim(
@@ -7807,6 +9055,7 @@ const abrirPuntoVenta = () => {
             ${incluirImagenes ? '<th style="width:54px">Img</th>' : ''}
             <th style="width:100px">Código</th>
             <th>Detalle</th>
+            <th class="qty" style="width:58px">IVA</th>
             <th class="qty" style="width:95px">Cantidad</th>
           </tr>
         </thead>
@@ -7817,6 +9066,7 @@ const abrirPuntoVenta = () => {
               ${incluirImagenes ? `<td>${imagenItem ? `<img class="img" src="${imagenItem}" />` : '-'}</td>` : ''}
               <td>${item.codigo || '-'}</td>
               <td>${item.descripcion || '-'}</td>
+              <td class="qty">${item.iva === '10.5' ? '10,5%' : item.iva === '21' ? '21%' : 'Exento'}</td>
               <td class="qty">${formatearCantidad(item.cantidad || 0)} ${item.unidad || 'unid'}</td>
             </tr>`;
           }).join('')}
@@ -8243,7 +9493,7 @@ const abrirPuntoVenta = () => {
       return construirHtmlRemitoR(mov, autoPrint);
     }
     const detalles = mov?.detallesPago || {};
-    const items = Array.isArray(detalles?.items) ? detalles.items : [];
+    const items = obtenerItemsDocumentoVenta(mov);
     const incluirImagenes = Boolean(opciones?.incluirImagenes);
     const tipoComp = detalles?.tipoComprobante || 'remito_x';
     const etiquetaComprobante = OPCIONES_COMPROBANTE_VENTA.find((op) => op.value === tipoComp)?.label || 'Comprobante';
@@ -8256,9 +9506,19 @@ const abrirPuntoVenta = () => {
       const descuento = Math.min(100, Math.max(0, Number(item?.descuento || 0)));
       const bruto = cantidad * precio;
       const subtotal = Math.max(0, bruto - (bruto * descuento / 100));
-      return { ...item, cantidad, precio, descuento, subtotal };
+      const productoVenta = (productos || []).find((producto) => producto?.id === item?.productoId);
+      return { ...item, cantidad, precio, descuento, subtotal, iva: textoSeguroTrim(item?.iva, textoSeguroTrim(productoVenta?.iva, 'sin_iva')) };
     });
-    const total = filas.reduce((acc, item) => acc + item.subtotal, 0);
+    const totalItems = filas.reduce((acc, item) => acc + item.subtotal, 0);
+    const total = totalItems > 0 ? totalItems : Math.abs(Number(mov?.monto || 0));
+    const filasDocumento = filas.length ? filas : [{
+      codigo: '-',
+      descripcion: textoSeguroTrim(mov?.descripcion, 'Comprobante de venta'),
+      cantidad: 1,
+      precio: total,
+      descuento: 0,
+      subtotal: total
+    }];
     const resumenRecargoRemito = (() => {
       const esCuentaCorriente = normalizarMetodoPago(mov?.metodoPago) === 'cuenta_corriente';
       const clienteId = textoSeguroTrim(detalles?.clienteId, '');
@@ -8361,7 +9621,7 @@ const abrirPuntoVenta = () => {
       if (!grupos.length) grupos.push([]);
       return grupos;
     };
-    const paginas = agruparFilasPorPagina(filas);
+    const paginas = agruparFilasPorPagina(filasDocumento);
     const totalPaginas = paginas.length;
     const renderTabla = (filasPagina = []) => `
       <table class="tabla-doc">
@@ -8372,6 +9632,7 @@ const abrirPuntoVenta = () => {
             <th>Detalle</th>
             <th class="num" style="width:70px">Cant.</th>
             <th class="num" style="width:92px">Precio</th>
+            <th class="num" style="width:54px">IVA</th>
             <th class="num" style="width:64px">Desc.</th>
             <th class="num" style="width:98px">Subtotal</th>
           </tr>
@@ -8385,6 +9646,7 @@ const abrirPuntoVenta = () => {
               <td>${item.descripcion || '-'}</td>
               <td class="num">${formatearCantidad(item.cantidad)}</td>
               <td class="num">${formatearDinero(item.precio)}</td>
+              <td class="num">${item.iva === '10.5' ? '10,5%' : item.iva === '21' ? '21%' : 'Exento'}</td>
               <td class="num">${item.descuento > 0 ? `${formatearCantidad(item.descuento)}%` : '-'}</td>
               <td class="num subtotal">${formatearDinero(item.subtotal)}</td>
             </tr>`;
@@ -8582,6 +9844,11 @@ const abrirPuntoVenta = () => {
 
   const eliminarComprobantePuntoVenta = async (mov = null) => {
     if (!mov?.id) return;
+    const tieneRetirosVendedor = retirosVendedores.some((retiro) => (retiro?.aplicacionesVentas || []).some((aplicacion) => aplicacion?.ventaId === mov.id));
+    if (tieneRetirosVendedor) {
+      await notificarSistema('Esta venta tiene retiros de comisión aplicados. Eliminá primero esos retiros desde la cuenta del vendedor.', { tipo: 'warning', titulo: 'Venta vinculada a un vendedor' });
+      return;
+    }
     const confirmar = await confirmarSistema('¿Eliminar este comprobante de venta?', {
       titulo: 'Eliminar venta',
       tipo: 'danger',
@@ -8606,6 +9873,82 @@ const abrirPuntoVenta = () => {
       tipo: 'success',
       titulo: 'Venta eliminada'
     });
+  };
+
+  const abrirAsignacionVendedorVenta = (mov = null) => {
+    if (!mov) return;
+    setVentaAsignarVendedor(mov);
+    setFormAsignacionVendedor({ vendedorId: textoSeguroTrim(mov?.detallesPago?.vendedorId, ''), porcentaje: mov?.detallesPago?.comisionPorcentaje ?? '' });
+  };
+
+  const guardarAsignacionVendedorVenta = async (event) => {
+    event.preventDefault();
+    if (!ventaAsignarVendedor?.id || guardandoAsignacionVendedor) return;
+    const vendedor = vendedores.find((item) => item.id === formAsignacionVendedor.vendedorId);
+    const porcentaje = Math.max(0, parseNumeroBasico(formAsignacionVendedor.porcentaje));
+    if (!vendedor || porcentaje <= 0 || porcentaje > 100) { await notificarSistema('Seleccioná un vendedor e ingresá un porcentaje mayor a 0 y menor o igual a 100.', { tipo: 'warning', titulo: 'Asignación incompleta' }); return; }
+    const aplicacionesExistentes = retirosVendedores.flatMap((retiro) => (retiro?.aplicacionesVentas || []).filter((aplicacion) => aplicacion?.ventaId === ventaAsignarVendedor.id).map((aplicacion) => ({ retiro, aplicacion })));
+    const vendedorAnteriorId = textoSeguroTrim(ventaAsignarVendedor?.detallesPago?.vendedorId, '');
+    if (aplicacionesExistentes.length && vendedorAnteriorId && vendedorAnteriorId !== vendedor.id) { await notificarSistema('Esta venta ya tiene retiros de comisión aplicados. Eliminá primero esos retiros antes de cambiar el vendedor.', { tipo: 'warning', titulo: 'Venta con retiros' }); return; }
+    const itemsVenta = Array.isArray(ventaAsignarVendedor?.detallesPago?.items) ? ventaAsignarVendedor.detallesPago.items : [];
+    const preciosConComision = calcularPreciosConComisionVendedor(itemsVenta, porcentaje);
+    const montoAnterior = Math.max(0, Number(ventaAsignarVendedor.monto || 0));
+    const comisionAnterior = Math.max(0, Number(ventaAsignarVendedor?.detallesPago?.comisionMonto || 0));
+    const montoBaseSinItems = Number.isFinite(Number(ventaAsignarVendedor?.detallesPago?.montoSinComisionVendedor))
+      ? Math.max(0, Number(ventaAsignarVendedor.detallesPago.montoSinComisionVendedor))
+      : (ventaAsignarVendedor?.detallesPago?.comisionPrecioIncluida ? Math.max(0, montoAnterior - comisionAnterior) : montoAnterior);
+    const comisionMonto = itemsVenta.length ? preciosConComision.totalComision : Math.round((montoBaseSinItems * porcentaje / 100) * 100) / 100;
+    const montoNuevo = itemsVenta.length ? preciosConComision.totalFinal : Math.round((montoBaseSinItems + comisionMonto) * 100) / 100;
+    const itemsConComision = preciosConComision.items;
+    const totalRetirado = aplicacionesExistentes.reduce((total, item) => total + Number(item.aplicacion?.montoAplicado || 0), 0);
+    if (comisionMonto + 0.009 < totalRetirado) { await notificarSistema(`La comisión no puede quedar por debajo de los retiros ya aplicados (${formatearDinero(totalRetirado)}).`, { tipo: 'warning', titulo: 'Comisión insuficiente' }); return; }
+    setGuardandoAsignacionVendedor(true);
+    try {
+      const detallesPagoActualizados = limpiarDatoFirestore({ ...(ventaAsignarVendedor.detallesPago || {}), vendedorId: vendedor.id, vendedorNombre: vendedor.nombre, comisionPorcentaje: porcentaje, comisionMonto, comisionPrecioIncluida: true, montoSinComisionVendedor: itemsVenta.length ? preciosConComision.totalBase : montoBaseSinItems, items: itemsConComision, comisionItems: itemsConComision.map((item) => ({ itemId: textoSeguroTrim(item?.id, ''), productoId: textoSeguroTrim(item?.productoId, ''), codigo: textoSeguroTrim(item?.codigo, ''), descripcion: textoSeguroTrim(item?.descripcion, ''), porcentaje, monto: Math.max(0, Number(item?.comisionMonto || 0)) })), comisionAsignadaEn: new Date().toISOString(), comisionAsignadaPor: usuarioActual?.nombre || '' });
+      await updateDoc(doc(db, 'movimientos', ventaAsignarVendedor.id), { monto: montoNuevo, detallesPago: detallesPagoActualizados });
+      const deltaCuentaCliente = Math.round((montoNuevo - montoAnterior) * 100) / 100;
+      const clienteId = textoSeguroTrim(ventaAsignarVendedor?.detallesPago?.clienteId, '');
+      if (clienteId && normalizarMetodoPago(ventaAsignarVendedor?.metodoPago) === 'cuenta_corriente' && Math.abs(deltaCuentaCliente) > 0.009) {
+        const cliente = clientes.find((item) => item.id === clienteId);
+        if (cliente) {
+          const saldoActualizado = Math.max(0, Math.round((Number(cliente.saldo || 0) + deltaCuentaCliente) * 100) / 100);
+          await updateDoc(doc(db, 'clientes', clienteId), { saldo: saldoActualizado });
+          setClientes((prev) => prev.map((item) => item.id === clienteId ? { ...item, saldo: saldoActualizado } : item));
+        }
+      }
+      setMovimientos((prev) => prev.map((movimiento) => movimiento.id === ventaAsignarVendedor.id ? { ...movimiento, monto: montoNuevo, detallesPago: detallesPagoActualizados } : movimiento));
+      setVentaAsignarVendedor(null);
+      await notificarSistema(`Venta asignada a ${vendedor.nombre}. La comisión de ${formatearDinero(comisionMonto)} se distribuyó en los precios de los ítems.`, { tipo: 'success', titulo: 'Comisión asignada' });
+    } catch (error) { console.error(error); await notificarSistema('No se pudo guardar la asignación del vendedor.', { tipo: 'error', titulo: 'Error' }); }
+    finally { setGuardandoAsignacionVendedor(false); }
+  };
+
+  const quitarAsignacionVendedorVenta = async () => {
+    if (!ventaAsignarVendedor?.id) return;
+    const tieneRetiros = retirosVendedores.some((retiro) => (retiro?.aplicacionesVentas || []).some((aplicacion) => aplicacion?.ventaId === ventaAsignarVendedor.id));
+    if (tieneRetiros) { await notificarSistema('No se puede quitar el vendedor porque la comisión ya tiene retiros aplicados.', { tipo: 'warning', titulo: 'Venta con retiros' }); return; }
+    const detalles = { ...(ventaAsignarVendedor.detallesPago || {}) };
+    const montoAnterior = Math.max(0, Number(ventaAsignarVendedor.monto || 0));
+    const itemsRestaurados = restaurarPreciosSinComisionVendedor(detalles.items || []);
+    const totalItemsRestaurados = calcularPreciosConComisionVendedor(itemsRestaurados, 0).totalFinal;
+    const montoNuevo = itemsRestaurados.length ? totalItemsRestaurados : Math.max(0, Number(detalles.montoSinComisionVendedor ?? (montoAnterior - Number(detalles.comisionMonto || 0))));
+    delete detalles.vendedorId; delete detalles.vendedorNombre; delete detalles.comisionPorcentaje; delete detalles.comisionMonto; delete detalles.comisionItems; delete detalles.comisionPrecioIncluida; delete detalles.montoSinComisionVendedor; delete detalles.comisionAsignadaEn; delete detalles.comisionAsignadaPor;
+    detalles.items = itemsRestaurados;
+    const detallesPagoActualizados = limpiarDatoFirestore(detalles);
+    await updateDoc(doc(db, 'movimientos', ventaAsignarVendedor.id), { monto: montoNuevo, detallesPago: detallesPagoActualizados });
+    const deltaCuentaCliente = Math.round((montoNuevo - montoAnterior) * 100) / 100;
+    const clienteId = textoSeguroTrim(ventaAsignarVendedor?.detallesPago?.clienteId, '');
+    if (clienteId && normalizarMetodoPago(ventaAsignarVendedor?.metodoPago) === 'cuenta_corriente' && Math.abs(deltaCuentaCliente) > 0.009) {
+      const cliente = clientes.find((item) => item.id === clienteId);
+      if (cliente) {
+        const saldoActualizado = Math.max(0, Math.round((Number(cliente.saldo || 0) + deltaCuentaCliente) * 100) / 100);
+        await updateDoc(doc(db, 'clientes', clienteId), { saldo: saldoActualizado });
+        setClientes((prev) => prev.map((item) => item.id === clienteId ? { ...item, saldo: saldoActualizado } : item));
+      }
+    }
+    setMovimientos((prev) => prev.map((movimiento) => movimiento.id === ventaAsignarVendedor.id ? { ...movimiento, monto: montoNuevo, detallesPago: detallesPagoActualizados } : movimiento));
+    setVentaAsignarVendedor(null);
+    await notificarSistema('Se quitó la asignación del vendedor.', { tipo: 'success', titulo: 'Asignación eliminada' });
   };
 
   const seleccionarClienteCargaCuenta = (cliente) => {
@@ -8999,6 +10342,7 @@ const abrirPuntoVenta = () => {
     const payloadConfiguracion = {
       ...CONFIG_DEFAULT,
       ...configuracion,
+      tarjetasPlanes: (Array.isArray(configuracion?.tarjetasPlanes) ? configuracion.tarjetasPlanes : []).map(normalizarPlanTarjeta),
       recargosAutomaticosActivos: Boolean(configuracion?.recargosAutomaticosActivos),
       recargoMoraPorcentajeGlobal: porcentajeRecargo,
       // Compatibilidad con versiones anteriores
@@ -9021,6 +10365,45 @@ const abrirPuntoVenta = () => {
       return;
     }
     setEditandoConfiguracion(true);
+  };
+
+  const alternarRedondeoVentasHaciaArriba = async (activo) => {
+    const configuracionAnterior = configuracion;
+    const itemsAnteriores = formPuntoVenta.items;
+    const siguienteConfiguracion = { ...configuracion, redondearVentasHaciaArriba: Boolean(activo) };
+    setConfiguracion(siguienteConfiguracion);
+    setConfiguracionPersistida((prev) => ({ ...prev, redondearVentasHaciaArriba: Boolean(activo) }));
+    setFormPuntoVenta((prev) => ({
+      ...prev,
+      items: (prev.items || []).map((item) => {
+        if (activo) {
+          const precioOriginal = item?.precioSinRedondear ?? item?.precio ?? '';
+          return {
+            ...item,
+            precioSinRedondear: precioOriginal,
+            precio: String(redondearImporteVentaHaciaArriba(precioOriginal))
+          };
+        }
+        const { precioSinRedondear, ...itemSinRespaldo } = item;
+        return {
+          ...itemSinRespaldo,
+          precio: precioSinRedondear ?? item?.precio ?? ''
+        };
+      })
+    }));
+    try {
+      await setDoc(doc(db, 'sistema', 'configuracion'), {
+        redondearVentasHaciaArriba: Boolean(activo)
+      }, { merge: true });
+    } catch (error) {
+      setConfiguracion(configuracionAnterior);
+      setConfiguracionPersistida((prev) => ({ ...prev, redondearVentasHaciaArriba: Boolean(configuracionAnterior?.redondearVentasHaciaArriba) }));
+      setFormPuntoVenta((prev) => ({ ...prev, items: itemsAnteriores }));
+      await notificarSistema('No se pudo guardar la preferencia de redondeo. Intentá nuevamente.', {
+        tipo: 'error',
+        titulo: 'Redondeo no guardado'
+      });
+    }
   };
 
   const alternarSeccionConfiguracion = (clave) => {
@@ -9160,13 +10543,13 @@ const abrirPuntoVenta = () => {
   };
 
   const abrirModalMovimiento = (tipo = 'gasto') => {
-    setFormData({ monto: '', efectivo: '', cheques: '', tieneCheques: false, descripcion: '', metodoPago: 'efectivo', detallesPago: {} });
+    setFormData({ monto: '', efectivo: '', cheques: '', tieneCheques: false, descripcion: '', metodoPago: 'efectivo', detallesPago: {}, impactaCajaReportes: true });
     setModalActivo(tipo);
   };
 
   const registrarMovimiento = async (e, tipo) => {
     e.preventDefault();
-    if (caja.estado !== 'abierta') {
+    if (formData.impactaCajaReportes !== false && caja.estado !== 'abierta') {
       await notificarSistema('Abrí la caja antes de registrar este movimiento para que impacte correctamente.', { tipo: 'warning', titulo: 'Caja cerrada' });
       return;
     }
@@ -9252,12 +10635,14 @@ const abrirPuntoVenta = () => {
       detallesPago: esCuentaCorriente
         ? { ...formData.detallesPago, cliente: nombreClienteCuenta, clienteId: clienteCuentaCorrienteId || formData.detallesPago?.clienteId || '' }
         : formData.detallesPago,
-      noImpactaCaja: false,
-      impactaCaja: true,
+      noImpactaCaja: formData.impactaCajaReportes === false,
+      noImpactaReportes: false,
+      impactaCaja: formData.impactaCajaReportes !== false,
+      impactaReportes: true,
       fecha: new Date().toISOString(),
       usuario: usuarioActual.nombre
     });
-    setFormData({ monto: '', efectivo: '', cheques: '', tieneCheques: false, descripcion: '', metodoPago: 'efectivo', detallesPago: {} }); setModalActivo(null);
+    setFormData({ monto: '', efectivo: '', cheques: '', tieneCheques: false, descripcion: '', metodoPago: 'efectivo', detallesPago: {}, impactaCajaReportes: true }); setModalActivo(null);
   };
 
   const registrarCobro = async (e) => {
@@ -9652,6 +11037,8 @@ const abrirPuntoVenta = () => {
       puedeVerStockBajo: limpiarPermiso(formUsuario.puedeVerStockBajo),
       puedeVerRastreo: limpiarPermiso(formUsuario.puedeVerRastreo),
       puedeVerVariacionPrecios: limpiarPermiso(formUsuario.puedeVerVariacionPrecios),
+      puedeVerVendedores: limpiarPermiso(formUsuario.puedeVerVendedores),
+      puedeVerResumenes: limpiarPermiso(formUsuario.puedeVerResumenes),
       // Compatibilidad con versiones previas
       puedeVerCuentasInstitucionales: limpiarPermiso(formUsuario.puedeVerClientesEspeciales)
     };
@@ -9860,6 +11247,11 @@ const abrirPuntoVenta = () => {
 	    const saldadosBase = remitosBase.filter((ticket) => Number(ticket.pendiente || 0) <= 0.009);
 	    const saldoPendienteSinRecargos = Math.max(0, pendientesBase.reduce((acc, item) => acc + Number(item.pendiente || 0), 0));
     const pendientePorCargoId = Object.fromEntries((estado?.cargosProcesados || []).map((cargo) => [cargo.id, Number(cargo.pendiente || 0)]));
+    const totalCreditosClientePdf = (estado?.movimientosDesc || [])
+      .filter((movimiento) => movimiento?.tipo === 'cobro' || esMovimientoDescuentoCuentaCorriente(movimiento))
+      .reduce((total, movimiento) => total + Math.abs(Number(movimiento?.monto || 0)), 0);
+    const totalCargosClientePdf = remitosBase.reduce((total, cargo) => total + Math.max(0, Number(cargo?.montoOriginal ?? cargo?.monto ?? 0)), 0);
+    const saldoFavorClientePdf = Math.max(0, totalCreditosClientePdf - totalCargosClientePdf);
 
     const doc = crearPdfA4('landscape', { titulo: 'Resumen de cuenta corriente' });
     const nombreEmpresa = obtenerNombreEmpresaPresupuesto();
@@ -9902,12 +11294,353 @@ const abrirPuntoVenta = () => {
     doc.text(formatearDinero(saldoPendienteSinRecargos), 278, 54, { align: 'right' });
     doc.setFontSize(8);
     doc.setTextColor(71, 85, 105);
-	    doc.text(`${pendientesBase.length} impago(s) · ${saldadosBase.length} saldado(s)`, 278, 59, { align: 'right' });
+	    doc.text(`${pendientesBase.length} impago(s) · ${saldadosBase.length} saldado(s)${saldoFavorClientePdf > 0.009 ? ` · A favor ${formatearDinero(saldoFavorClientePdf)}` : ''}`, 278, 59, { align: 'right' });
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(100, 116, 139);
-    doc.text('Este resumen muestra remitos de cuenta corriente y pagos aplicados. No incluye recargos de mora.', 14, 65);
+    doc.text('Lectura simple por pago: importe recibido, comprobantes afectados, días transcurridos y saldo resultante. No incluye recargos de mora.', 14, 66);
 
+    const usarResumenSimpleClientesPdf = true;
+    if (usarResumenSimpleClientesPdf) {
+      const movimientosPagoPorId = new Map([...(estado?.movimientosDesc || []), ...(movimientos || [])].filter((mov) => mov?.id).map((mov) => [mov.id, mov]));
+      const pagosResumenMap = new Map();
+      remitosBase.forEach((cargo) => {
+        const detalleCargo = cargo?.detallesPago || {};
+        const numero = textoSeguroTrim(detalleCargo?.numeroComprobante, textoSeguroTrim(detalleCargo?.comprobanteNumero, '-'));
+        const tipo = OPCIONES_COMPROBANTE_VENTA.find((opcion) => opcion.value === detalleCargo?.tipoComprobante)?.label || textoSeguroTrim(detalleCargo?.tipoComprobante, 'Remito');
+        const comprobante = `${tipo} ${numero}`.trim();
+        (Array.isArray(cargo?.pagosAplicados) ? cargo.pagosAplicados : []).forEach((pago, indicePago) => {
+          const pagoId = textoSeguroTrim(pago?.id, `${pago?.fecha || 'sin-fecha'}-${cargo?.id || 'cargo'}-${indicePago}`);
+          const movimientoPago = movimientosPagoPorId.get(pagoId) || null;
+          if (!pagosResumenMap.has(pagoId)) {
+            const resumen = movimientoPago ? construirResumenReciboCobro(movimientoPago) : null;
+            const detallesPago = movimientoPago?.detallesPago || {};
+            const metodo = pago?.tipo === 'credito' || esMovimientoDescuentoCuentaCorriente(movimientoPago || {}) ? 'Nota de crédito' : obtenerEtiquetaMetodoPago(movimientoPago?.metodoPago || pago?.metodoPago || 'efectivo');
+            const numeroPago = textoSeguroTrim(resumen?.numeroCheque, textoSeguroTrim(detallesPago?.numeroComprobante, textoSeguroTrim(detallesPago?.referencia, '')));
+            const emisor = textoSeguroTrim(resumen?.emisor, textoSeguroTrim(detallesPago?.emisor, textoSeguroTrim(detallesPago?.titular, '')));
+            pagosResumenMap.set(pagoId, { id: pagoId, fecha: pago?.fecha || movimientoPago?.fecha || '', total: Math.abs(Number(movimientoPago?.monto || pago?.monto || 0)), medio: `${metodo}${numeroPago ? ` · N.º ${numeroPago}` : ''}${emisor ? ` · Emisor: ${emisor}` : ''}`, detalle: textoSeguroTrim(movimientoPago?.descripcion, textoSeguroTrim(pago?.descripcion, '')), aplicado: 0, aplicaciones: [] });
+          }
+          const resumenPago = pagosResumenMap.get(pagoId);
+          const aplicado = Math.max(0, Number(pago?.monto || 0));
+          const diasGuardados = pago?.diasDesdeRemito;
+          const dias = diasGuardados !== undefined && diasGuardados !== null && String(diasGuardados).trim() !== ''
+            ? Math.max(0, Number(diasGuardados) || 0)
+            : calcularDiasEntreComprobanteYPago(cargo?.fecha, pago?.fecha || movimientoPago?.fecha);
+          resumenPago.aplicado += aplicado;
+          resumenPago.aplicaciones.push({ comprobante, montoOriginal: Math.max(0, Number(cargo?.montoOriginal ?? cargo?.monto ?? 0)), aplicado, saldoDespues: Math.max(0, Number(pago?.pendienteDespues || 0)), dias, desdeSaldoFavor: Boolean(pago?.desdeSaldoFavor) });
+        });
+      });
+      (estado?.movimientosDesc || []).filter((movimiento) => movimiento?.tipo === 'cobro' || esMovimientoDescuentoCuentaCorriente(movimiento)).forEach((movimiento) => {
+        if (!movimiento?.id || pagosResumenMap.has(movimiento.id)) return;
+        const resumen = construirResumenReciboCobro(movimiento);
+        const detallesPago = movimiento?.detallesPago || {};
+        const metodo = esMovimientoDescuentoCuentaCorriente(movimiento) ? 'Nota de crédito' : obtenerEtiquetaMetodoPago(movimiento?.metodoPago || 'efectivo');
+        const numeroPago = textoSeguroTrim(resumen?.numeroCheque, textoSeguroTrim(detallesPago?.numeroComprobante, textoSeguroTrim(detallesPago?.referencia, '')));
+        const emisor = textoSeguroTrim(resumen?.emisor, textoSeguroTrim(detallesPago?.emisor, textoSeguroTrim(detallesPago?.titular, '')));
+        pagosResumenMap.set(movimiento.id, { id: movimiento.id, fecha: movimiento.fecha || '', total: Math.abs(Number(movimiento.monto || 0)), medio: `${metodo}${numeroPago ? ` · N.º ${numeroPago}` : ''}${emisor ? ` · Emisor: ${emisor}` : ''}`, detalle: textoSeguroTrim(movimiento.descripcion, ''), aplicado: 0, aplicaciones: [] });
+      });
+      const pagosResumen = Array.from(pagosResumenMap.values()).sort((a, b) => new Date(a.fecha || 0) - new Date(b.fecha || 0)).map((pago) => ({ ...pago, total: pago.total > 0 ? pago.total : pago.aplicado, sobrante: Math.max(0, (pago.total > 0 ? pago.total : pago.aplicado) - pago.aplicado) }));
+      const resultadoResumen = renderizarAplicacionesPagosPdf({ doc, pagos: pagosResumen, startY: 75, tituloPago: 'PAGO RECIBIDO', tituloVacio: 'No hay pagos recibidos para detallar.' });
+      let pendienteY = resultadoResumen.cursorY;
+      const pageHeight = doc.internal.pageSize.getHeight();
+      if (pendienteY > pageHeight - 40) { doc.addPage(); pendienteY = 16; }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(15, 23, 42);
+      doc.text('REMITOS QUE TODAVÍA TIENEN SALDO', 14, pendienteY + 2);
+      pendienteY += 6;
+      if (pendientesBase.length) {
+        autoTable(doc, { startY: pendienteY, head: [['Fecha', 'Comprobante', 'Valor original', 'Saldo pendiente']], body: pendientesBase.map((cargo) => { const detalle = cargo?.detallesPago || {}; const numero = textoSeguroTrim(detalle?.numeroComprobante, textoSeguroTrim(detalle?.comprobanteNumero, '-')); const tipo = OPCIONES_COMPROBANTE_VENTA.find((opcion) => opcion.value === detalle?.tipoComprobante)?.label || textoSeguroTrim(detalle?.tipoComprobante, 'Remito'); return [formatearFecha(cargo.fecha), `${tipo} ${numero}`.trim(), formatearDinero(Number(cargo?.montoOriginal ?? cargo?.monto ?? 0)), formatearDinero(Number(cargo?.pendiente || 0))]; }), styles: { fontSize: 7.8, cellPadding: 1.7 }, headStyles: { fillColor: [185, 28, 28], textColor: 255, fontStyle: 'bold' }, columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right', fontStyle: 'bold' } }, margin: { left: 14, right: 14 } });
+      } else {
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(5, 150, 105); doc.text('No quedan remitos pendientes.', 18, pendienteY + 5);
+      }
+    }
+
+    const usarDetalleAgrupadoClientesPdf = !usarResumenSimpleClientesPdf;
+    if (usarDetalleAgrupadoClientesPdf) {
+      const pageWidthClientePdf = doc.internal.pageSize.getWidth();
+      const pageHeightClientePdf = doc.internal.pageSize.getHeight();
+      const movimientosPagoClientePdf = new Map([
+        ...(estado?.movimientosDesc || []),
+        ...(movimientos || [])
+      ].filter((mov) => mov?.id).map((mov) => [mov.id, mov]));
+      const referenciaCargoClientePdf = new Map(remitosBase.map((cargo, indice) => {
+        const detalle = cargo?.detallesPago || {};
+        const numero = textoSeguroTrim(detalle?.numeroComprobante, textoSeguroTrim(detalle?.comprobanteNumero, '-'));
+        const tipo = OPCIONES_COMPROBANTE_VENTA.find((opcion) => opcion.value === detalle?.tipoComprobante)?.label
+          || textoSeguroTrim(detalle?.tipoComprobante, 'Remito');
+        return [cargo.id, { codigo: `R${String(indice + 1).padStart(2, '0')}`, comprobante: `${tipo} ${numero}`.trim() }];
+      }));
+      const trazabilidadCobrosClientePdf = new Map();
+      remitosBase.forEach((cargo) => {
+        const referencia = referenciaCargoClientePdf.get(cargo.id);
+        (Array.isArray(cargo?.pagosAplicados) ? cargo.pagosAplicados : []).forEach((pago, indicePago) => {
+          const pagoId = textoSeguroTrim(pago?.id, `${pago?.fecha || 'sin-fecha'}-${cargo?.id || 'cargo'}-${indicePago}`);
+          const movimientoPago = movimientosPagoClientePdf.get(pagoId) || null;
+          if (!trazabilidadCobrosClientePdf.has(pagoId)) trazabilidadCobrosClientePdf.set(pagoId, { id: pagoId, movimiento: movimientoPago, fecha: pago?.fecha || movimientoPago?.fecha || '', total: Math.abs(Number(movimientoPago?.monto || pago?.monto || 0)), aplicado: 0, aplicaciones: [] });
+          const traza = trazabilidadCobrosClientePdf.get(pagoId);
+          const montoAplicado = Math.max(0, Number(pago?.monto || 0));
+          traza.aplicado += montoAplicado;
+          traza.aplicaciones.push({ cargoId: cargo.id, codigo: referencia?.codigo || 'R--', comprobante: referencia?.comprobante || 'Comprobante', monto: montoAplicado });
+        });
+      });
+      (estado?.movimientosDesc || []).filter((movimiento) => movimiento?.tipo === 'cobro' || esMovimientoDescuentoCuentaCorriente(movimiento)).forEach((movimiento) => {
+        if (!movimiento?.id || trazabilidadCobrosClientePdf.has(movimiento.id)) return;
+        trazabilidadCobrosClientePdf.set(movimiento.id, { id: movimiento.id, movimiento, fecha: movimiento.fecha || '', total: Math.abs(Number(movimiento.monto || 0)), aplicado: 0, aplicaciones: [] });
+      });
+      const cobrosTrazadosClientePdf = Array.from(trazabilidadCobrosClientePdf.values()).sort((a, b) => new Date(a.fecha || 0) - new Date(b.fecha || 0));
+      const codigoCobroClientePdf = new Map(cobrosTrazadosClientePdf.map((traza, indice) => [traza.id, `P${String(indice + 1).padStart(2, '0')}`]));
+      cobrosTrazadosClientePdf.forEach((traza) => { traza.sobrante = Math.max(0, Number(traza.total || 0) - Number(traza.aplicado || 0)); });
+      const coloresTrazabilidadClientePdf = [[5, 150, 105], [37, 99, 235], [124, 58, 237], [217, 119, 6], [8, 145, 178], [190, 24, 93]];
+      const colorCobroClientePdf = (pagoId = '') => coloresTrazabilidadClientePdf[Math.max(0, cobrosTrazadosClientePdf.findIndex((traza) => traza.id === pagoId)) % coloresTrazabilidadClientePdf.length];
+      const rutaCobroClientePdf = (pagoId = '') => {
+        const traza = trazabilidadCobrosClientePdf.get(pagoId);
+        if (!traza) return '-';
+        const codigo = codigoCobroClientePdf.get(pagoId) || 'P--';
+        const total = traza.total > 0 ? traza.total : traza.aplicado;
+        const destinos = traza.aplicaciones.map((aplicacion) => `${aplicacion.codigo} ${formatearDinero(aplicacion.monto)}`).join(' => ');
+        return `${codigo} RECIBIDO ${formatearDinero(total)}${destinos ? ` => ${destinos}` : ''}${traza.sobrante > 0.009 ? ` => SALDO A FAVOR ${formatearDinero(traza.sobrante)}` : ''}`;
+      };
+      const puntosCobroClientePdf = new Map();
+      let cursorClienteY = 76;
+      const paginaActualClientePdf = () => Number(
+        doc.internal?.getCurrentPageInfo?.()?.pageNumber
+        || doc.internal?.getNumberOfPages?.()
+        || 1
+      );
+      const asegurarEspacioClientePdf = (alto = 48) => {
+        if (cursorClienteY + alto <= pageHeightClientePdf - 14) return;
+        doc.addPage();
+        cursorClienteY = 18;
+      };
+      const dibujarConexionCobroClientePdf = ({ paginaOrigen, yOrigen, paginaDestino, yDestino }) => {
+        if (!paginaOrigen || !paginaDestino) return;
+        const paginaRetorno = paginaActualClientePdf();
+        const xConexion = 11;
+        doc.setDrawColor(5, 150, 105);
+        doc.setFillColor(5, 150, 105);
+        doc.setLineWidth(0.65);
+        if (paginaOrigen === paginaDestino) {
+          doc.setPage(paginaOrigen);
+          doc.circle(xConexion, yOrigen, 1.15, 'F');
+          doc.line(xConexion, yOrigen, xConexion, yDestino);
+          doc.line(xConexion, yDestino, 16.5, yDestino);
+          doc.triangle(17.5, yDestino, 14.8, yDestino - 1.5, 14.8, yDestino + 1.5, 'F');
+        } else {
+          doc.setPage(paginaOrigen);
+          doc.circle(xConexion, yOrigen, 1.15, 'F');
+          doc.line(xConexion, yOrigen, xConexion, pageHeightClientePdf - 7);
+          doc.triangle(xConexion, pageHeightClientePdf - 5.5, xConexion - 1.5, pageHeightClientePdf - 8.2, xConexion + 1.5, pageHeightClientePdf - 8.2, 'F');
+          doc.setPage(paginaDestino);
+          doc.line(xConexion, 7, xConexion, yDestino);
+          doc.line(xConexion, yDestino, 16.5, yDestino);
+          doc.triangle(17.5, yDestino, 14.8, yDestino - 1.5, 14.8, yDestino + 1.5, 'F');
+        }
+        doc.setPage(paginaRetorno);
+      };
+      const dibujarContinuidadCobroClientePdf = (pagoId = '', puntos = []) => {
+        if (puntos.length < 2) return;
+        const paginaRetorno = paginaActualClientePdf();
+        const [r, g, b] = colorCobroClientePdf(pagoId);
+        const x = pageWidthClientePdf - 10.5;
+        doc.setDrawColor(r, g, b); doc.setFillColor(r, g, b); doc.setTextColor(r, g, b); doc.setLineWidth(0.7);
+        puntos.forEach((punto, indice) => {
+          doc.setPage(punto.pagina);
+          doc.line(pageWidthClientePdf - 17.8, punto.y, x, punto.y);
+          doc.circle(x, punto.y, 1.05, 'F');
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(6.4);
+          doc.text(codigoCobroClientePdf.get(pagoId) || 'P--', x - 1.8, punto.y - 1.8, { align: 'right' });
+          const siguiente = puntos[indice + 1];
+          if (!siguiente) return;
+          if (punto.pagina === siguiente.pagina) {
+            doc.line(x, punto.y, x, siguiente.y);
+            doc.triangle(x, siguiente.y + 1.6, x - 1.35, siguiente.y - 1.1, x + 1.35, siguiente.y - 1.1, 'F');
+          } else {
+            doc.line(x, punto.y, x, pageHeightClientePdf - 6.5);
+            doc.triangle(x, pageHeightClientePdf - 5, x - 1.35, pageHeightClientePdf - 7.7, x + 1.35, pageHeightClientePdf - 7.7, 'F');
+            doc.setPage(siguiente.pagina);
+            doc.setDrawColor(r, g, b); doc.setFillColor(r, g, b);
+            doc.line(x, 6.5, x, siguiente.y);
+            doc.triangle(x, siguiente.y + 1.6, x - 1.35, siguiente.y - 1.1, x + 1.35, siguiente.y - 1.1, 'F');
+          }
+        });
+        doc.setPage(paginaRetorno);
+      };
+      const formatearFechaClientePdf = (valor = '') => {
+        const fecha = new Date(valor);
+        return Number.isNaN(fecha.getTime()) ? '-' : formatearFecha(fecha);
+      };
+      const describirCobroClientePdf = (pago = {}, movimientoPago = null) => {
+        const resumen = movimientoPago ? construirResumenReciboCobro(movimientoPago) : null;
+        const detalles = movimientoPago?.detallesPago || {};
+        const esCredito = pago?.tipo === 'credito' || esMovimientoDescuentoCuentaCorriente(movimientoPago || {});
+        const metodo = esCredito ? 'Nota de crédito' : obtenerEtiquetaMetodoPago(movimientoPago?.metodoPago || pago?.metodoPago || 'efectivo');
+        const numero = textoSeguroTrim(
+          resumen?.numeroCheque,
+          textoSeguroTrim(detalles?.numeroComprobante, textoSeguroTrim(detalles?.referencia, textoSeguroTrim(resumen?.numeroRecibo, '')))
+        );
+        const emisor = textoSeguroTrim(resumen?.emisor, textoSeguroTrim(detalles?.emisor, textoSeguroTrim(detalles?.titular, '')));
+        const banco = textoSeguroTrim(resumen?.banco, textoSeguroTrim(detalles?.banco, ''));
+        const plazoDias = calcularPlazoEntreFechas(resumen?.fechaEmision || detalles?.fechaEmision, resumen?.fechaCobro || detalles?.fechaCobro);
+        return `${metodo}${numero ? ` · N.º ${numero}` : ''}${emisor ? ` · Emisor: ${emisor}` : ''}${banco ? ` · ${banco}` : ''}${plazoDias ? ` · a ${plazoDias} días` : ''}`;
+      };
+      const aclaracionCobroClientePdf = (pago = {}, movimientoPago = null) => {
+        const resumen = movimientoPago ? construirResumenReciboCobro(movimientoPago) : null;
+        return [
+          resumen?.facturaExternaLabel ? `Corresponde a ${resumen.facturaExternaLabel}` : '',
+          textoSeguroTrim(movimientoPago?.descripcion, textoSeguroTrim(pago?.descripcion, ''))
+        ].filter(Boolean).join(' · ') || '-';
+      };
+
+      remitosBase.forEach((cargo) => {
+        const detalleCargo = cargo?.detallesPago || {};
+        const numeroComprobante = textoSeguroTrim(detalleCargo?.numeroComprobante, textoSeguroTrim(detalleCargo?.comprobanteNumero, '-'));
+        const tipoComprobante = OPCIONES_COMPROBANTE_VENTA.find((opcion) => opcion.value === detalleCargo?.tipoComprobante)?.label
+          || textoSeguroTrim(detalleCargo?.tipoComprobante, 'Remito');
+        const comprobante = `${tipoComprobante} ${numeroComprobante}`.trim();
+        const referenciaCargo = referenciaCargoClientePdf.get(cargo.id) || { codigo: 'R--', comprobante };
+        const ventaSaldada = Number(cargo?.pendiente || 0) <= 0.009;
+        const pagosCargo = (Array.isArray(cargo?.pagosAplicados) ? cargo.pagosAplicados : [])
+          .map((pago) => ({ pago, movimiento: movimientosPagoClientePdf.get(pago?.id) || null }))
+          .filter((item) => item.pago);
+        asegurarEspacioClientePdf(55);
+        const paginaCargo = paginaActualClientePdf();
+        const inicioCargoY = cursorClienteY;
+        doc.setFillColor(15, 23, 42);
+        doc.roundedRect(14, cursorClienteY, pageWidthClientePdf - 28, 8, 1.5, 1.5, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.text(`${referenciaCargo.codigo} · ${comprobante} · ${textoSeguroTrim(cliente?.nombre, 'Cliente')}`, 18, cursorClienteY + 5.5);
+        if (ventaSaldada) {
+          doc.setFillColor(5, 150, 105);
+          doc.roundedRect(pageWidthClientePdf - 61, cursorClienteY + 1.2, 43, 5.6, 1.3, 1.3, 'F');
+          doc.setFontSize(7.2);
+          doc.text('VENTA SALDADA', pageWidthClientePdf - 39.5, cursorClienteY + 5, { align: 'center' });
+        }
+        cursorClienteY += 11;
+        const vencimiento = textoSeguroTrim(cargo?.fechaVencimiento, '');
+        autoTable(doc, {
+          startY: cursorClienteY,
+          head: [['Fecha', 'Vencimiento', 'Detalle', 'Monto', 'Saldo']],
+          body: [[
+            formatearFechaClientePdf(cargo.fecha),
+            vencimiento ? formatearFechaClientePdf(`${vencimiento}T12:00:00`) : '-',
+            `${cargo.descripcion || 'Venta en cuenta corriente'}${obtenerItemsDocumentoVenta(cargo).length ? ` (${obtenerItemsDocumentoVenta(cargo).length} ítems)` : ''}`,
+            formatearDinero(Number(cargo.montoOriginal ?? cargo.monto ?? 0)),
+            formatearDinero(Number(cargo.pendiente || 0))
+          ]],
+          styles: { fontSize: 7.5, cellPadding: 1.6, overflow: 'linebreak' },
+          headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: 'bold' },
+          columnStyles: {
+            0: { cellWidth: 32 },
+            1: { cellWidth: 32 },
+            2: { cellWidth: 117 },
+            3: { cellWidth: 48, halign: 'right' },
+            4: { cellWidth: 40, halign: 'right' }
+          },
+          didParseCell: (data) => {
+            if (data.section === 'head' && [3, 4].includes(data.column.index)) data.cell.styles.halign = 'right';
+          },
+          margin: { left: 14, right: 14 }
+        });
+        cursorClienteY = (doc.lastAutoTable?.finalY || cursorClienteY + 14) + 2;
+        if (pagosCargo.length) {
+          const paginaPago = paginaActualClientePdf();
+          const destinoConexionY = cursorClienteY + 4;
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8);
+          doc.setTextColor(5, 150, 105);
+          doc.text('Cobros aplicados a este comprobante', 18, cursorClienteY + 4);
+          cursorClienteY += 7;
+          autoTable(doc, {
+            startY: cursorClienteY,
+            head: [['Fecha', 'Pago / forma / emisor', 'Ruta completa del dinero', 'Cobro total', 'Aplicado aquí', 'Saldo remito']],
+            body: pagosCargo.map(({ pago, movimiento }) => [
+              formatearFechaClientePdf(pago.fecha || movimiento?.fecha),
+              `${codigoCobroClientePdf.get(pago?.id) || 'P--'} · ${describirCobroClientePdf(pago, movimiento)}`,
+              `${rutaCobroClientePdf(pago?.id)}\n${aclaracionCobroClientePdf(pago, movimiento)}`,
+              formatearDinero(Math.abs(Number(movimiento?.monto || pago?.monto || 0))),
+              formatearDinero(Number(pago.monto || 0)),
+              formatearDinero(Number(pago.pendienteDespues || 0))
+            ]),
+            styles: { fontSize: 7.2, cellPadding: 1.5, overflow: 'linebreak' },
+            headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: 'bold' },
+            columnStyles: {
+              0: { cellWidth: 24 },
+              1: { cellWidth: 62 },
+              2: { cellWidth: 68, fontStyle: 'bold' },
+              3: { cellWidth: 34, halign: 'right' },
+              4: { cellWidth: 36, halign: 'right' },
+              5: { cellWidth: 37, halign: 'right' }
+            },
+            didParseCell: (data) => {
+              if (data.section === 'head' && [3, 4, 5].includes(data.column.index)) data.cell.styles.halign = 'right';
+              if (data.section === 'body') {
+                const pagoFila = pagosCargo[data.row.index]?.pago;
+                const color = colorCobroClientePdf(pagoFila?.id);
+                data.cell.styles.fillColor = color.map((valor) => Math.round(246 + ((valor / 255) * 8)));
+                if ([0, 1, 2].includes(data.column.index)) data.cell.styles.fontStyle = 'bold';
+                if (data.column.index === 1) data.cell.styles.textColor = color;
+              }
+            },
+            didDrawCell: (data) => {
+              if (data.section !== 'body' || data.column.index !== 0) return;
+              const pagoId = pagosCargo[data.row.index]?.pago?.id;
+              if (!pagoId) return;
+              const puntos = puntosCobroClientePdf.get(pagoId) || [];
+              puntos.push({ pagina: paginaActualClientePdf(), y: Number(data.cell?.y || 0) + (Number(data.cell?.height || 0) / 2) });
+              puntosCobroClientePdf.set(pagoId, puntos);
+            },
+            margin: { left: 18, right: 18 }
+          });
+          cursorClienteY = (doc.lastAutoTable?.finalY || cursorClienteY + 14) + 3;
+          dibujarConexionCobroClientePdf({ paginaOrigen: paginaCargo, yOrigen: inicioCargoY + 4, paginaDestino: paginaPago, yDestino: destinoConexionY });
+        } else {
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(8);
+          doc.setTextColor(100, 116, 139);
+          doc.text('Sin cobros aplicados a este comprobante.', 18, cursorClienteY + 4);
+          cursorClienteY += 9;
+        }
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        if (ventaSaldada) {
+          doc.setTextColor(5, 150, 105);
+          doc.text(`VENTA SALDADA - ${comprobante}`, 18, cursorClienteY + 4);
+        } else {
+          doc.setTextColor(185, 28, 28);
+          doc.text(`Saldo pendiente de ${comprobante}: ${formatearDinero(Number(cargo.pendiente || 0))}`, 18, cursorClienteY + 4);
+        }
+        cursorClienteY += 10;
+      });
+
+      const cobrosConSobranteClientePdf = cobrosTrazadosClientePdf.filter((traza) => traza.sobrante > 0.009 || !traza.aplicaciones.length);
+      if (cobrosConSobranteClientePdf.length) {
+        asegurarEspacioClientePdf(32);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(180, 83, 9);
+        doc.text('SALDOS A FAVOR Y PAGOS AÚN NO APLICADOS', 14, cursorClienteY + 2);
+        cursorClienteY += 6;
+        autoTable(doc, {
+          startY: cursorClienteY,
+          head: [['Pago', 'Fecha', 'Ruta verificada', 'Total', 'Aplicado', 'Disponible']],
+          body: cobrosConSobranteClientePdf.map((traza) => [codigoCobroClientePdf.get(traza.id) || 'P--', formatearFechaClientePdf(traza.fecha), rutaCobroClientePdf(traza.id), formatearDinero(traza.total), formatearDinero(traza.aplicado), formatearDinero(traza.sobrante)]),
+          styles: { fontSize: 7.2, cellPadding: 1.5, overflow: 'linebreak' },
+          headStyles: { fillColor: [217, 119, 6], textColor: 255, fontStyle: 'bold' },
+          columnStyles: { 0: { cellWidth: 18, fontStyle: 'bold' }, 1: { cellWidth: 25 }, 2: { cellWidth: 122, fontStyle: 'bold' }, 3: { cellWidth: 32, halign: 'right' }, 4: { cellWidth: 32, halign: 'right' }, 5: { cellWidth: 32, halign: 'right', fontStyle: 'bold' } },
+          margin: { left: 14, right: 14 }
+        });
+        cursorClienteY = (doc.lastAutoTable?.finalY || cursorClienteY + 14) + 4;
+      }
+      puntosCobroClientePdf.forEach((puntos, pagoId) => dibujarContinuidadCobroClientePdf(pagoId, puntos));
+
+      if (!remitosBase.length) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(22, 163, 74);
+        doc.text('No hay ventas de cuenta corriente para este cliente.', 14, 74);
+      }
+    }
+
+	    if (!usarResumenSimpleClientesPdf && !usarDetalleAgrupadoClientesPdf) {
 	    const bodyRemitos = remitosBase.map((item) => {
 	      const fechaTicket = new Date(item.fecha);
 	      const dias = Number.isNaN(fechaTicket.getTime())
@@ -10061,6 +11794,7 @@ const abrirPuntoVenta = () => {
       doc.text('Sin pagos registrados para detallar.', 14, siguienteY + 8);
     }
 
+    }
     const fileName = `resumen_cuenta_${normalizarTextoArchivo(cliente?.nombre || 'cliente')}_${normalizarTextoArchivo(formatearFecha(fechaEmision))}.pdf`;
     const blob = doc.output('blob');
     return new File([blob], fileName, { type: 'application/pdf' });
@@ -10248,8 +11982,7 @@ const abrirPuntoVenta = () => {
   };
 
   const obtenerItemsCuentaParaFacturacion = (mov = null) => {
-    if (!mov) return [];
-    return Array.isArray(mov?.detallesPago?.items) ? mov.detallesPago.items : [];
+    return obtenerItemsDocumentoVenta(mov);
   };
 
   const obtenerClaveItemFactura = (item = {}, index = 0) => {
@@ -10879,7 +12612,9 @@ const abrirPuntoVenta = () => {
       puedeVerNotificaciones: Boolean(usuario?.puedeVerNotificaciones),
       puedeVerStockBajo: usuario?.puedeVerStockBajo === undefined ? Boolean(usuario?.puedeVerInventario) : Boolean(usuario?.puedeVerStockBajo),
       puedeVerRastreo: usuario?.puedeVerRastreo === undefined ? Boolean(usuario?.puedeVerVentas || usuario?.puedeVerCuentasCorrientes || usuario?.puedeVerReportes) : Boolean(usuario?.puedeVerRastreo),
-      puedeVerVariacionPrecios: usuario?.puedeVerVariacionPrecios === undefined ? Boolean(usuario?.puedeUsarModificacionMasiva || usuario?.puedeVerInventario) : Boolean(usuario?.puedeVerVariacionPrecios)
+      puedeVerVariacionPrecios: usuario?.puedeVerVariacionPrecios === undefined ? Boolean(usuario?.puedeUsarModificacionMasiva || usuario?.puedeVerInventario) : Boolean(usuario?.puedeVerVariacionPrecios),
+      puedeVerVendedores: Boolean(usuario?.puedeVerVendedores),
+      puedeVerResumenes: Boolean(usuario?.puedeVerResumenes)
     });
     setModalActivo('usuario_form');
   };
@@ -11141,16 +12876,15 @@ const abrirPuntoVenta = () => {
     try {
       const resumen = construirResumenReciboCobro(mov);
       if (!resumen) throw new Error('Recibo no disponible');
-      const disponible = await asegurarVistaReciboCobroDisponible(mov);
-      if (!disponible || !reciboCobroPreviewRef.current) {
-        throw new Error('La vista previa del recibo no está disponible.');
+      const { docPdf, fileName } = await generarPdfReciboCobroFile(mov);
+      const pdfBytes = docPdf.output('arraybuffer');
+      if (!pdfBytes || pdfBytes.byteLength < 512) {
+        throw new Error('El PDF del recibo se generó sin contenido.');
       }
-      const contenedorRecibo = reciboCobroPreviewRef.current;
-      const paginasRecibo = Array.from(contenedorRecibo.querySelectorAll?.('.recibo-a4-sheet') || []);
-      return await generarPdfDesdeNodosCapturados(
-        paginasRecibo.length ? paginasRecibo : [contenedorRecibo],
-        obtenerNombreArchivoReciboCobro(resumen, true)
-      );
+      // Usar la descarga nativa de jsPDF evita el camino File/object URL que
+      // en algunos entornos produce un archivo descargado en blanco.
+      docPdf.save(fileName);
+      return fileName;
     } catch (error) {
       console.error('No se pudo descargar el PDF del recibo', error);
       await notificarSistema('No se pudo descargar el PDF del recibo. Probá nuevamente.', {
@@ -11165,7 +12899,7 @@ const abrirPuntoVenta = () => {
   const generarPdfVentaDocumentoDirecto = (mov = null) => {
     if (!mov) throw new Error('Comprobante no disponible');
     const detalles = mov?.detallesPago || {};
-    const items = Array.isArray(detalles?.items) ? detalles.items : [];
+    const items = obtenerItemsDocumentoVenta(mov);
     const tipoComprobante = detalles?.tipoComprobante || (detalles?.origen === 'remito_r' ? 'remito_r' : 'remito_x');
     const etiqueta = OPCIONES_COMPROBANTE_VENTA.find((op) => op.value === tipoComprobante)?.label
       || (tipoComprobante === 'remito_r' ? 'Remito R' : 'Comprobante');
@@ -11198,7 +12932,8 @@ const abrirPuntoVenta = () => {
       const bruto = cantidad * precio;
       return total + Math.max(0, bruto - (bruto * descuento / 100));
     }, 0);
-    const total = totalItems > 0 ? totalItems : Math.abs(Number(mov?.monto || 0));
+    const esVentaTarjeta = ['tarjeta', 'tarjeta_credito', 'tarjeta_debito'].includes(normalizarMetodoPago(mov?.metodoPago)) && Number(detalles?.tarjetaTotalPosnet || 0) > 0;
+    const total = esVentaTarjeta ? Math.max(0, Number(detalles?.tarjetaTotalPosnet || mov?.monto || 0)) : (totalItems > 0 ? totalItems : Math.abs(Number(mov?.monto || 0)));
     const docPdf = crearPdfA4('portrait', { titulo: `${etiqueta} ${numero}` });
     docPdf.setFillColor(15, 23, 42);
     docPdf.roundedRect(14, 10, 182, 24, 2, 2, 'F');
@@ -11217,14 +12952,19 @@ const abrirPuntoVenta = () => {
     docPdf.setTextColor(71, 85, 105);
     docPdf.text(`Fecha: ${formatearFecha(mov?.fecha)} ${formatearHora(mov?.fecha)}`, 14, 42);
     docPdf.text(`Forma de pago: ${obtenerEtiquetaMetodoPago(mov?.metodoPago)}`, 14, 48);
+    if (esVentaTarjeta) {
+      docPdf.setFontSize(8);
+      docPdf.setTextColor(67, 56, 202);
+      docPdf.text(`${textoSeguroTrim(detalles?.tarjetaNombre, 'Tarjeta')} · ${textoSeguroTrim(detalles?.tarjetaPlanNombre, `${detalles?.tarjetaCuotas || 1} cuota(s)`)} · ${detalles?.tarjetaCuotas || 1} cuota(s) de ${formatearDinero(detalles?.tarjetaValorCuota || 0)} · financiación ${formatearDinero(detalles?.tarjetaRecargoFinanciero || 0)}`, 14, 54, { maxWidth: 180 });
+    }
     docPdf.setFont('helvetica', 'bold');
     docPdf.setTextColor(15, 23, 42);
     docPdf.text('Cliente', 110, 42);
     docPdf.setFont('helvetica', 'normal');
     docPdf.text(cliente, 110, 48, { maxWidth: 86 });
     autoTable(docPdf, {
-      startY: 58,
-      head: [['Código', 'Detalle', 'Cant.', 'Unidad', 'Precio U.', 'Desc.', 'Subtotal']],
+      startY: esVentaTarjeta ? 64 : 58,
+      head: [['Código', 'Detalle', 'Cant.', 'Unidad', 'Precio U.', 'IVA', 'Desc.', 'Subtotal']],
       body: filas,
       theme: 'grid',
       margin: { left: 14, right: 14 },
@@ -11236,8 +12976,9 @@ const abrirPuntoVenta = () => {
         2: { cellWidth: 18, halign: 'right' },
         3: { cellWidth: 19 },
         4: { cellWidth: 25, halign: 'right' },
-        5: { cellWidth: 18, halign: 'right' },
-        6: { cellWidth: 28, halign: 'right', fontStyle: 'bold' }
+        5: { cellWidth: 15, halign: 'right' },
+        6: { cellWidth: 18, halign: 'right' },
+        7: { cellWidth: 28, halign: 'right', fontStyle: 'bold' }
       }
     });
     const totalY = Math.min((docPdf.lastAutoTable?.finalY || 70) + 12, 270);
@@ -12510,6 +14251,7 @@ const abrirPuntoVenta = () => {
   }, [movimientosPuntoVenta, productos, rangoSugerenciasVentas]);
 
   const obtenerPrecioVentaProductoActualizado = (producto = {}) => {
+    const aplicarRedondeoInventario = (valor = 0) => redondearPrecioProducto(valor, producto?.redondeoPrecio || 'ninguno');
     if (producto?.esProductoCompuesto) {
       const calcularCompuesto = (productoCompuesto, visitados = new Set()) => {
         const idProducto = textoSeguroTrim(productoCompuesto?.id, 'sin-id');
@@ -12529,14 +14271,14 @@ const abrirPuntoVenta = () => {
       return totalComponentes + Math.max(0, parseNumeroBasico(productoCompuesto?.manoObraCompuesto));
       };
       const precioCompuesto = calcularCompuesto(producto);
-      return precioCompuesto > 0 ? precioCompuesto : parseNumeroBasico(producto?.precio);
+      return aplicarRedondeoInventario(precioCompuesto > 0 ? precioCompuesto : parseNumeroBasico(producto?.precio));
     }
     const moneda = ['USD_BNA', 'USD_BLUE'].includes(producto?.monedaCosto) ? producto.monedaCosto : 'ARS';
-    if (moneda === 'ARS') return parseNumeroBasico(producto?.precio);
+    if (moneda === 'ARS') return aplicarRedondeoInventario(parseNumeroBasico(producto?.precio));
     const cotizacion = obtenerCotizacionParaMoneda(moneda);
-    if (cotizacion <= 0) return parseNumeroBasico(producto?.precio);
+    if (cotizacion <= 0) return aplicarRedondeoInventario(parseNumeroBasico(producto?.precio));
     const costoBase = parseNumeroBasico(producto?.costoOriginal ?? producto?.costo);
-    return parseNumeroBasico(calcularPrecioVenta(costoBase, producto?.ganancia, producto?.iva, moneda, cotizacion, null, Boolean(producto?.costoIvaIncluido))) || parseNumeroBasico(producto?.precio);
+    return aplicarRedondeoInventario(parseNumeroBasico(calcularPrecioVenta(costoBase, producto?.ganancia, producto?.iva, moneda, cotizacion, null, Boolean(producto?.costoIvaIncluido))) || parseNumeroBasico(producto?.precio));
   };
 
   const consultarCotizacionDolarBna = async ({ silencioso = false } = {}) => {
@@ -13001,7 +14743,10 @@ const abrirPuntoVenta = () => {
     const pagoBase = pagoEditar || null;
     const proveedorBase = pagoBase ? (proveedor || proveedorCuentaSeleccionado || pagoBase?.proveedor) : (proveedor || proveedorCuentaSeleccionado);
     const nombre = textoSeguroTrim(proveedorBase?.nombre || proveedorBase, textoSeguroTrim(pagoBase?.proveedor, ''));
-    const plazoProveedor = Math.max(0, parseNumeroBasico(proveedorBase?.plazoChequesDias) || 0);
+    const plazoCalculado = calcularPlazoEntreFechas(pagoBase?.fechaEmision, pagoBase?.fechaCobro);
+    setSobrantePagoProveedorDetectado(0);
+    setConfirmarSaldoFavorPagoProveedor(false);
+    setGuardandoPagoProveedor(false);
     setPagoProveedorAEditar(pagoBase);
     setFormPagoProveedor({
       proveedor: nombre,
@@ -13015,15 +14760,18 @@ const abrirPuntoVenta = () => {
       emisor: textoSeguroTrim(pagoBase?.emisor, ''),
       fechaEmision: textoSeguroTrim(pagoBase?.fechaEmision, ''),
       fechaCobro: textoSeguroTrim(pagoBase?.fechaCobro, ''),
-      plazoDias: textoSeguroTrim(pagoBase?.plazoDias, plazoProveedor ? String(plazoProveedor) : ''),
+      plazoDias: plazoCalculado || textoSeguroTrim(pagoBase?.plazoDias, ''),
       pedidoCompraId: textoSeguroTrim(pagoBase?.pedidoCompraId || pedidoCompra?.id, ''),
       pedidoCompraNumero: textoSeguroTrim(pagoBase?.pedidoCompraNumero || pedidoCompra?.numero, ''),
       pedidoCompraEstado: textoSeguroTrim(pagoBase?.pedidoCompraEstado || pedidoCompra?.estado, ''),
-      tipoAplicacion: textoSeguroTrim(pagoBase?.tipoAplicacion, (pagoBase?.pedidoCompraId || pedidoCompra?.id) ? 'ticket' : 'general'),
+      tipoAplicacion: (pagoBase?.pedidoCompraId || pedidoCompra?.id || (Array.isArray(pagoBase?.pedidoCompraIds) && pagoBase.pedidoCompraIds.length))
+        ? 'ticket_multi'
+        : 'general',
       pedidoCompraIds: Array.isArray(pagoBase?.pedidoCompraIds)
         ? [...pagoBase.pedidoCompraIds]
         : (pagoBase?.pedidoCompraId ? [pagoBase.pedidoCompraId] : (pedidoCompra?.id ? [pedidoCompra.id] : [])),
       impactaCaja: pagoBase?.impactaCaja !== false,
+      impactaReportes: pagoBase?.impactaReportes !== false && pagoBase?.noImpactaReportes !== true,
       chequesRecibidosIds: Array.isArray(pagoBase?.chequesRecibidosIds) ? [...pagoBase.chequesRecibidosIds] : []
     });
     setModalActivo('pago_proveedor');
@@ -13072,7 +14820,14 @@ const abrirPuntoVenta = () => {
       configuracion?.logo,
       textoSeguroTrim(configuracion?.logoCorporativo, LOGO_EMPRESA_FALLBACK_URL)
     );
-    const logoEmpresa = logoFuente ? (logoFuente.startsWith('data:') ? logoFuente : await srcADataUrl(logoFuente)) : '';
+    let logoEmpresa = '';
+    if (logoFuente) {
+      try {
+        logoEmpresa = logoFuente.startsWith('data:') ? logoFuente : await srcADataUrl(logoFuente);
+      } catch (error) {
+        console.warn('No se pudo cargar el logo para la cuenta corriente de proveedor.', error);
+      }
+    }
     docPdf.setFillColor(255, 255, 255);
     docPdf.setDrawColor(219, 227, 239);
     docPdf.roundedRect(10, 8, 190, 24, 2, 2, 'FD');
@@ -13148,6 +14903,37 @@ const abrirPuntoVenta = () => {
     const adjuntosOtros = adjuntos.filter((adj) => !textoSeguroTrim(adj?.tipo, '').startsWith('image/'));
     let y = (docPdf.lastAutoTable?.finalY || 82) + 8;
 
+    const aplicacionesPagoPdf = Array.isArray(pago?.aplicacionesComprobantes) ? pago.aplicacionesComprobantes : [];
+    if (aplicacionesPagoPdf.length) {
+      docPdf.setFont('helvetica', 'bold');
+      docPdf.setFontSize(10);
+      docPdf.setTextColor(15, 23, 42);
+      docPdf.text('DISTRIBUCIÓN DEL PAGO', 14, y);
+      y += 4;
+      autoTable(docPdf, {
+        startY: y,
+        head: [['Orden', 'Remito / factura', 'Saldo anterior', 'Aplicado', 'Saldo posterior']],
+        body: aplicacionesPagoPdf.map((aplicacion, index) => [
+          String(aplicacion?.orden || index + 1),
+          textoSeguroTrim(aplicacion?.comprobante, `PC-${textoSeguroTrim(aplicacion?.pedidoCompraNumero, '000000')}`),
+          formatearDinero(Number(aplicacion?.saldoAntes || 0)),
+          formatearDinero(Number(aplicacion?.montoAplicado || 0)),
+          formatearDinero(Number(aplicacion?.saldoDespues || 0))
+        ]),
+        styles: { fontSize: 7.5, cellPadding: 1.7, overflow: 'linebreak' },
+        headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: 'bold' },
+        columnStyles: { 0: { halign: 'center', cellWidth: 14 }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
+        margin: { left: 14, right: 14 }
+      });
+      y = (docPdf.lastAutoTable?.finalY || y) + 5;
+      if (Number(pago?.saldoFavorRegistrado || 0) > 0.009) {
+        docPdf.setTextColor(180, 83, 9);
+        docPdf.setFontSize(8.5);
+        docPdf.text(`Diferencia final registrada como saldo a favor: ${formatearDinero(Number(pago.saldoFavorRegistrado || 0))}`, 14, y);
+        y += 6;
+      }
+    }
+
     if (adjuntosOtros.length) {
       docPdf.setFont('helvetica', 'bold');
       docPdf.setFontSize(10);
@@ -13200,7 +14986,7 @@ const abrirPuntoVenta = () => {
     ));
     const movimientoRef = movimientoExistente?.id ? doc(db, 'movimientos', movimientoExistente.id) : null;
     const metodoPago = normalizarMetodoPago(pago?.metodoPago || '');
-    const noEsPagoReal = ['pendiente', 'cuenta_corriente', 'pago_realizado'].includes(metodoPago) || pago?.impactaCaja === false || pago?.noImpactaCaja === true;
+    const noEsPagoReal = ['pendiente', 'cuenta_corriente', 'pago_realizado'].includes(metodoPago) || pago?.impactaReportes === false || pago?.noImpactaReportes === true;
     if (eliminar || !pago || noEsPagoReal || Math.max(0, parseNumeroBasico(pago?.monto) || 0) <= 0) {
       if (movimientoRef) await deleteDoc(movimientoRef);
       return;
@@ -13215,7 +15001,10 @@ const abrirPuntoVenta = () => {
       proveedorId: textoSeguroTrim(pago?.proveedorId, ''),
       proveedor: textoSeguroTrim(pago?.proveedor, ''),
       pagoProveedorId: pagoId,
-      noImpactaCaja: false,
+      noImpactaCaja: pago?.impactaCaja === false || pago?.noImpactaCaja === true,
+      noImpactaReportes: false,
+      impactaCaja: pago?.impactaCaja !== false && pago?.noImpactaCaja !== true,
+      impactaReportes: true,
       fecha: textoSeguroTrim(pago?.fecha, new Date().toISOString()),
       fechaCreacion: textoSeguroTrim(pago?.fechaCreacion, new Date().toISOString()),
       usuario: textoSeguroTrim(pago?.usuario, usuarioActual?.nombre || ''),
@@ -13267,6 +15056,7 @@ const abrirPuntoVenta = () => {
 
   const guardarPagoProveedor = async (e) => {
     e.preventDefault();
+    if (guardandoPagoProveedor) return;
     const proveedor = textoSeguroTrim(formPagoProveedor?.proveedor, '');
     const monto = parseNumeroBasico(formPagoProveedor?.monto);
     if (!proveedor || monto <= 0) {
@@ -13280,12 +15070,38 @@ const abrirPuntoVenta = () => {
     const fechaPago = formPagoProveedor.fecha
       ? new Date(`${formPagoProveedor.fecha}T12:00:00`).toISOString()
       : new Date().toISOString();
-    const tipoAplicacion = textoSeguroTrim(formPagoProveedor?.tipoAplicacion, 'general');
+    const tipoAplicacion = textoSeguroTrim(formPagoProveedor?.tipoAplicacion, 'general') === 'general' ? 'general' : 'ticket_multi';
     const pedidoCompraIds = tipoAplicacion === 'general'
       ? []
       : (Array.isArray(formPagoProveedor?.pedidoCompraIds) ? formPagoProveedor.pedidoCompraIds.filter(Boolean) : []);
     if (tipoAplicacion !== 'general' && !pedidoCompraIds.length) {
       await notificarSistema('Seleccioná al menos un remito pendiente para aplicar el pago.', { tipo: 'warning', titulo: 'Remitos requeridos' });
+      return;
+    }
+    const restanteAplicacion = tipoAplicacion === 'general' ? 0 : resumenAplicacionPagoProveedor.restantePago;
+    const aplicacionesComprobantes = tipoAplicacion === 'general' ? [] : resumenAplicacionPagoProveedor.aplicaciones.map((resumenAplicacion) => {
+      const cargo = cargosPendientesPagoProveedor.find((item) => item.pedidoId === resumenAplicacion.pedidoCompraId);
+      if (!cargo) return null;
+      const comprobante = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(' ')
+        || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || '000000'}`);
+      return {
+        orden: resumenAplicacion.orden,
+        pedidoCompraId: cargo.pedidoId,
+        pedidoCompraNumero: cargo.numero || '',
+        comprobante,
+        fechaComprobante: cargo.fechaPedido || cargo.fecha || '',
+        saldoAntes: resumenAplicacion.pendiente,
+        montoAplicado: resumenAplicacion.aplicado,
+        saldoDespues: resumenAplicacion.saldoComprobanteDespues
+      };
+    }).filter((aplicacion) => aplicacion && aplicacion.montoAplicado > 0);
+    const otrosCargosPendientes = cargosPendientesPagoProveedor.filter((cargo) => !pedidoCompraIds.includes(cargo.pedidoId));
+    if (tipoAplicacion !== 'general' && restanteAplicacion > 0.009 && otrosCargosPendientes.length && !confirmarSaldoFavorPagoProveedor) {
+      setSobrantePagoProveedorDetectado(restanteAplicacion);
+      await notificarSistema(`Después de aplicar el pago queda un sobrante de ${formatearDinero(restanteAplicacion)}. Elegí otro remito o factura pendiente para aplicar ese importe.`, {
+        tipo: 'warning',
+        titulo: '¿A qué comprobante aplicamos el sobrante?'
+      });
       return;
     }
     const pedidoCompraId = pedidoCompraIds.length === 1 ? pedidoCompraIds[0] : '';
@@ -13309,51 +15125,72 @@ const abrirPuntoVenta = () => {
       pedidoCompraNumero: textoSeguroTrim(formPagoProveedor?.pedidoCompraNumero || pagoProveedorAEditar?.pedidoCompraNumero, ''),
       pedidoCompraEstado: textoSeguroTrim(formPagoProveedor?.pedidoCompraEstado || pagoProveedorAEditar?.pedidoCompraEstado, ''),
       tipoAplicacion,
-      pedidoCompraIds
+      pedidoCompraIds,
+      aplicacionesComprobantes,
+      montoAplicadoComprobantes: aplicacionesComprobantes.reduce((total, aplicacion) => total + Number(aplicacion.montoAplicado || 0), 0),
+      saldoFavorRegistrado: tipoAplicacion === 'general' ? 0 : Math.max(0, restanteAplicacion)
       ,impactaCaja: formPagoProveedor?.impactaCaja !== false,
+      impactaReportes: true,
       noImpactaCaja: formPagoProveedor?.impactaCaja === false,
+      noImpactaReportes: false,
       chequesRecibidosIds: Array.isArray(formPagoProveedor?.chequesRecibidosIds) ? formPagoProveedor.chequesRecibidosIds : []
     });
 
-    let pagoId = pagoProveedorAEditar?.id || '';
-    if (pagoId) {
-      await updateDoc(doc(db, 'pagos_proveedores', pagoId), payloadPagoProveedor);
-    } else {
-      const pagoRef = await addDoc(collection(db, 'pagos_proveedores'), payloadPagoProveedor);
-      pagoId = pagoRef.id;
-    }
-    await actualizarTrazabilidadChequesProveedor({
-      idsAnteriores: pagoProveedorAEditar?.chequesRecibidosIds || [],
-      idsNuevos: payloadPagoProveedor.chequesRecibidosIds || [],
-      pagoId,
-      proveedor,
-      proveedorId: proveedorDoc?.id || ''
-      ,pedidoCompraNumero: payloadPagoProveedor.pedidoCompraNumero || ''
-      ,pedidoCompraIds: payloadPagoProveedor.pedidoCompraIds || []
-    });
-    await sincronizarMovimientoPagoProveedor({ pagoId, pago: { id: pagoId, ...payloadPagoProveedor } });
-    await construirPdfPagoProveedor({ id: pagoId, ...payloadPagoProveedor }, { descargar: false });
-
-    if (pedidoCompraId) {
-      const pedidoRelacionado = obtenerPedidoCompraPorId(pedidoCompraId);
-      if (pedidoRelacionado) {
-        await updateDoc(doc(db, 'pedidos_compra', pedidoRelacionado.id), {
-          pagoRegistradoProveedor: true,
-          pagoRegistradoProveedorEn: new Date().toISOString(),
-          pagoRegistradoProveedorMonto: monto,
-          pagoRegistradoProveedorMetodo: textoSeguroTrim(formPagoProveedor?.metodoPago, 'transferencia'),
-          pagoRegistradoProveedorComprobante: textoSeguroTrim(formPagoProveedor?.numeroComprobante, ''),
-          pagoRegistradoProveedorPedidoEstado: textoSeguroTrim(pedidoRelacionado?.estado, 'guardado'),
-          fechaActualizacion: new Date().toISOString()
-        });
+    setGuardandoPagoProveedor(true);
+    try {
+      let pagoId = pagoProveedorAEditar?.id || '';
+      if (pagoId) {
+        await updateDoc(doc(db, 'pagos_proveedores', pagoId), payloadPagoProveedor);
+      } else {
+        const pagoRef = await addDoc(collection(db, 'pagos_proveedores'), payloadPagoProveedor);
+        pagoId = pagoRef.id;
       }
+      const ejecutarPasoSecundario = async (etiqueta, accion) => {
+        try { await accion(); } catch (error) { console.warn(`Pago guardado; no se pudo completar ${etiqueta}.`, error); }
+      };
+      await ejecutarPasoSecundario('la trazabilidad de cheques', () => actualizarTrazabilidadChequesProveedor({
+        idsAnteriores: pagoProveedorAEditar?.chequesRecibidosIds || [],
+        idsNuevos: payloadPagoProveedor.chequesRecibidosIds || [],
+        pagoId,
+        proveedor,
+        proveedorId: proveedorDoc?.id || '',
+        pedidoCompraNumero: payloadPagoProveedor.pedidoCompraNumero || '',
+        pedidoCompraIds: payloadPagoProveedor.pedidoCompraIds || []
+      }));
+      await ejecutarPasoSecundario('el movimiento de caja', () => sincronizarMovimientoPagoProveedor({ pagoId, pago: { id: pagoId, ...payloadPagoProveedor } }));
+      await ejecutarPasoSecundario('el recibo PDF', () => construirPdfPagoProveedor({ id: pagoId, ...payloadPagoProveedor }, { descargar: false }));
+
+      if (pedidoCompraId) {
+        const pedidoRelacionado = obtenerPedidoCompraPorId(pedidoCompraId);
+        if (pedidoRelacionado) {
+          await ejecutarPasoSecundario('la actualización del pedido', () => updateDoc(doc(db, 'pedidos_compra', pedidoRelacionado.id), {
+            pagoRegistradoProveedor: true,
+            pagoRegistradoProveedorEn: new Date().toISOString(),
+            pagoRegistradoProveedorMonto: monto,
+            pagoRegistradoProveedorMetodo: textoSeguroTrim(formPagoProveedor?.metodoPago, 'transferencia'),
+            pagoRegistradoProveedorComprobante: textoSeguroTrim(formPagoProveedor?.numeroComprobante, ''),
+            pagoRegistradoProveedorPedidoEstado: textoSeguroTrim(pedidoRelacionado?.estado, 'guardado'),
+            fechaActualizacion: new Date().toISOString()
+          }));
+        }
+      }
+      setPagoProveedorAEditar(null);
+      setSobrantePagoProveedorDetectado(0);
+      setConfirmarSaldoFavorPagoProveedor(false);
+      setModalActivo(null);
+      await notificarSistema('Pago registrado y distribuido en la cuenta del proveedor.', {
+        tipo: 'success',
+        titulo: 'Pago guardado'
+      });
+    } catch (error) {
+      console.error('No se pudo guardar el pago a proveedor.', error);
+      await notificarSistema(`No se pudo guardar el pago. ${textoSeguroTrim(error?.message, 'Revisá la conexión e intentá nuevamente.')}`, {
+        tipo: 'error',
+        titulo: 'Error al guardar pago'
+      });
+    } finally {
+      setGuardandoPagoProveedor(false);
     }
-    setPagoProveedorAEditar(null);
-    setModalActivo(null);
-    await notificarSistema('Pago registrado en la cuenta del proveedor.', {
-      tipo: 'success',
-      titulo: 'Pago guardado'
-    });
   };
 
   const manejarAdjuntosRecepcionCompra = async (files = []) => {
@@ -13624,11 +15461,19 @@ const abrirPuntoVenta = () => {
     const docPdf = crearPdfA4('landscape', { titulo: 'Cuenta corriente de proveedor' });
     const fechaEmision = new Date();
     const pageWidth = docPdf.internal.pageSize.getWidth();
+    const pageHeight = docPdf.internal.pageSize.getHeight();
     const logoFuente = textoSeguroTrim(
       configuracion?.logo,
       textoSeguroTrim(configuracion?.logoCorporativo, LOGO_EMPRESA_FALLBACK_URL)
     );
-    const logoEmpresa = logoFuente ? (logoFuente.startsWith('data:') ? logoFuente : await srcADataUrl(logoFuente)) : '';
+    let logoEmpresa = '';
+    if (logoFuente) {
+      try {
+        logoEmpresa = logoFuente.startsWith('data:') ? logoFuente : await srcADataUrl(logoFuente);
+      } catch (error) {
+        console.warn('No se pudo cargar el logo para la cuenta corriente de proveedor.', error);
+      }
+    }
     docPdf.setFillColor(255, 255, 255);
     docPdf.setDrawColor(219, 227, 239);
     docPdf.roundedRect(10, 8, pageWidth - 20, 24, 2, 2, 'FD');
@@ -13636,16 +15481,17 @@ const abrirPuntoVenta = () => {
       try {
         const propsLogo = docPdf.getImageProperties(logoEmpresa);
         const ratioLogo = (propsLogo?.width || 1) / Math.max(propsLogo?.height || 1, 1);
-        const boxLogo = { x: 14, y: 6, w: 52, h: 18 };
+        const boxLogo = { x: 14, y: 10, w: 52, h: 15 };
         let drawW = boxLogo.w;
         let drawH = drawW / Math.max(ratioLogo, 0.01);
         if (drawH > boxLogo.h) {
           drawH = boxLogo.h;
           drawW = drawH * ratioLogo;
         }
+        const drawX = boxLogo.x + ((boxLogo.w - drawW) / 2);
         const drawY = boxLogo.y + ((boxLogo.h - drawH) / 2);
         const formatoLogo = /image\/jpe?g/i.test(logoEmpresa) ? 'JPEG' : 'PNG';
-        docPdf.addImage(logoEmpresa, formatoLogo, boxLogo.x, drawY, drawW, drawH);
+        docPdf.addImage(logoEmpresa, formatoLogo, drawX, drawY, drawW, drawH);
       } catch (error) {
         console.warn('No se pudo insertar el logo en la cuenta corriente de proveedor.', error);
       }
@@ -13653,7 +15499,7 @@ const abrirPuntoVenta = () => {
     docPdf.setFont('helvetica', 'bold');
     docPdf.setTextColor(15, 23, 42);
     docPdf.setFontSize(11);
-    docPdf.text('CUENTA CORRIENTE DE PROVEEDOR', 14, 26);
+    docPdf.text('CUENTA CORRIENTE DE PROVEEDOR', 14, 28);
     docPdf.setFontSize(9);
     docPdf.text(`Emitido: ${formatearFecha(fechaEmision)} ${formatearHora(fechaEmision)}`, pageWidth - 14, 14, { align: 'right' });
 
@@ -13682,39 +15528,404 @@ const abrirPuntoVenta = () => {
     }
     docPdf.setTextColor(15, 23, 42);
 
+    const formatearFechaCuentaPdf = (valor = '') => {
+      try {
+        const fecha = new Date(valor);
+        return Number.isNaN(fecha.getTime()) ? '-' : formatearFecha(fecha);
+      } catch {
+        return '-';
+      }
+    };
+    const pagosProveedorPdf = Array.isArray(estado.pagos) ? estado.pagos : [];
+    const cargosProveedorPdf = Array.isArray(estado.cargosProcesados) ? estado.cargosProcesados : [];
+    const pagosPorId = new Map(pagosProveedorPdf.map((pago) => [pago?.id, pago]));
+    const pagosAplicadosIds = new Set();
+    const usarResumenSimpleProveedorPdf = true;
+    if (usarResumenSimpleProveedorPdf) {
+      const pagosResumenMap = new Map(pagosProveedorPdf.filter((pago) => pago?.id).map((pago) => {
+        const esCheque = ['cheque', 'echeq'].includes(normalizarMetodoPago(pago?.metodoPago));
+        const numero = textoSeguroTrim(pago?.numeroComprobante, '');
+        const emisor = textoSeguroTrim(pago?.emisor, '');
+        const plazo = esCheque && pago?.plazoDias !== undefined && pago?.plazoDias !== null && String(pago.plazoDias).trim() !== '' ? ` · Cheque a ${Math.max(0, parseNumeroBasico(pago.plazoDias))} días` : '';
+        return [pago.id, { id: pago.id, fecha: pago.fecha || pago.fechaCreacion || '', total: Math.max(0, Number(pago.monto || 0)), medio: `${obtenerEtiquetaMetodoPago(pago.metodoPago || 'transferencia')}${numero ? ` · N.º ${numero}` : ''}${emisor ? ` · Emisor: ${emisor}` : ''}${plazo}`, detalle: textoSeguroTrim(pago?.notas, ''), aplicado: 0, aplicaciones: [] }];
+      }));
+      cargosProveedorPdf.filter((cargo) => cargo?.imputableSaldo).forEach((cargo) => {
+        const comprobante = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(' ') || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || '000000'}`);
+        (Array.isArray(cargo?.pagosAplicados) ? cargo.pagosAplicados : []).forEach((aplicado) => {
+          const pago = pagosPorId.get(aplicado?.id);
+          if (!pago?.id) return;
+          if (!pagosResumenMap.has(pago.id)) pagosResumenMap.set(pago.id, { id: pago.id, fecha: pago.fecha || aplicado.fecha || '', total: Math.max(0, Number(pago.monto || 0)), medio: obtenerEtiquetaMetodoPago(pago.metodoPago || 'transferencia'), detalle: textoSeguroTrim(pago?.notas, ''), aplicado: 0, aplicaciones: [] });
+          const resumenPago = pagosResumenMap.get(pago.id);
+          const montoAplicado = Math.max(0, Number(aplicado?.monto || 0));
+          const fechaCargo = cargo?.fechaRemitoProveedor || cargo?.fechaPedido || cargo?.fechaRecepcion || cargo?.fecha;
+          const dias = calcularDiasEntreComprobanteYPago(fechaCargo, pago.fecha || pago.fechaCreacion || aplicado.fecha);
+          resumenPago.aplicado += montoAplicado;
+          resumenPago.aplicaciones.push({ comprobante, montoOriginal: Math.max(0, Number(cargo?.monto || 0)), aplicado: montoAplicado, saldoDespues: Math.max(0, Number(aplicado?.pendienteDespues || 0)), dias, desdeSaldoFavor: Boolean(aplicado?.desdeSaldoFavor) });
+        });
+      });
+      const pagosResumen = Array.from(pagosResumenMap.values()).sort((a, b) => new Date(a.fecha || 0) - new Date(b.fecha || 0)).map((pago) => ({ ...pago, sobrante: Math.max(0, Number(pago.total || 0) - Number(pago.aplicado || 0)) }));
+      const resultadoResumen = renderizarAplicacionesPagosPdf({ doc: docPdf, pagos: pagosResumen, startY: 78, tituloPago: 'PAGO REALIZADO', tituloVacio: 'No hay pagos realizados para detallar.' });
+      let pendienteY = resultadoResumen.cursorY;
+      if (pendienteY > pageHeight - 40) { docPdf.addPage(); pendienteY = 16; }
+      const cargosPendientes = cargosProveedorPdf.filter((cargo) => cargo?.imputableSaldo && Number(cargo?.pendiente || 0) > 0.009);
+      docPdf.setFont('helvetica', 'bold'); docPdf.setFontSize(9); docPdf.setTextColor(15, 23, 42);
+      docPdf.text('COMPROBANTES QUE TODAVÍA TIENEN SALDO', 14, pendienteY + 2);
+      pendienteY += 6;
+      if (cargosPendientes.length) {
+        autoTable(docPdf, { startY: pendienteY, head: [['Fecha', 'Comprobante', 'Valor original', 'Saldo pendiente']], body: cargosPendientes.map((cargo) => { const comprobante = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(' ') || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || '000000'}`); return [formatearFechaCuentaPdf(cargo?.fechaRemitoProveedor || cargo?.fechaPedido || cargo?.fechaRecepcion || cargo?.fecha), comprobante, formatearDinero(Number(cargo?.monto || 0)), formatearDinero(Number(cargo?.pendiente || 0))]; }), styles: { fontSize: 7.8, cellPadding: 1.7 }, headStyles: { fillColor: [185, 28, 28], textColor: 255, fontStyle: 'bold' }, columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right', fontStyle: 'bold' } }, margin: { left: 14, right: 14 } });
+      } else {
+        docPdf.setFont('helvetica', 'bold'); docPdf.setFontSize(8.5); docPdf.setTextColor(5, 150, 105); docPdf.text('No quedan comprobantes pendientes.', 18, pendienteY + 5);
+      }
+    }
+    if (!usarResumenSimpleProveedorPdf) {
+    docPdf.setFont('helvetica', 'bold');
+    docPdf.setFontSize(7);
+    docPdf.setTextColor(15, 23, 42);
+    docPdf.text('Rxx = remito/factura', 14, 75);
+    docPdf.setTextColor(5, 150, 105);
+    docPdf.text('Pxx = pago', 52, 75);
+    docPdf.setTextColor(217, 119, 6);
+    docPdf.text('naranja = sobrante transferido o saldo a favor', 78, 75);
+    let cursorCuentaY = 82;
+    const obtenerPaginaCuentaPdf = () => Number(
+      docPdf.internal?.getCurrentPageInfo?.()?.pageNumber
+      || docPdf.internal?.getNumberOfPages?.()
+      || 1
+    );
+    const asegurarEspacioCuenta = (alto = 35) => {
+      if (cursorCuentaY + alto <= pageHeight - 14) return;
+      docPdf.addPage();
+      cursorCuentaY = 20;
+    };
+    const dibujarConexionPagoPdf = ({ paginaOrigen, yOrigen, paginaDestino, yDestino }) => {
+      if (!paginaOrigen || !paginaDestino) return;
+      const paginaRetorno = obtenerPaginaCuentaPdf();
+      const xConexion = 11;
+      docPdf.setDrawColor(5, 150, 105);
+      docPdf.setFillColor(5, 150, 105);
+      docPdf.setLineWidth(0.65);
+      if (paginaOrigen === paginaDestino) {
+        docPdf.setPage(paginaOrigen);
+        docPdf.circle(xConexion, yOrigen, 1.15, 'F');
+        docPdf.line(xConexion, yOrigen, xConexion, yDestino);
+        docPdf.line(xConexion, yDestino, 16.5, yDestino);
+        docPdf.triangle(17.5, yDestino, 14.8, yDestino - 1.5, 14.8, yDestino + 1.5, 'F');
+      } else {
+        docPdf.setPage(paginaOrigen);
+        docPdf.circle(xConexion, yOrigen, 1.15, 'F');
+        docPdf.line(xConexion, yOrigen, xConexion, pageHeight - 7);
+        docPdf.triangle(xConexion, pageHeight - 5.5, xConexion - 1.5, pageHeight - 8.2, xConexion + 1.5, pageHeight - 8.2, 'F');
+        docPdf.setPage(paginaDestino);
+        docPdf.line(xConexion, 7, xConexion, yDestino);
+        docPdf.line(xConexion, yDestino, 16.5, yDestino);
+        docPdf.triangle(17.5, yDestino, 14.8, yDestino - 1.5, 14.8, yDestino + 1.5, 'F');
+      }
+      docPdf.setPage(paginaRetorno);
+    };
+    const dibujarConexionSaldoFavorPdf = ({ paginaOrigen, yOrigen, paginaDestino, yDestino }) => {
+      if (!paginaOrigen || !paginaDestino) return;
+      const paginaRetorno = obtenerPaginaCuentaPdf();
+      const xConexion = pageWidth - 11;
+      docPdf.setDrawColor(217, 119, 6); docPdf.setFillColor(217, 119, 6); docPdf.setLineWidth(0.75);
+      if (paginaOrigen === paginaDestino) {
+        docPdf.setPage(paginaOrigen); docPdf.circle(xConexion, yOrigen, 1.2, 'F'); docPdf.line(pageWidth - 18, yOrigen, xConexion, yOrigen); docPdf.line(xConexion, yOrigen, xConexion, yDestino); docPdf.line(xConexion, yDestino, pageWidth - 14.8, yDestino); docPdf.triangle(pageWidth - 17.5, yDestino, pageWidth - 14.8, yDestino - 1.5, pageWidth - 14.8, yDestino + 1.5, 'F');
+      } else {
+        docPdf.setPage(paginaOrigen); docPdf.circle(xConexion, yOrigen, 1.2, 'F'); docPdf.line(pageWidth - 18, yOrigen, xConexion, yOrigen); docPdf.line(xConexion, yOrigen, xConexion, pageHeight - 7); docPdf.triangle(xConexion, pageHeight - 5.5, xConexion - 1.5, pageHeight - 8.2, xConexion + 1.5, pageHeight - 8.2, 'F'); docPdf.setPage(paginaDestino); docPdf.line(xConexion, 7, xConexion, yDestino); docPdf.line(xConexion, yDestino, pageWidth - 14.8, yDestino); docPdf.triangle(pageWidth - 17.5, yDestino, pageWidth - 14.8, yDestino - 1.5, pageWidth - 14.8, yDestino + 1.5, 'F');
+      }
+      docPdf.setPage(paginaRetorno);
+    };
+    const descripcionPagoProveedorPdf = (pago = {}, aplicado = 0, pedidoCompraId = '', aplicacionCuenta = null) => {
+      const esCheque = ['cheque', 'echeq'].includes(normalizarMetodoPago(pago.metodoPago));
+      const cheque = esCheque && pago.numeroComprobante ? `Cheque N.º ${pago.numeroComprobante}` : '';
+      const plazo = esCheque && pago.plazoDias ? ` · a ${parseNumeroBasico(pago.plazoDias) || 0} días` : '';
+      const comprobante = cheque || (pago.numeroComprobante ? `N.º ${pago.numeroComprobante}` : '');
+      const emisor = textoSeguroTrim(pago?.emisor, '');
+      const aplicaciones = Array.isArray(pago?.aplicacionesComprobantes) ? pago.aplicacionesComprobantes : [];
+      const aplicacionActual = pedidoCompraId ? aplicaciones.find((item) => item?.pedidoCompraId === pedidoCompraId) : null;
+      const orden = aplicacionActual && aplicaciones.length > 1 ? ` · distribución ${aplicacionActual.orden || 1}/${aplicaciones.length}` : '';
+      const origenSaldoFavor = aplicacionCuenta?.desdeSaldoFavor ? ' · crédito de saldo a favor' : '';
+      return `${obtenerEtiquetaMetodoPago(pago.metodoPago || 'transferencia')}${comprobante ? ` · ${comprobante}` : ''}${emisor ? ` · Emisor: ${emisor}` : ''}${plazo}${orden}${origenSaldoFavor}`;
+    };
+    const aclaracionPagoProveedorPdf = (pago = {}) => {
+      const saldoFavor = Number(pago?.saldoFavorGenerado ?? pago?.saldoFavorRegistrado ?? 0);
+      const saldoFavorConsumido = Number(pago?.saldoFavorConsumido || 0);
+      const destinosSaldoFavor = cargosProveedorPdf.flatMap((cargo) => (cargo?.pagosAplicados || [])
+        .filter((aplicado) => aplicado?.id === pago?.id && aplicado?.desdeSaldoFavor)
+        .map((aplicado) => {
+          const comprobanteDestino = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(' ')
+            || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || '000000'}`);
+          return `${comprobanteDestino}: ${formatearDinero(Number(aplicado?.monto || 0))}`;
+        }));
+      return [
+        textoSeguroTrim(pago?.notas, ''),
+        saldoFavorConsumido > 0.009 ? `Saldo a favor utilizado: ${formatearDinero(saldoFavorConsumido)}` : '',
+        destinosSaldoFavor.length ? `Sobrante aplicado a ${destinosSaldoFavor.join(' · ')}` : '',
+        saldoFavor > 0.009 ? `Saldo a favor disponible: ${formatearDinero(saldoFavor)}` : ''
+      ].filter(Boolean).join(' · ') || '-';
+    };
+    const cargosPdf = cargosProveedorPdf.filter((cargo) => cargo?.imputableSaldo);
+    const referenciaCargoProveedorPdf = new Map(cargosPdf.map((cargo, indice) => {
+      const comprobante = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(' ')
+        || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || '000000'}`);
+      return [cargo.pedidoId || cargo.id, { codigo: `R${String(indice + 1).padStart(2, '0')}`, comprobante }];
+    }));
+    const trazabilidadPagosProveedorPdf = new Map(pagosProveedorPdf.filter((pago) => pago?.id).map((pago) => [pago.id, { id: pago.id, pago, fecha: pago.fecha || pago.fechaCreacion || '', total: Math.max(0, Number(pago.monto || 0)), aplicado: 0, aplicaciones: [], sobrante: 0 }]));
+    cargosPdf.forEach((cargo) => {
+      const referencia = referenciaCargoProveedorPdf.get(cargo.pedidoId || cargo.id) || { codigo: 'R--', comprobante: 'Comprobante' };
+      (cargo?.pagosAplicados || []).forEach((aplicado) => {
+        if (!aplicado?.id) return;
+        const pago = pagosPorId.get(aplicado.id) || {};
+        const traza = trazabilidadPagosProveedorPdf.get(aplicado.id) || { id: aplicado.id, pago, fecha: pago.fecha || aplicado.fecha || '', total: Math.max(0, Number(pago.monto || 0)), aplicado: 0, aplicaciones: [], sobrante: 0 };
+        const monto = Math.max(0, Number(aplicado.monto || 0));
+        traza.aplicado += monto;
+        traza.aplicaciones.push({ cargoId: cargo.pedidoId || cargo.id, codigo: referencia.codigo, comprobante: referencia.comprobante, monto, desdeSaldoFavor: Boolean(aplicado.desdeSaldoFavor) });
+        trazabilidadPagosProveedorPdf.set(aplicado.id, traza);
+      });
+    });
+    const pagosTrazadosProveedorPdf = Array.from(trazabilidadPagosProveedorPdf.values()).sort((a, b) => new Date(a.fecha || 0) - new Date(b.fecha || 0));
+    const codigoPagoProveedorPdf = new Map(pagosTrazadosProveedorPdf.map((traza, indice) => [traza.id, `P${String(indice + 1).padStart(2, '0')}`]));
+    pagosTrazadosProveedorPdf.forEach((traza) => { traza.sobrante = Math.max(0, traza.total - traza.aplicado); });
+    const coloresTrazabilidadProveedorPdf = [[5, 150, 105], [37, 99, 235], [124, 58, 237], [217, 119, 6], [8, 145, 178], [190, 24, 93]];
+    const colorPagoProveedorPdf = (pagoId = '') => coloresTrazabilidadProveedorPdf[Math.max(0, pagosTrazadosProveedorPdf.findIndex((traza) => traza.id === pagoId)) % coloresTrazabilidadProveedorPdf.length];
+    const rutaPagoProveedorPdf = (pagoId = '') => {
+      const traza = trazabilidadPagosProveedorPdf.get(pagoId);
+      if (!traza) return '-';
+      const codigo = codigoPagoProveedorPdf.get(pagoId) || 'P--';
+      const destinos = traza.aplicaciones.map((aplicacion) => `${aplicacion.codigo} ${formatearDinero(aplicacion.monto)}${aplicacion.desdeSaldoFavor ? ' (desde sobrante)' : ''}`).join(' => ');
+      return `${codigo} PAGADO ${formatearDinero(traza.total)}${destinos ? ` => ${destinos}` : ''}${traza.sobrante > 0.009 ? ` => SALDO A FAVOR ${formatearDinero(traza.sobrante)}` : ''}`;
+    };
+    const puntosPagoProveedorPdf = new Map();
+    const dibujarContinuidadPagoProveedorPdf = (pagoId = '', puntos = []) => {
+      if (puntos.length < 2) return;
+      const paginaRetorno = obtenerPaginaCuentaPdf();
+      const [r, g, b] = colorPagoProveedorPdf(pagoId);
+      const x = pageWidth - 8.5;
+      docPdf.setDrawColor(r, g, b); docPdf.setFillColor(r, g, b); docPdf.setTextColor(r, g, b); docPdf.setLineWidth(0.7);
+      puntos.forEach((punto, indice) => {
+        docPdf.setPage(punto.pagina);
+        docPdf.line(pageWidth - 17.8, punto.y, x, punto.y);
+        docPdf.circle(x, punto.y, 1.05, 'F');
+        docPdf.setFont('helvetica', 'bold'); docPdf.setFontSize(6.4);
+        docPdf.text(codigoPagoProveedorPdf.get(pagoId) || 'P--', x - 1.8, punto.y - 1.8, { align: 'right' });
+        const siguiente = puntos[indice + 1];
+        if (!siguiente) return;
+        if (punto.pagina === siguiente.pagina) {
+          docPdf.line(x, punto.y, x, siguiente.y);
+          docPdf.triangle(x, siguiente.y + 1.6, x - 1.35, siguiente.y - 1.1, x + 1.35, siguiente.y - 1.1, 'F');
+        } else {
+          docPdf.line(x, punto.y, x, pageHeight - 6.5);
+          docPdf.triangle(x, pageHeight - 5, x - 1.35, pageHeight - 7.7, x + 1.35, pageHeight - 7.7, 'F');
+          docPdf.setPage(siguiente.pagina);
+          docPdf.setDrawColor(r, g, b); docPdf.setFillColor(r, g, b);
+          docPdf.line(x, 6.5, x, siguiente.y);
+          docPdf.triangle(x, siguiente.y + 1.6, x - 1.35, siguiente.y - 1.1, x + 1.35, siguiente.y - 1.1, 'F');
+        }
+      });
+      docPdf.setPage(paginaRetorno);
+    };
+    const origenSaldoFavorPorPagoId = new Map();
+    const conexionesSaldoFavorPendientesPdf = [];
+    cargosPdf.forEach((cargo) => {
+      const compraSaldada = Number(cargo?.pendiente || 0) <= 0.009;
+      const comprobante = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(' ')
+        || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || '000000'}`);
+      const referenciaCargo = referenciaCargoProveedorPdf.get(cargo.pedidoId || cargo.id) || { codigo: 'R--', comprobante };
+      const pagosDelCargo = (Array.isArray(cargo?.pagosAplicados) ? cargo.pagosAplicados : [])
+        .map((aplicado) => ({ aplicado, pago: pagosPorId.get(aplicado?.id) }))
+        .filter((item) => item.aplicado && item.pago);
+      const pagosDesdeSaldoFavor = pagosDelCargo.filter(({ aplicado }) => aplicado?.desdeSaldoFavor);
+      const totalSaldoFavorAplicadoCargo = pagosDesdeSaldoFavor.reduce((total, { aplicado }) => total + Number(aplicado?.monto || 0), 0);
+      pagosDelCargo.forEach(({ aplicado }) => pagosAplicadosIds.add(aplicado.id));
+      asegurarEspacioCuenta(55);
+      const paginaCargo = obtenerPaginaCuentaPdf();
+      const inicioCargoY = cursorCuentaY;
+      docPdf.setFillColor(15, 23, 42);
+      docPdf.roundedRect(14, cursorCuentaY, pageWidth - 28, 8, 1.5, 1.5, 'F');
+      docPdf.setTextColor(255, 255, 255);
+      docPdf.setFont('helvetica', 'bold');
+      docPdf.setFontSize(9);
+      docPdf.text(`${referenciaCargo.codigo} · ${comprobante} · PC-${cargo.numero || '000000'}`, 18, cursorCuentaY + 5.5);
+      if (compraSaldada) {
+        docPdf.setFillColor(5, 150, 105);
+        docPdf.roundedRect(pageWidth - 61, cursorCuentaY + 1.2, 43, 5.6, 1.3, 1.3, 'F');
+        docPdf.setFontSize(7.2);
+        docPdf.text('COMPRA SALDADA', pageWidth - 39.5, cursorCuentaY + 5, { align: 'center' });
+      }
+      pagosDesdeSaldoFavor.forEach(({ aplicado, pago }) => conexionesSaldoFavorPendientesPdf.push({ pagoId: pago.id, paginaDestino: paginaCargo, yDestino: inicioCargoY + 4, comprobanteDestino: comprobante, montoAplicado: Number(aplicado?.monto || 0) }));
+      cursorCuentaY += 11;
+      if (totalSaldoFavorAplicadoCargo > 0.009) {
+        docPdf.setFont('helvetica', 'bold'); docPdf.setFontSize(7.8); docPdf.setTextColor(180, 83, 9);
+        const origenesCredito = pagosDesdeSaldoFavor.map(({ pago }) => { const numeroPago = textoSeguroTrim(pago?.numeroComprobante, ''); return numeroPago ? `pago ${numeroPago}` : `pago del ${formatearFechaCuentaPdf(pago?.fecha || pago?.fechaCreacion)}`; }).join(', ');
+        const lineasOrigenCredito = docPdf.splitTextToSize(`SALDO A FAVOR APLICADO: ${formatearDinero(totalSaldoFavorAplicadoCargo)} · proviene de ${origenesCredito}`, pageWidth - 36);
+        docPdf.text(lineasOrigenCredito, 18, cursorCuentaY + 3.5);
+        cursorCuentaY += Math.max(6, (lineasOrigenCredito.length * 3.4) + 2);
+      }
+      docPdf.setTextColor(15, 23, 42);
+      autoTable(docPdf, {
+        startY: cursorCuentaY,
+        head: [['Fecha', 'Recepción', 'Detalle', 'Monto', 'Saldo']],
+        body: [[
+          formatearFechaCuentaPdf(cargo.fechaPedido || cargo.fecha),
+          cargo.fechaRecepcion ? formatearFechaCuentaPdf(cargo.fechaRecepcion) : '-',
+          `${cargo.descripcion || 'Compra'}${cargo.items?.length ? ` (${cargo.items.length} ítems)` : ''}${Number(cargo.iva21 || 0) || Number(cargo.iva105 || 0) ? ` · IVA ${formatearDinero(Number(cargo.iva21 || 0) + Number(cargo.iva105 || 0))}` : ''}`,
+          formatearDinero(Number(cargo.monto || 0)),
+          formatearDinero(Number(cargo.pendiente || 0))
+        ]],
+        styles: { fontSize: 7.5, cellPadding: 1.6, overflow: 'linebreak' },
+        headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: 'bold' },
+        columnStyles: {
+          0: { cellWidth: 36 },
+          1: { cellWidth: 36 },
+          2: { cellWidth: 111 },
+          3: { cellWidth: 48, halign: 'right' },
+          4: { cellWidth: 38, halign: 'right' }
+        },
+        didParseCell: (data) => {
+          if (data.section === 'head' && [3, 4].includes(data.column.index)) data.cell.styles.halign = 'right';
+        },
+        margin: { left: 14, right: 14 }
+      });
+      cursorCuentaY = (docPdf.lastAutoTable?.finalY || cursorCuentaY + 15) + 2;
+      if (pagosDelCargo.length) {
+        const paginaPago = obtenerPaginaCuentaPdf();
+        const destinoConexionY = cursorCuentaY + 4;
+        docPdf.setFont('helvetica', 'bold');
+        docPdf.setFontSize(8);
+        docPdf.setTextColor(5, 150, 105);
+        docPdf.text('Pagos aplicados a este comprobante', 18, cursorCuentaY + 4);
+        cursorCuentaY += 7;
+        autoTable(docPdf, {
+          startY: cursorCuentaY,
+          head: [['Fecha', 'Pago / forma / emisor', 'Ruta completa del dinero', 'Pago total', 'Aplicado aquí', 'Saldo remito']],
+          body: pagosDelCargo.map(({ aplicado, pago }) => [
+            formatearFechaCuentaPdf(pago.fecha || pago.fechaCreacion),
+            `${codigoPagoProveedorPdf.get(pago.id) || 'P--'} · ${descripcionPagoProveedorPdf(pago, Number(aplicado.monto || 0), cargo.pedidoId, aplicado)}`,
+            `${rutaPagoProveedorPdf(pago.id)}\n${aclaracionPagoProveedorPdf(pago)}`,
+            formatearDinero(Number(pago.monto || 0)),
+            formatearDinero(Number(aplicado.monto || 0)),
+            formatearDinero(Number(aplicado.pendienteDespues || 0))
+          ]),
+          styles: { fontSize: 7.2, cellPadding: 1.5, overflow: 'linebreak' },
+          headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: 'bold' },
+          columnStyles: {
+            0: { cellWidth: 24 },
+            1: { cellWidth: 62 },
+            2: { cellWidth: 68, fontStyle: 'bold' },
+            3: { cellWidth: 34, halign: 'right' },
+            4: { cellWidth: 36, halign: 'right' },
+            5: { cellWidth: 37, halign: 'right' }
+          },
+          didParseCell: (data) => {
+            if (data.section === 'head' && [3, 4, 5].includes(data.column.index)) data.cell.styles.halign = 'right';
+            if (data.section === 'body') {
+              const pagoFila = pagosDelCargo[data.row.index]?.pago;
+              const color = colorPagoProveedorPdf(pagoFila?.id);
+              data.cell.styles.fillColor = color.map((valor) => Math.round(246 + ((valor / 255) * 8)));
+              if ([0, 1, 2].includes(data.column.index)) data.cell.styles.fontStyle = 'bold';
+              if (data.column.index === 1) data.cell.styles.textColor = color;
+            }
+          },
+          didDrawCell: (data) => {
+            if (data.section !== 'body' || data.column.index !== 0) return;
+            const itemPago = pagosDelCargo[data.row.index];
+            if (!itemPago?.pago?.id) return;
+            const puntos = puntosPagoProveedorPdf.get(itemPago.pago.id) || [];
+            puntos.push({ pagina: obtenerPaginaCuentaPdf(), y: Number(data.cell?.y || 0) + (Number(data.cell?.height || 0) / 2) });
+            puntosPagoProveedorPdf.set(itemPago.pago.id, puntos);
+            if (itemPago?.aplicado?.desdeSaldoFavor || Number(itemPago?.pago?.saldoFavorConsumido || 0) <= 0.009) return;
+            origenSaldoFavorPorPagoId.set(itemPago.pago.id, { paginaOrigen: obtenerPaginaCuentaPdf(), yOrigen: Number(data.cell?.y || 0) + (Number(data.cell?.height || 0) / 2), comprobanteOrigen: comprobante });
+          },
+          margin: { left: 18, right: 18 }
+        });
+        cursorCuentaY = (docPdf.lastAutoTable?.finalY || cursorCuentaY + 14) + 3;
+        dibujarConexionPagoPdf({
+          paginaOrigen: paginaCargo,
+          yOrigen: inicioCargoY + 4,
+          paginaDestino: paginaPago,
+          yDestino: destinoConexionY
+        });
+      } else {
+        docPdf.setFont('helvetica', 'italic');
+        docPdf.setFontSize(8);
+        docPdf.setTextColor(100, 116, 139);
+        docPdf.text('Sin pagos aplicados a este comprobante.', 18, cursorCuentaY + 4);
+        cursorCuentaY += 9;
+      }
+      docPdf.setFont('helvetica', 'bold');
+      docPdf.setFontSize(8.5);
+      if (compraSaldada) {
+        docPdf.setTextColor(5, 150, 105);
+        docPdf.text(`COMPRA SALDADA - ${comprobante}`, 18, cursorCuentaY + 4);
+      } else {
+        docPdf.setTextColor(185, 28, 28);
+        docPdf.text(`Saldo pendiente de ${comprobante}: ${formatearDinero(Number(cargo.pendiente || 0))}`, 18, cursorCuentaY + 4);
+      }
+      cursorCuentaY += 10;
+    });
+    const pagosGeneralesPdf = pagosProveedorPdf.filter((pago) => !pagosAplicadosIds.has(pago?.id) && !(pago?.pedidoCompraId || (Array.isArray(pago?.pedidoCompraIds) ? pago.pedidoCompraIds.length : 0)));
+    if (pagosGeneralesPdf.length) {
+      asegurarEspacioCuenta(35);
+      docPdf.setFont('helvetica', 'bold');
+      docPdf.setFontSize(10);
+      docPdf.setTextColor(15, 23, 42);
+      docPdf.text('PAGOS GENERALES SIN REMITO ASIGNADO', 14, cursorCuentaY);
+      cursorCuentaY += 5;
+      autoTable(docPdf, {
+        startY: cursorCuentaY,
+        head: [['Fecha', 'Forma / comprobante / emisor', 'Aclaración', 'Importe', 'Saldo a favor']],
+        body: pagosGeneralesPdf.map((pago) => [
+          formatearFechaCuentaPdf(pago.fecha || pago.fechaCreacion),
+          descripcionPagoProveedorPdf(pago),
+          aclaracionPagoProveedorPdf(pago),
+          formatearDinero(Number(pago.monto || 0)),
+          Number(pago.saldoFavorGenerado || 0) > 0.009 ? formatearDinero(pago.saldoFavorGenerado) : '-'
+        ]),
+        styles: { fontSize: 7.5, cellPadding: 1.6, overflow: 'linebreak' },
+        headStyles: { fillColor: [100, 116, 139], textColor: 255, fontStyle: 'bold' },
+        columnStyles: {
+          0: { cellWidth: 28 },
+          1: { cellWidth: 102 },
+          2: { cellWidth: 55, fontStyle: 'bold' },
+          3: { cellWidth: 42, halign: 'right' },
+          4: { cellWidth: 42, halign: 'right' }
+        },
+        didParseCell: (data) => {
+          if (data.section === 'head' && [3, 4].includes(data.column.index)) data.cell.styles.halign = 'right';
+          if (data.section === 'body' && data.column.index === 2) data.cell.styles.fontStyle = 'bold';
+        },
+        didDrawCell: (data) => {
+          if (data.section !== 'body' || data.column.index !== 0) return;
+          const pago = pagosGeneralesPdf[data.row.index];
+          if (!pago?.id || Number(pago?.saldoFavorConsumido || 0) <= 0.009) return;
+          origenSaldoFavorPorPagoId.set(pago.id, { paginaOrigen: obtenerPaginaCuentaPdf(), yOrigen: Number(data.cell?.y || 0) + (Number(data.cell?.height || 0) / 2), comprobanteOrigen: textoSeguroTrim(pago?.numeroComprobante, '') || 'Pago general' });
+        },
+        margin: { left: 14, right: 14 }
+      });
+      cursorCuentaY = (docPdf.lastAutoTable?.finalY || cursorCuentaY + 14) + 4;
+    }
+    conexionesSaldoFavorPendientesPdf.forEach((conexion) => {
+      const origen = origenSaldoFavorPorPagoId.get(conexion.pagoId);
+      if (!origen) return;
+      dibujarConexionSaldoFavorPdf({ paginaOrigen: origen.paginaOrigen, yOrigen: origen.yOrigen, paginaDestino: conexion.paginaDestino, yDestino: conexion.yDestino });
+    });
+    puntosPagoProveedorPdf.forEach((puntos, pagoId) => dibujarContinuidadPagoProveedorPdf(pagoId, puntos));
+
+    asegurarEspacioCuenta(32);
+    docPdf.setFont('helvetica', 'bold'); docPdf.setFontSize(9); docPdf.setTextColor(15, 23, 42);
+    docPdf.text('TRAZABILIDAD GENERAL DE PAGOS Y SOBRANTES', 14, cursorCuentaY + 2);
+    cursorCuentaY += 6;
     autoTable(docPdf, {
-      startY: 72,
-      head: [['Pedido', 'Recibido', 'Abonado', 'Tipo', 'Detalle', 'Método / Comp.', 'Debe', 'Haber', 'Pendiente']],
-      body: estado.movimientosDesc.map((mov) => {
-        const esPago = mov.tipoMovimiento === 'pago';
-        return [
-          esPago ? '-' : formatearFecha(mov.fechaPedido || mov.fecha),
-          esPago ? '-' : (mov.fechaRecepcion ? formatearFecha(mov.fechaRecepcion) : '-'),
-          esPago ? formatearFecha(mov.fecha || mov.fechaCreacion) : (mov.fechaPago ? formatearFecha(mov.fechaPago) : '-'),
-          esPago ? 'Pago' : 'Compra',
-          esPago
-            ? `${mov.numeroComprobante ? `${mov.numeroComprobante} - ` : ''}${mov.notas || 'Pago a proveedor'}${Array.isArray(mov.pedidoCompraIds) && mov.pedidoCompraIds.length ? ` · Aplicado a ${mov.pedidoCompraIds.map((id) => `PC-${(estado.cargosProcesados.find((cargo) => cargo.pedidoId === id)?.numero || '000000')}`).join(', ')}` : ''}`
-            : `${mov.descripcion || 'Pedido'}${mov.items?.length ? ` (${mov.items.length} ítems)` : ''}${Number(mov.impuestoProvincial || 0) || Number(mov.otrosImpuestos || 0) ? ` · Imp.: ${formatearDinero(Number(mov.impuestoProvincial || 0) + Number(mov.otrosImpuestos || 0))}` : ''}`,
-          esPago
-            ? `${obtenerEtiquetaMetodoPago(mov.metodoPago || 'transferencia')}${mov.numeroComprobante ? ` · ${mov.numeroComprobante}` : ''}`
-            : (mov.metodoPago ? `${obtenerEtiquetaMetodoPago(mov.metodoPago)}${mov.numeroComprobante ? ` · ${mov.numeroComprobante}` : ''}` : '-'),
-          esPago ? '-' : formatearDinero(Number(mov.monto || 0)),
-          esPago ? formatearDinero(Number(mov.monto || 0)) : '-',
-          esPago ? (Number(mov.saldoFavorGenerado || 0) > 0.009 ? `A favor ${formatearDinero(mov.saldoFavorGenerado)}` : '-') : formatearDinero(Number(mov.pendiente || 0))
-        ];
-      }),
-      styles: { fontSize: 7.5, cellPadding: 1.6, overflow: 'linebreak' },
-      headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
-      columnStyles: {
-        4: { cellWidth: 78 },
-        6: { halign: 'right' },
-        7: { halign: 'right' },
-        8: { halign: 'right' }
-      },
+      startY: cursorCuentaY,
+      head: [['Pago', 'Fecha', 'Recorrido completo', 'Total', 'Aplicado', 'A favor']],
+      body: pagosTrazadosProveedorPdf.length ? pagosTrazadosProveedorPdf.map((traza) => [codigoPagoProveedorPdf.get(traza.id) || 'P--', formatearFechaCuentaPdf(traza.fecha), rutaPagoProveedorPdf(traza.id), formatearDinero(traza.total), formatearDinero(traza.aplicado), traza.sobrante > 0.009 ? formatearDinero(traza.sobrante) : '-']) : [['-', '-', 'Sin pagos registrados', '-', '-', '-']],
+      styles: { fontSize: 7.2, cellPadding: 1.5, overflow: 'linebreak' },
+      headStyles: { fillColor: [30, 64, 109], textColor: 255, fontStyle: 'bold' },
+      columnStyles: { 0: { cellWidth: 18, fontStyle: 'bold' }, 1: { cellWidth: 25 }, 2: { cellWidth: 122, fontStyle: 'bold' }, 3: { cellWidth: 32, halign: 'right' }, 4: { cellWidth: 32, halign: 'right' }, 5: { cellWidth: 32, halign: 'right', fontStyle: 'bold' } },
       margin: { left: 14, right: 14 }
     });
-
-    const adjuntosImagen = estado.pagos.flatMap((pago) => (pago.adjuntos || [])
+    cursorCuentaY = (docPdf.lastAutoTable?.finalY || cursorCuentaY + 14) + 4;
+    }
+    const adjuntosImagen = pagosProveedorPdf.flatMap((pago) => (Array.isArray(pago?.adjuntos) ? pago.adjuntos : [])
       .filter((adj) => textoSeguroTrim(adj?.tipo, '').startsWith('image/') && textoSeguroTrim(adj?.dataUrl, ''))
       .map((adj) => ({ ...adj, pago }))
     );
@@ -13727,7 +15938,7 @@ const abrirPuntoVenta = () => {
       for (const adj of adjuntosImagen.slice(0, 6)) {
         try {
           docPdf.setFontSize(8);
-          docPdf.text(`${formatearFecha(adj.pago?.fecha)} - ${adj.nombre || 'Adjunto'}`, 14, y);
+          docPdf.text(`${formatearFechaCuentaPdf(adj.pago?.fecha)} - ${adj.nombre || 'Adjunto'}`, 14, y);
           docPdf.addImage(adj.dataUrl, adj?.tipo?.includes('png') ? 'PNG' : 'JPEG', 14, y + 3, 80, 55, undefined, 'FAST');
           y += 65;
           if (y > 250) {
@@ -13740,7 +15951,9 @@ const abrirPuntoVenta = () => {
       }
     }
 
-    docPdf.save(`cuenta_proveedor_${normalizarTextoArchivo(nombreProveedor)}_${obtenerFechaInputLocal()}.pdf`);
+    const nombreArchivoCuentaProveedor = `cuenta_proveedor_${normalizarTextoArchivo(nombreProveedor)}_${obtenerFechaInputLocal()}.pdf`;
+    const blobCuentaProveedor = docPdf.output('blob');
+    descargarArchivoTemporal(new File([blobCuentaProveedor], nombreArchivoCuentaProveedor, { type: 'application/pdf' }));
   };
 
   const calcularRutaProveedor = async () => {
@@ -14650,7 +16863,8 @@ const abrirPuntoVenta = () => {
     try {
       const descripcionFinal = textoSeguroTrim(formProducto.descripcion, '');
       const precioCompuesto = calcularPrecioCompuestoFormulario(formProducto);
-      const precioFinal = formProducto.esProductoCompuesto ? precioCompuesto : parseNumeroBasico(formProducto.precio);
+      const precioFinalBase = formProducto.esProductoCompuesto ? precioCompuesto : parseNumeroBasico(formProducto.precio);
+      const precioFinal = formProducto.esProductoCompuesto ? precioFinalBase : redondearPrecioProducto(precioFinalBase, formProducto.redondeoPrecio);
       if (!descripcionFinal) {
         await notificarSistema('Ingresá la descripción del producto.', {
           tipo: 'warning',
@@ -14697,10 +16911,14 @@ const abrirPuntoVenta = () => {
         return Boolean(idProductoEditando && idCandidato && idCandidato === idProductoEditando);
       };
       const codigoInternoNormalizado = normalizarCodigoParaComparar(codigoInternoFinal);
-      const duplicadoInterno = (productos || []).find((p) => {
+      const codigoInternoOriginal = normalizarCodigoParaComparar(
+        productoAEditar?.codigoInterno || (productoAEditar?.codigoTipoPrincipal !== 'barra' ? productoAEditar?.codigo : '') || ''
+      );
+      const cambioCodigoInterno = !idProductoEditando || codigoInternoNormalizado !== codigoInternoOriginal;
+      const duplicadoInterno = cambioCodigoInterno ? (productos || []).find((p) => {
         if (esProductoEditando(p)) return false;
         return [p?.codigo, p?.codigoInterno].some((valor) => normalizarCodigoParaComparar(valor || '') === codigoInternoNormalizado);
-      });
+      }) : null;
       if (duplicadoInterno) {
         await notificarSistema(`Ya existe un producto con ese código interno (${codigoInternoFinal}).`, {
           tipo: 'warning',
@@ -14709,7 +16927,9 @@ const abrirPuntoVenta = () => {
         return;
       }
       const codigoBarrasNormalizado = normalizarCodigoParaComparar(codigoBarrasFinal);
-      if (codigoBarrasNormalizado) {
+      const codigoBarrasOriginal = normalizarCodigoParaComparar(productoAEditar?.codigoBarras || '');
+      const cambioCodigoBarras = !idProductoEditando || codigoBarrasNormalizado !== codigoBarrasOriginal;
+      if (codigoBarrasNormalizado && cambioCodigoBarras) {
         const duplicadoBarras = (productos || []).find((p) => {
           if (esProductoEditando(p)) return false;
           return normalizarCodigoParaComparar(p?.codigoBarras || '') === codigoBarrasNormalizado
@@ -14867,6 +17087,7 @@ const abrirPuntoVenta = () => {
         ganancia: esProductoCompuesto ? parseNumeroBasico(calcularGananciaDesdePrecioVenta(costoCompuesto, precioFinal, formProducto.iva, 'ARS', 1, costoCompuesto, true)) : (gananciaParaGuardar || parseNumeroBasico(gananciaCalculada)),
         iva: formProducto.iva || '21',
         precio: precioFinal,
+        redondeoPrecio: formProducto.redondeoPrecio || 'ninguno',
         unidad: formProducto.unidad || 'unid',
         cantidad: esProductoCompuesto ? 0 : cantidadProductoFormulario,
         stockMinimo: esProductoCompuesto ? null : stockMinimoFormulario,
@@ -15226,11 +17447,57 @@ const abrirPuntoVenta = () => {
     }
   };
 
+  const iniciarOperacionPrecios = ({ titulo = '', fase = '', total = 0, detalle = '' } = {}) => {
+    setOperacionPreciosEnCurso({ activo: true, titulo, fase, total: Math.max(0, Number(total) || 0), procesadas: 0, detalle });
+  };
+
+  const actualizarOperacionPrecios = (cambios = {}) => {
+    setOperacionPreciosEnCurso((prev) => {
+      const nuevos = typeof cambios === 'function' ? cambios(prev) : cambios;
+      return { ...prev, ...(nuevos || {}) };
+    });
+  };
+
+  const finalizarOperacionPrecios = async (detalle = 'Operación finalizada.') => {
+    setOperacionPreciosEnCurso((prev) => ({ ...prev, fase: 'Completado', detalle }));
+    await esperarMs(900);
+    setOperacionPreciosEnCurso((prev) => ({ ...prev, activo: false }));
+  };
+
+  const construirDatosRespaldoPrecio = (producto = {}) => ({
+    codigo: producto?.codigo || '',
+    codigoInterno: producto?.codigoInterno || '',
+    codigoBarras: producto?.codigoBarras || '',
+    codigoProveedor: producto?.codigoProveedor || '',
+    precio: producto?.precio ?? '',
+    costo: producto?.costo ?? '',
+    costoOriginal: producto?.costoOriginal ?? '',
+    monedaCosto: producto?.monedaCosto || 'ARS',
+    proveedor: producto?.proveedor || '',
+    ganancia: producto?.ganancia ?? '',
+    iva: producto?.iva || '',
+    costoIvaIncluido: Boolean(producto?.costoIvaIncluido),
+    proveedoresCostos: (Array.isArray(producto?.proveedoresCostos) ? producto.proveedoresCostos : []).map((costo, index) => ({
+      proveedor: costo?.proveedor || '',
+      codigoProveedor: costo?.codigoProveedor || '',
+      costo: costo?.costo ?? '',
+      costoSinIva: costo?.costoSinIva ?? '',
+      gastoCosto: costo?.gastoCosto ?? '',
+      descuento: costo?.descuento ?? '',
+      moneda: costo?.moneda || 'ARS',
+      ivaIncluido: Boolean(costo?.ivaIncluido),
+      recomendado: Boolean(costo?.recomendado),
+      actualizado: costo?.actualizado || '',
+      orden: Number.isFinite(Number(costo?.orden)) ? Number(costo.orden) : index
+    }))
+  });
+
   const crearRespaldoPreciosPersistente = async ({
     productosObjetivo = [],
     tipo = 'actualizacion_precios',
     titulo = 'Respaldo de precios',
-    detalle = ''
+    detalle = '',
+    onProgreso = null
   } = {}) => {
     const productosUnicos = Array.from(
       new Map((productosObjetivo || []).filter((producto) => producto?.id).map((producto) => [producto.id, producto])).values()
@@ -15249,14 +17516,15 @@ const abrirPuntoVenta = () => {
       estado: 'disponible'
     }));
 
+    let procesadasRespaldo = 0;
     await ejecutarEnLotes(productosUnicos, async (producto) => {
-      const snapshotProducto = clonarEstructuraSimple(producto);
       await setDoc(doc(db, 'respaldos_precios', respaldoRef.id, 'productos', producto.id), limpiarDatoFirestore({
         productoId: producto.id,
         codigo: producto.codigo || '',
-        descripcion: producto.descripcion || '',
-        data: snapshotProducto
+        data: construirDatosRespaldoPrecio(producto)
       }));
+      procesadasRespaldo += 1;
+      if (typeof onProgreso === 'function') await onProgreso(procesadasRespaldo, productosUnicos.length);
     });
 
     return { id: respaldoRef.id, fecha, cantidad: productosUnicos.length };
@@ -15291,12 +17559,10 @@ const abrirPuntoVenta = () => {
       respaldar: async (producto = null) => {
         if (!producto?.id || idsRespaldados.has(producto.id)) return null;
         const refRespaldo = await asegurarCabecera();
-        const snapshotProducto = clonarEstructuraSimple(producto);
         await setDoc(doc(db, 'respaldos_precios', refRespaldo.id, 'productos', producto.id), limpiarDatoFirestore({
           productoId: producto.id,
           codigo: producto.codigo || '',
-          descripcion: producto.descripcion || '',
-          data: snapshotProducto
+          data: construirDatosRespaldoPrecio(producto)
         }));
         idsRespaldados.add(producto.id);
         cantidad += 1;
@@ -15349,14 +17615,17 @@ const abrirPuntoVenta = () => {
         return;
       }
 
+      actualizarOperacionPrecios({ activo: true, titulo: 'Restaurando respaldo de precios', fase: 'Restaurando productos', total: items.length, procesadas: 0, detalle: `Preparando ${items.length} producto(s)` });
+
       await ejecutarEnLotes(items, async (item) => {
         const productoId = item.productoId || item.id;
         if (!productoId || !item.data) return;
-        const { id: _idIgnorado, ...dataRestaurar } = clonarEstructuraSimple(item.data);
-        await setDoc(doc(db, 'productos', productoId), limpiarDatoFirestore({
+        const dataRestaurar = construirDatosRespaldoPrecio(item.data);
+        await updateDoc(doc(db, 'productos', productoId), limpiarDatoFirestore({
           ...dataRestaurar,
           fechaRestauracionPrecio: new Date().toISOString()
         }));
+        actualizarOperacionPrecios((prev) => ({ procesadas: prev.procesadas + 1 }));
       });
 
       await updateDoc(doc(db, 'respaldos_precios', respaldo.id), {
@@ -15364,6 +17633,7 @@ const abrirPuntoVenta = () => {
         fechaRestauracion: new Date().toISOString(),
         restauradoPor: usuarioActual?.nombre || usuarioActual?.username || ''
       });
+      await finalizarOperacionPrecios(`Se restauraron ${items.length} producto(s).`);
       await notificarSistema(`Se restauraron ${items.length} producto(s) desde el respaldo.`, {
         tipo: 'success',
         titulo: 'Respaldo restaurado'
@@ -15377,6 +17647,7 @@ const abrirPuntoVenta = () => {
       });
     } finally {
       setRestaurandoRespaldoPrecios('');
+      setOperacionPreciosEnCurso((prev) => prev.activo && prev.fase !== 'Completado' ? { ...prev, activo: false } : prev);
     }
   };
 
@@ -15422,11 +17693,13 @@ const abrirPuntoVenta = () => {
         id: producto.id,
         data: clonarEstructuraSimple(producto)
       }));
+      iniciarOperacionPrecios({ titulo: 'Actualización masiva de precios', fase: 'Generando respaldo previo', total: productosObjetivo.length, detalle: `Preparando ${productosObjetivo.length} producto(s)` });
       await crearRespaldoPreciosPersistente({
         productosObjetivo,
         tipo: 'modificacion_masiva_precio_individual',
         titulo: 'Antes de precios individuales',
-        detalle: `${productosObjetivo.length} producto(s) seleccionados`
+        detalle: `${productosObjetivo.length} producto(s) seleccionados`,
+        onProgreso: (procesadas, total) => actualizarOperacionPrecios({ procesadas, total, detalle: `Respaldo: ${procesadas} de ${total}` })
       });
       const updates = productosObjetivo
         .map((producto) => {
@@ -15445,7 +17718,11 @@ const abrirPuntoVenta = () => {
           ]);
         })
         .filter(Boolean);
-      await Promise.all(updates);
+      actualizarOperacionPrecios({ fase: 'Aplicando cambios', total: updates.length, procesadas: 0, detalle: `Actualizando ${updates.length} producto(s)` });
+      await Promise.all(updates.map(async (update) => {
+        await update;
+        actualizarOperacionPrecios((prev) => ({ procesadas: prev.procesadas + 1 }));
+      }));
       setUltimoCambioPreciosMasivo({
         fecha: new Date().toISOString(),
         porcentaje: null,
@@ -15453,6 +17730,7 @@ const abrirPuntoVenta = () => {
         cantidad: productosObjetivo.length,
         productos: snapshotsPrevios
       });
+      await finalizarOperacionPrecios(`Se actualizaron ${updates.length} producto(s).`);
       await notificarSistema(`Se actualizaron precios individuales en ${updates.length} producto(s).`, {
         tipo: 'success',
         titulo: 'Precios actualizados'
@@ -15475,11 +17753,13 @@ const abrirPuntoVenta = () => {
       id: producto.id,
       data: clonarEstructuraSimple(producto)
     }));
+    iniciarOperacionPrecios({ titulo: 'Actualización masiva de precios', fase: 'Generando respaldo previo', total: productosObjetivo.length, detalle: `Preparando ${productosObjetivo.length} producto(s)` });
     await crearRespaldoPreciosPersistente({
       productosObjetivo,
       tipo: modoAjuste === 'costo' ? 'modificacion_masiva_costos' : 'modificacion_masiva_precios',
       titulo: modoAjuste === 'costo' ? 'Antes de ajustar costos masivos' : 'Antes de ajustar precios masivos',
-      detalle: `${productosObjetivo.length} producto(s), ajuste ${formatearPorcentaje(porcentaje)}%`
+      detalle: `${productosObjetivo.length} producto(s), ajuste ${formatearPorcentaje(porcentaje)}%`,
+      onProgreso: (procesadas, total) => actualizarOperacionPrecios({ procesadas, total, detalle: `Respaldo: ${procesadas} de ${total}` })
     });
     const updates = productosObjetivo.map((producto) => {
       const fechaActualizacionPrecios = new Date().toISOString();
@@ -15524,7 +17804,11 @@ const abrirPuntoVenta = () => {
         modoAjuste === 'venta' ? registrarVariacionPrecio({ producto, precioAnterior: producto.precio, precioNuevo: payload.precio, proveedor: proveedorFiltroPrecio, origen: 'modificacion_masiva' }) : Promise.resolve(false)
       ]);
     });
-    await Promise.all(updates);
+    actualizarOperacionPrecios({ fase: 'Aplicando cambios', total: updates.length, procesadas: 0, detalle: `Actualizando ${updates.length} producto(s)` });
+    await Promise.all(updates.map(async (update) => {
+      await update;
+      actualizarOperacionPrecios((prev) => ({ procesadas: prev.procesadas + 1 }));
+    }));
     setUltimoCambioPreciosMasivo({
       fecha: new Date().toISOString(),
       porcentaje,
@@ -15532,6 +17816,7 @@ const abrirPuntoVenta = () => {
       cantidad: productosObjetivo.length,
       productos: snapshotsPrevios
     });
+    await finalizarOperacionPrecios(`Se ajustaron ${productosObjetivo.length} producto(s).`);
     await notificarSistema(`Se ajustaron ${productosObjetivo.length} producto(s) en ${formatearPorcentaje(porcentaje)}%.`, {
       tipo: 'success',
       titulo: 'Precios actualizados'
@@ -15896,11 +18181,27 @@ function obtenerCategoriaProducto(producto) {
     if (valor === null || valor === undefined) return null;
     const texto = valor.toString().trim().replace(/\s/g, '').replace(/[^0-9,.\-]/g, '');
     if (!texto) return null;
-    const normalizado = texto.includes(',') && texto.includes('.')
-      ? texto.replace(/\./g, '').replace(',', '.')
-      : texto.replace(',', '.');
+    const ultimoPunto = texto.lastIndexOf('.');
+    const ultimaComa = texto.lastIndexOf(',');
+    let normalizado = texto;
+    if (ultimoPunto >= 0 && ultimaComa >= 0) {
+      normalizado = ultimaComa > ultimoPunto
+        ? texto.replace(/\./g, '').replace(',', '.')
+        : texto.replace(/,/g, '');
+    } else if (ultimaComa >= 0 || ultimoPunto >= 0) {
+      const separador = ultimaComa >= 0 ? ',' : '.';
+      const partes = texto.split(separador);
+      const decimales = partes[partes.length - 1] || '';
+      normalizado = partes.length > 2 || decimales.length === 3
+        ? partes.join('')
+        : `${partes.slice(0, -1).join('') || '0'}.${decimales}`;
+    }
     const n = parseFloat(normalizado);
     return Number.isFinite(n) ? n : null;
+  };
+  const normalizarTituloColumnaImportacion = (valor, indice = 0) => {
+    const limpio = (valor ?? '').toString().replace(/^\uFEFF/, '').replace(/\s+/g, ' ').trim();
+    return limpio || `Columna ${indice + 1}`;
   };
   const parseCSVLine = (linea, delimitador) => {
     const resultado = [];
@@ -15930,7 +18231,7 @@ function obtenerCategoriaProducto(producto) {
     const lineas = texto.split(/\r?\n/).filter((l) => l.trim().length > 0);
     if (!lineas.length) return [];
     const delimitador = (lineas[0].match(/;/g) || []).length >= (lineas[0].match(/,/g) || []).length ? ';' : ',';
-    const headers = parseCSVLine(lineas[0], delimitador).map((h) => h.toString().trim().toLowerCase());
+    const headers = parseCSVLine(lineas[0], delimitador).map((h, indice) => normalizarTituloColumnaImportacion(h, indice));
     const rows = [];
     for (let i = 1; i < lineas.length; i += 1) {
       const values = parseCSVLine(lineas[i], delimitador);
@@ -15959,18 +18260,31 @@ function obtenerCategoriaProducto(producto) {
   const leerExcelInventario = async (file) => {
     const XLSX = await cargarSheetJs();
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array' });
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: false, raw: true, WTF: false });
     const firstSheetName = workbook.SheetNames[0];
     if (!firstSheetName) return [];
     const worksheet = workbook.Sheets[firstSheetName];
-    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
-    return rows.map((row) => {
-      const normalizado = {};
-      Object.keys(row || {}).forEach((key) => {
-        normalizado[key.toString().trim().toLowerCase()] = row[key];
-      });
-      return normalizado;
+    const matriz = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '', raw: true, blankrows: false });
+    const esEncabezadoProbable = (fila = []) => fila.filter((valor) => /codigo|c[oó]d|descrip|detalle|art[ií]culo|producto|precio|costo|stock|marca|sku|ean/i.test(String(valor || ''))).length;
+    const limite = Math.min(20, matriz.length);
+    let indiceEncabezado = -1;
+    let puntajeMayor = 0;
+    for (let i = 0; i < limite; i += 1) {
+      const puntaje = esEncabezadoProbable(matriz[i] || []);
+      if (puntaje > puntajeMayor) { puntajeMayor = puntaje; indiceEncabezado = i; }
+    }
+    if (indiceEncabezado < 0 || puntajeMayor === 0) indiceEncabezado = matriz.findIndex((fila) => (fila || []).some((valor) => String(valor ?? '').trim()));
+    if (indiceEncabezado < 0) return [];
+    const usados = new Map();
+    const encabezados = (matriz[indiceEncabezado] || []).map((valor, indice) => {
+      const base = normalizarTituloColumnaImportacion(valor, indice);
+      const repetida = usados.get(base) || 0;
+      usados.set(base, repetida + 1);
+      return repetida ? `${base} ${repetida + 1}` : base;
     });
+    return matriz.slice(indiceEncabezado + 1)
+      .filter((fila) => (fila || []).some((valor) => String(valor ?? '').trim()))
+      .map((fila) => encabezados.reduce((registro, encabezado, indice) => ({ ...registro, [encabezado]: fila?.[indice] ?? '' }), {}));
   };
   const obtenerValorFilaImport = (fila, claves) => {
     for (const k of claves) {
@@ -16927,6 +19241,7 @@ function obtenerCategoriaProducto(producto) {
       marca: prod.marca || '',
       precio: obtenerPrecioVentaProductoActualizado(prod) || prod.precio || '',
       unidad: prod.unidad || 'unid',
+      iva: textoSeguroTrim(prod?.iva, 'sin_iva'),
       costoBase: obtenerCostoProductoRealPesos(prod)
         || calcularCostoRealConIva(proveedor?.costoPesos || costoProveedorFallback, prod?.iva, Boolean(proveedor?.ivaIncluido))
         || calcularCostoRealConIva(parseNumeroBasico(prod.costo || 0), prod?.iva, Boolean(prod?.costoIvaIncluido)),
@@ -16966,21 +19281,19 @@ function obtenerCategoriaProducto(producto) {
     if (itemIdPuntoVentaParaStock) {
       setFormPuntoVenta((prev) => ({
         ...prev,
-        items: (prev.items || []).map((item) => (
-          item.id !== itemIdPuntoVentaParaStock
-            ? item
-            : {
-                ...item,
-                productoId: textoSeguroTrim(datosProducto.id || prod?.id, ''),
-                codigo: textoSeguroTrim(datosProducto.codigo, ''),
-                descripcion: textoSeguroTrim(datosProducto.descripcion, item.descripcion || ''),
-                marca: textoSeguroTrim(datosProducto.marca || prod?.marca, item.marca || ''),
-                precio: parseNumeroBasico(datosProducto.precio) > 0 ? String(parseNumeroBasico(datosProducto.precio)) : item.precio,
-                unidad: textoSeguroTrim(datosProducto.unidad, item.unidad || 'unid'),
-                imagen: textoSeguroTrim(datosProducto.imagen || prod?.imagen, item.imagen || ''),
-                logoMarca: textoSeguroTrim(datosProducto.logoMarca || prod?.logoMarca, item.logoMarca || '')
-              }
-        ))
+        items: (() => {
+          const actuales = [...(prev.items || [])];
+          const indice = actuales.findIndex((item) => item.id === itemIdPuntoVentaParaStock);
+          if (indice < 0) return actuales;
+          const anterior = actuales[indice];
+          actuales[indice] = {
+            ...anterior, productoId: textoSeguroTrim(datosProducto.id || prod?.id, ''), codigo: textoSeguroTrim(datosProducto.codigo, ''),
+            descripcion: textoSeguroTrim(datosProducto.descripcion, anterior.descripcion || ''), marca: textoSeguroTrim(datosProducto.marca || prod?.marca, anterior.marca || ''),
+            precio: parseNumeroBasico(datosProducto.precio) > 0 ? String(parseNumeroBasico(datosProducto.precio)) : anterior.precio,
+            unidad: textoSeguroTrim(datosProducto.unidad, anterior.unidad || 'unid'), iva: textoSeguroTrim(datosProducto.iva, anterior.iva || 'sin_iva'), imagen: textoSeguroTrim(datosProducto.imagen || prod?.imagen, anterior.imagen || ''), logoMarca: textoSeguroTrim(datosProducto.logoMarca || prod?.logoMarca, anterior.logoMarca || '')
+          };
+          return actuales;
+        })()
       }));
       setItemIdPuntoVentaParaStock('');
       setModalActivo('punto_venta');
@@ -17026,6 +19339,7 @@ function obtenerCategoriaProducto(producto) {
         marca: textoSeguroTrim(datosPrimero.marca || primero?.marca, ''),
         precio: parseNumeroBasico(datosPrimero.precio) > 0 ? String(parseNumeroBasico(datosPrimero.precio)) : (itemsActuales[itemObjetivoIndex]?.precio || ''),
         unidad: textoSeguroTrim(datosPrimero.unidad, itemsActuales[itemObjetivoIndex]?.unidad || 'unid'),
+        iva: textoSeguroTrim(datosPrimero.iva, itemsActuales[itemObjetivoIndex]?.iva || 'sin_iva'),
         imagen: textoSeguroTrim(datosPrimero.imagen || primero?.imagen, ''),
         logoMarca: textoSeguroTrim(datosPrimero.logoMarca || primero?.logoMarca, '')
       };
@@ -17039,6 +19353,7 @@ function obtenerCategoriaProducto(producto) {
           marca: textoSeguroTrim(datos.marca || prod?.marca, ''),
           cantidad: '1',
           unidad: textoSeguroTrim(datos.unidad, 'unid'),
+          iva: textoSeguroTrim(datos.iva, 'sin_iva'),
           precio: parseNumeroBasico(datos.precio) > 0 ? String(parseNumeroBasico(datos.precio)) : '',
           descuento: '0',
           imagen: textoSeguroTrim(datos.imagen || prod?.imagen, ''),
@@ -17348,6 +19663,7 @@ function obtenerCategoriaProducto(producto) {
     moneda: ['ARS', 'USD_BNA', 'USD_BLUE'].includes(item?.moneda) ? item.moneda : 'ARS',
     // Keep the raw value while editing so decimal cents are not lost between keystrokes.
     costoPesos: item?.costoPesos ?? '',
+    iva: item?.iva ?? ((productos || []).find((producto) => producto?.id === item?.productoId)?.iva ?? ''),
     descuento: item?.descuento ?? '',
     imagen: textoSeguroTrim(item?.imagen, ''),
     manual: Boolean(item?.manual)
@@ -17428,6 +19744,16 @@ function obtenerCategoriaProducto(producto) {
     return '';
   };
 
+  // En compras el costo de cada producto se trabaja siempre como neto.
+  // Si el costo del proveedor fue guardado con IVA incluido, lo llevamos a
+  // neto antes de mostrarlo; el IVA se suma al total cuando se selecciona.
+  const convertirCostoProveedorNetoParaPedidoCompra = (costo = {}, producto = {}) => {
+    const costoPesos = Math.max(0, convertirCostoProveedorAPesos(costo, producto));
+    if (!Boolean(costo?.ivaIncluido)) return costoPesos;
+    const factorIva = obtenerFactorIvaProducto(producto?.iva);
+    return factorIva > 0 ? costoPesos / (1 + factorIva) : costoPesos;
+  };
+
   const obtenerCostoBaseProductoParaPedidoCompra = (producto = {}, proveedor = '') => {
     const costo = producto?.costoOriginal ?? producto?.costo ?? '';
     const moneda = ['ARS', 'USD_BNA', 'USD_BLUE'].includes(producto?.monedaCosto) ? producto.monedaCosto : 'ARS';
@@ -17436,13 +19762,17 @@ function obtenerCategoriaProducto(producto) {
       codigoProveedor: textoSeguroTrim(producto?.proveedor, '') === textoSeguroTrim(proveedor, '') ? textoSeguroTrim(producto?.codigoProveedor, '') : '',
       costo,
       moneda,
-      costoPesos: Math.max(0, convertirCostoProveedorAPesos({ costo, moneda }, producto))
+      costoPesos: Math.max(0, convertirCostoProveedorNetoParaPedidoCompra({
+        costo,
+        moneda,
+        ivaIncluido: Boolean(producto?.costoIvaIncluido)
+      }, producto))
     };
   };
 
   const obtenerCostoProveedorParaPedidoCompra = (producto = {}, proveedor = '', costoPreferido = null) => {
     const costos = obtenerCostosProveedorProducto(producto)
-      .map((costo) => ({ ...costo, costoPesos: convertirCostoProveedorAPesos(costo, producto) }));
+      .map((costo) => ({ ...costo, costoPesos: convertirCostoProveedorNetoParaPedidoCompra(costo, producto) }));
     if (costoPreferido) {
       const costoExacto = costos.find((costo) => (
         normalizarTextoBusqueda(costo?.proveedor || '') === normalizarTextoBusqueda(costoPreferido?.proveedor || '')
@@ -17497,11 +19827,14 @@ function obtenerCategoriaProducto(producto) {
     setPedidoCompraEstado('guardado');
     setPedidoCompraNotas('');
     setPedidoCompraFechaPedido(obtenerFechaInputLocal());
+    setPedidoCompraFechaRecepcion('');
+    setPedidoCompraRemitoProveedor('');
     setPedidoCompraTransporte('');
     setCompraImpactaInventario(true);
     setMostrarTransportePedidoCompraPdf(false);
     setPedidoCompraDescuentoPct('');
     setPedidoCompraAjusteMonto('');
+    setPedidoCompraIva21(''); setPedidoCompraIva105(''); setPedidoCompraIngresosBrutos(''); setPedidoCompraFlete('');
     setModalActivo('pedido_compra');
   };
 
@@ -17525,6 +19858,8 @@ function obtenerCategoriaProducto(producto) {
     setPedidoCompraEstado('recibido');
     setPedidoCompraNotas('');
     setPedidoCompraFechaPedido(obtenerFechaInputLocal());
+    setPedidoCompraFechaRecepcion(obtenerFechaInputLocal());
+    setPedidoCompraRemitoProveedor('');
     setPedidoCompraTransporte('');
     setCompraImpactaInventario(true);
     setMostrarTransportePedidoCompraPdf(false);
@@ -17535,8 +19870,9 @@ function obtenerCategoriaProducto(producto) {
 
   const abrirPedidoCompraGuardado = (pedido = null) => {
     if (!pedido) return;
-    setCompraDirectaActiva(false);
-    setCompraDirectaMetodoPago('cuenta_corriente');
+    const esCompraDirectaGuardada = textoSeguroTrim(pedido?.tipoRegistro, '') === 'compra_directa';
+    setCompraDirectaActiva(esCompraDirectaGuardada);
+    setCompraDirectaMetodoPago(textoSeguroTrim(pedido?.detalleRecepcion?.metodoPago, textoSeguroTrim(pedido?.pagoRegistradoProveedorMetodo, 'cuenta_corriente')));
     setCompraDirectaMontoPagado('');
     setCompraDirectaTipoComprobante(textoSeguroTrim(pedido?.tipoComprobanteProveedor, ''));
     setCompraDirectaNumeroComprobante(textoSeguroTrim(pedido?.numeroComprobanteProveedor, ''));
@@ -17546,12 +19882,21 @@ function obtenerCategoriaProducto(producto) {
     setPedidoCompraEditandoId(pedido.id || '');
     setPedidoCompraEstado(textoSeguroTrim(pedido?.estado, 'guardado'));
     setPedidoCompraNotas(textoSeguroTrim(pedido?.notas, ''));
-    setPedidoCompraFechaPedido(textoSeguroTrim(pedido?.fechaPedido, textoSeguroTrim(pedido?.fechaComprobante, obtenerFechaInputLocal())));
+    const fechaPedidoGuardada = textoSeguroTrim(pedido?.fechaPedido, textoSeguroTrim(pedido?.fechaComprobante, textoSeguroTrim(pedido?.fechaCreacion, obtenerFechaInputLocal())));
+    const fechaRecepcionGuardada = textoSeguroTrim(pedido?.fechaRemitoProveedor, textoSeguroTrim(pedido?.fechaRecepcion, ''));
+    setPedidoCompraFechaPedido(esFechaInputValida(fechaPedidoGuardada) ? fechaPedidoGuardada : obtenerFechaInputLocal(fechaPedidoGuardada));
+    setPedidoCompraFechaRecepcion(fechaRecepcionGuardada ? (esFechaInputValida(fechaRecepcionGuardada) ? fechaRecepcionGuardada : obtenerFechaInputLocal(fechaRecepcionGuardada)) : '');
+    setPedidoCompraRemitoProveedor(textoSeguroTrim(pedido?.remitoProveedor, ''));
+    setProveedorCompraSeleccionado(obtenerProveedorPrincipalPedidoCompra(pedido));
     setPedidoCompraTransporte(textoSeguroTrim(pedido?.transporte, ''));
     setCompraImpactaInventario(pedido?.actualizarStock !== false && pedido?.actualizarCostos !== false);
     setMostrarTransportePedidoCompraPdf(Boolean(pedido?.mostrarTransporte));
     setPedidoCompraDescuentoPct(pedido?.descuentoPorcentaje ? String(pedido.descuentoPorcentaje) : '');
     setPedidoCompraAjusteMonto(pedido?.ajusteMonto ? String(pedido.ajusteMonto) : '');
+    setPedidoCompraIva21(pedido?.iva21 ?? '');
+    setPedidoCompraIva105(pedido?.iva105 ?? '');
+    setPedidoCompraIngresosBrutos(pedido?.ingresosBrutos ?? '');
+    setPedidoCompraFlete(pedido?.flete ?? '');
     setBusquedaProductosPedidoCompra('');
     setIncluirImagenPedidoCompraPdf(Boolean(pedido?.incluirImagenes));
     setMostrarPrecioUnitarioPedidoCompraPdf(pedido?.mostrarPrecioUnitario !== false);
@@ -17623,7 +19968,7 @@ function obtenerCategoriaProducto(producto) {
         unidad: item?.unidad || 'unid',
         cantidad: Math.max(0, parseNumeroPresupuesto(item?.cantidad) || 0),
         stock: Math.max(0, parseNumeroPresupuesto(item?.cantidad) || 0),
-        iva: '21',
+        iva: item?.iva || '',
         imagen: '',
         imagenes: [],
         esProductoCompuesto: false,
@@ -17664,6 +20009,7 @@ function obtenerCategoriaProducto(producto) {
           costo: costoProveedor.costo ?? '',
           moneda: costoProveedor.moneda || 'ARS',
           costoPesos: costoProveedor.costoPesos || 0,
+          iva: producto?.iva ?? '',
           imagen: producto.imagen || ''
         }, prev.length)
       ];
@@ -17694,7 +20040,10 @@ function obtenerCategoriaProducto(producto) {
         codigoProveedor: mejor?.codigoProveedor || fila.codigoProveedor || '',
         costo: mejor?.costo ?? '',
         moneda: mejor?.moneda || 'ARS',
-        costoPesos: mejor?.costoPesos || fila.costoPesos || 0,
+        costoPesos: producto && mejor
+          ? convertirCostoProveedorNetoParaPedidoCompra(mejor, producto)
+          : (fila.costoPesos || 0),
+        iva: producto?.iva ?? '',
         imagen: producto?.imagen || ''
       }, index);
     });
@@ -17711,6 +20060,8 @@ function obtenerCategoriaProducto(producto) {
     setPedidoCompraEstado('guardado');
     setPedidoCompraNotas(`Pedido sugerido por ranking de ventas (${periodoSugerencias === 'dia' ? 'día' : periodoSugerencias}).`);
     setPedidoCompraFechaPedido(obtenerFechaInputLocal());
+    setPedidoCompraFechaRecepcion('');
+    setPedidoCompraRemitoProveedor('');
     setPedidoCompraTransporte('');
     setCompraImpactaInventario(true);
     setMostrarTransportePedidoCompraPdf(false);
@@ -17765,7 +20116,9 @@ function obtenerCategoriaProducto(producto) {
         codigoProveedor: mejor.codigoProveedor || '',
         costo: mejor.costo ?? item.costo,
         moneda: mejor.moneda || 'ARS',
-        costoPesos: mejor.costoPesos || item.costoPesos
+        costoPesos: producto
+          ? convertirCostoProveedorNetoParaPedidoCompra(mejor, producto)
+          : item.costoPesos
       });
     }));
   };
@@ -17780,7 +20133,7 @@ function obtenerCategoriaProducto(producto) {
           || normalizarTextoBusqueda(p?.descripcion || '') === normalizarTextoBusqueda(item?.descripcion || '')
         ));
       const costos = obtenerCostosProveedorProducto(productoRelacionado)
-        .map((costo) => ({ ...costo, costoPesos: convertirCostoProveedorAPesos(costo) }))
+        .map((costo) => ({ ...costo, costoPesos: convertirCostoProveedorNetoParaPedidoCompra(costo, productoRelacionado) }))
         .filter((costo) => costo.costoPesos > 0)
         .sort((a, b) => a.costoPesos - b.costoPesos);
       const proveedorElegido = textoSeguroTrim(item?.proveedorCompra, '');
@@ -17813,6 +20166,8 @@ function obtenerCategoriaProducto(producto) {
     setPedidoCompraEstado('guardado');
     setPedidoCompraNotas(textoSeguroTrim(presupuesto?.notas || presupuesto?.observaciones, ''));
     setPedidoCompraFechaPedido(obtenerFechaInputLocal());
+    setPedidoCompraFechaRecepcion('');
+    setPedidoCompraRemitoProveedor('');
     setPedidoCompraTransporte('');
     setCompraImpactaInventario(true);
     setMostrarTransportePedidoCompraPdf(false);
@@ -17828,6 +20183,9 @@ function obtenerCategoriaProducto(producto) {
     setItemsPedidoCompra((prev) => prev.map((item) => {
       if (item.id !== itemId) return item;
       const actualizado = { ...item, [campo]: valor };
+      // No recortes mientras se escribe: si se borra o agrega un espacio,
+      // debe permanecer hasta que el usuario termine de editar la línea.
+      if (['codigo', 'descripcion', 'codigoProveedor'].includes(campo)) return actualizado;
       if (campo === 'costoPesos') {
         const costoPesos = String(valor ?? '').replace(',', '.');
         actualizado.costoPesos = costoPesos;
@@ -17886,8 +20244,16 @@ function obtenerCategoriaProducto(producto) {
     // The discount is now entered per item. Keep the legacy value at zero for old records.
     const descuentoPorcentaje = 0;
     const descuentoMonto = Math.max(0, subtotalBruto - subtotalBase);
-    const ajusteMonto = compraDirectaActiva ? parseNumeroConSigno(pedidoCompraAjusteMonto) : 0;
-    const totalEstimado = Math.max(0, subtotalBase + ajusteMonto);
+    const ajusteMonto = (compraDirectaActiva || pedidoCompraEditandoId) ? parseNumeroConSigno(pedidoCompraAjusteMonto) : 0;
+    const iva21 = compraDirectaActiva
+      ? calcularIvaAutomaticoPedidoCompra(filas, '21')
+      : (pedidoCompraEditandoId ? Math.max(0, parseNumeroBasico(pedidoCompraIva21)) : 0);
+    const iva105 = compraDirectaActiva
+      ? calcularIvaAutomaticoPedidoCompra(filas, '10.5')
+      : (pedidoCompraEditandoId ? Math.max(0, parseNumeroBasico(pedidoCompraIva105)) : 0);
+    const ingresosBrutos = Math.max(0, parseNumeroConSigno(pedidoCompraIngresosBrutos));
+    const flete = Math.max(0, parseNumeroConSigno(pedidoCompraFlete));
+    const totalEstimado = Math.max(0, subtotalBase + iva21 + iva105 + ingresosBrutos + flete + ajusteMonto);
     const itemsConProducto = compraDirectaActiva && compraImpactaInventario
       ? await crearProductosManualesDesdeCompra(filas)
       : filas;
@@ -17900,7 +20266,9 @@ function obtenerCategoriaProducto(producto) {
     const montoPagadoDirecto = compraDirectaActiva
       ? totalEstimado
       : Math.max(0, parseNumeroBasico(compraDirectaMontoPagado) || 0);
-    const requierePagoDirecto = compraDirectaActiva && !['pendiente', 'cuenta_corriente'].includes(metodoPagoDirecto);
+    const requierePagoDirecto = compraDirectaActiva
+      && !Boolean(pedidoAnterior?.pagoRegistradoProveedor)
+      && !['pendiente', 'cuenta_corriente'].includes(metodoPagoDirecto);
     if (requierePagoDirecto && montoPagadoDirecto <= 0) {
       await notificarSistema('Ingresá el monto pagado o elegí Cuenta corriente / Pendiente de pago.', {
         tipo: 'warning',
@@ -17942,6 +20310,7 @@ function obtenerCategoriaProducto(producto) {
         costo: item.costo ?? '',
         moneda: item.moneda || 'ARS',
         costoPesos: item.costoPesos || 0,
+        iva: item.iva || '',
         descuento: item.descuento ?? 0,
         descuentoMonto: item.descuentoMonto || 0,
         subtotalBase: item.subtotalBase || 0,
@@ -17955,12 +20324,21 @@ function obtenerCategoriaProducto(producto) {
       descuentoPorcentaje,
       descuentoMonto,
       ajusteMonto,
+      iva21,
+      iva105,
+      ingresosBrutos,
+      flete,
       totalEstimado,
-      tipoRegistro: compraDirectaActiva ? 'compra_directa' : 'pedido_compra',
-      tipoComprobanteProveedor: compraDirectaActiva ? textoSeguroTrim(compraDirectaTipoComprobante, '') : (pedidoAnterior?.tipoComprobanteProveedor || ''),
-      numeroComprobanteProveedor: compraDirectaActiva ? textoSeguroTrim(compraDirectaNumeroComprobante, '') : (pedidoAnterior?.numeroComprobanteProveedor || ''),
-      remitoProveedor: compraDirectaActiva ? comprobanteProveedor : (pedidoAnterior?.remitoProveedor || ''),
-      fechaRecepcion: compraDirectaActiva ? combinarFechaInputConHoraReferenciaISO(pedidoCompraFechaPedido || obtenerFechaInputLocal(), new Date()) : (pedidoAnterior?.fechaRecepcion || ''),
+      tipoRegistro: pedidoAnterior?.tipoRegistro || (compraDirectaActiva ? 'compra_directa' : 'pedido_compra'),
+      tipoComprobanteProveedor: (compraDirectaActiva || pedidoCompraEditandoId) ? textoSeguroTrim(compraDirectaTipoComprobante, '') : (pedidoAnterior?.tipoComprobanteProveedor || ''),
+      numeroComprobanteProveedor: (compraDirectaActiva || pedidoCompraEditandoId) ? textoSeguroTrim(compraDirectaNumeroComprobante, '') : (pedidoAnterior?.numeroComprobanteProveedor || ''),
+      remitoProveedor: (compraDirectaActiva || pedidoCompraEditandoId)
+        ? textoSeguroTrim(pedidoCompraRemitoProveedor, textoSeguroTrim(compraDirectaTipoComprobante, '').toLowerCase().includes('remito') ? textoSeguroTrim(compraDirectaNumeroComprobante, '') : '')
+        : (pedidoAnterior?.remitoProveedor || ''),
+      fechaRemitoProveedor: pedidoCompraFechaRecepcion || pedidoAnterior?.fechaRemitoProveedor || '',
+      fechaRecepcion: pedidoCompraFechaRecepcion
+        ? combinarFechaInputConHoraReferenciaISO(pedidoCompraFechaRecepcion, pedidoAnterior?.fechaRecepcion || new Date())
+        : (pedidoAnterior?.fechaRecepcion || (compraDirectaActiva ? combinarFechaInputConHoraReferenciaISO(pedidoCompraFechaPedido || obtenerFechaInputLocal(), new Date()) : '')),
       actualizarStock: Boolean(impactaInventario),
       actualizarCostos: Boolean(impactaInventario),
       stockActualizado: Boolean(pedidoAnterior?.stockActualizado || stockActualizadoAhora),
@@ -17972,7 +20350,7 @@ function obtenerCategoriaProducto(producto) {
       mostrarPrecioUnitario: mostrarPrecioUnitarioPedidoCompraPdf,
       mostrarSubtotal: mostrarSubtotalPedidoCompraPdf,
       mostrarTotal: mostrarTotalPedidoCompraPdf,
-      pagoRegistradoProveedor: compraDirectaActiva ? requierePagoDirecto : Boolean(pedidoAnterior?.pagoRegistradoProveedor),
+      pagoRegistradoProveedor: Boolean(pedidoAnterior?.pagoRegistradoProveedor || requierePagoDirecto),
       pagoRegistradoProveedorEn: compraDirectaActiva && requierePagoDirecto ? new Date().toISOString() : (pedidoAnterior?.pagoRegistradoProveedorEn || ''),
       pagoRegistradoProveedorMonto: compraDirectaActiva && requierePagoDirecto ? montoPagadoDirecto : (pedidoAnterior?.pagoRegistradoProveedorMonto || 0),
       pagoRegistradoProveedorMetodo: compraDirectaActiva && requierePagoDirecto ? metodoPagoDirecto : (pedidoAnterior?.pagoRegistradoProveedorMetodo || ''),
@@ -18087,6 +20465,14 @@ function obtenerCategoriaProducto(producto) {
         };
       })
       .filter(Boolean)
+  );
+
+  const calcularIvaAutomaticoPedidoCompra = (items = [], tasa = '21') => (
+    construirFilasPedidoCompra(items).reduce((total, item) => (
+      textoSeguroTrim(item?.iva, '') === tasa
+        ? total + (Number(item.subtotalBase || item.subtotal || 0) * (Number(tasa) / 100))
+        : total
+    ), 0)
   );
 
   const aplicarAjustesAFilasPedidoCompra = (filas = [], descuentoPct = 0, ajusteMonto = 0) => {
@@ -19165,8 +21551,7 @@ function obtenerCategoriaProducto(producto) {
     docPdf.text('Gracias por confiar', 150, y + 13.5, { align: 'center' });
 
     const fileName = obtenerNombreArchivoReciboCobro(resumen, true);
-    const blob = docPdf.output('blob');
-    return new File([blob], fileName, { type: 'application/pdf' });
+    return { docPdf, fileName };
   };
 
   const descargarReciboCobro = async (mov = null) => {
@@ -21387,6 +23772,10 @@ function obtenerCategoriaProducto(producto) {
     setVista(obtenerVistaInicialUsuario(usuarioActual));
   }, [vista, usuarioActual]);
 
+  useEffect(() => {
+    if (vista === 'tarjetas_planes') setSeccionConfiguracionActiva('tarjetas');
+  }, [vista]);
+
   // --- PANTALLAS DE CARGA Y LOGIN ---
   if (estadoConexion === 'error') {
     return (
@@ -21407,39 +23796,37 @@ function obtenerCategoriaProducto(producto) {
 
   if (!isDBReady || !usuariosCargados) {
     return (
-      <div className={`sf-app-shell sf-screen-${perfilPantalla.tipo} sf-density-${perfilPantalla.densidad} min-h-screen flex flex-col items-center justify-center bg-slate-50 font-sans px-4 text-center`}>
-        <Store size={48} className="text-blue-600 mb-4 animate-bounce" />
-        <p className="font-bold text-gray-500 animate-pulse text-lg">Conectando al servidor seguro...</p>
-        <p className="text-sm text-gray-400 mt-2">Cargando usuarios y sincronizando la base de datos</p>
+      <div className={`sf-auth-screen sf-screen-${perfilPantalla.tipo} sf-density-${perfilPantalla.densidad} min-h-[100dvh] flex items-center justify-center p-4 font-sans`}>
+        <div className="sf-auth-backdrop" />
+        <div className="sf-auth-card relative z-10 flex flex-col items-center text-center">
+          <img src="./assets/sf-mark.png" alt="SeniorFlow" className="h-16 w-28 object-contain" />
+          <div className="sf-auth-spinner mt-10" aria-label="Conectando" />
+          <p className="mt-7 text-base font-black tracking-tight text-slate-800">Conectando al servidor...</p>
+          <p className="mt-1 text-xs font-semibold text-slate-500">Sincronizando datos de forma segura</p>
+        </div>
       </div>
     );
   }
 
   if (!usuarioActual) {
     return (
-      <div className={`sf-app-shell sf-screen-${perfilPantalla.tipo} sf-density-${perfilPantalla.densidad} min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans`}>
-        <div className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden p-6 sm:p-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="flex flex-col items-center mb-8 text-center">
-            {configuracion.logo ? (
-              <img src={configuracion.logo} alt="Logo" className="w-20 h-20 object-contain rounded-2xl mb-4 shadow-sm" onError={(e) => { e.target.onerror = null; e.target.src = ''; e.target.className='hidden'; }} />
-            ) : (
-              <div className="bg-blue-600 p-4 rounded-2xl shadow-lg shadow-blue-200 mb-4"><Store size={40} className="text-white" /></div>
-            )}
-            <h1 className="text-3xl font-black text-gray-900 tracking-tight leading-tight">{configuracion.nombre || 'Mi Negocio'}</h1>
-            <p className="text-gray-500 mt-1 font-medium">Control de Caja y Gestión</p>
+      <div className={`sf-auth-screen sf-screen-${perfilPantalla.tipo} sf-density-${perfilPantalla.densidad} min-h-[100dvh] flex items-center justify-center p-4 font-sans`}>
+        <div className="sf-auth-backdrop" />
+        <div className="sf-auth-card relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="flex flex-col items-center mb-6 text-center">
+            <img src="./assets/sf-mark.png" alt="SeniorFlow" className="h-16 w-28 object-contain" />
+            <p className="mt-4 text-sm font-bold text-slate-500">{configuracion.nombre || 'Gestión empresarial'}</p>
           </div>
-
-          <form onSubmit={manejarLogin} className="space-y-4">
+          <form onSubmit={manejarLogin} className="space-y-3">
             {loginForm.error && <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm font-bold flex items-center gap-2 border border-red-100"><AlertCircle size={16} /> {loginForm.error}</div>}
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">Usuario</label>
-              <div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><User size={18} /></span><input type="text" required value={loginForm.username} onChange={(e) => setLoginForm({...loginForm, username: e.target.value})} className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm" placeholder="Ingresa tu usuario" autoComplete="username" /></div>
+              <div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><User size={18} /></span><input name="sf-login-usuario" type="text" required value={loginForm.username} onChange={(e) => setLoginForm({...loginForm, username: e.target.value})} className="sf-auth-input w-full pl-11 pr-4 py-2 outline-none font-bold text-sm" placeholder="Usuario" autoComplete={recordarme ? "username" : "off"} /></div>
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">Contraseña</label>
-              <div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><Lock size={18} /></span><input type="password" required value={loginForm.password} onChange={(e) => setLoginForm({...loginForm, password: e.target.value})} className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold tracking-widest text-sm" placeholder="••••••••" autoComplete="current-password" /></div>
+              <div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Lock size={18} /></span><input name="sf-login-clave" type="password" required value={loginForm.password} onChange={(e) => setLoginForm({...loginForm, password: e.target.value})} className="sf-auth-input w-full pl-11 pr-4 py-2 outline-none font-bold tracking-widest text-sm" placeholder="Contraseña" autoComplete={recordarme ? "current-password" : "new-password"} /></div>
             </div>
-            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-transform active:scale-95 mt-2 text-sm uppercase tracking-wider">INGRESAR AL SISTEMA</button>
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-500"><input type="checkbox" checked={recordarme} onChange={(e) => { setRecordarme(e.target.checked); if (!e.target.checked) window.localStorage.removeItem('seniorflow-login-recordarme'); }} className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500" /> Recordarme</label>
+            <button type="submit" className="sf-auth-submit w-full font-bold py-3 px-4 rounded-lg transition-transform active:scale-95 mt-2 text-sm">Ingresar</button>
           </form>
         </div>
       </div>
@@ -21464,6 +23851,7 @@ function obtenerCategoriaProducto(producto) {
   const puedeVerSistema = cajaSegura.estado === 'abierta' || esAdminActual;
   const puedeVerClientes = usuarioPuedeVerModulo('clientes', usuarioActual);
   const puedeVerVentas = usuarioPuedeVerModulo('ventas', usuarioActual);
+  const puedeVerVendedores = usuarioPuedeVerModulo('vendedores', usuarioActual);
   const puedeVerCaja = usuarioPuedeVerModulo('caja', usuarioActual);
   const puedeVerCuentasCorrientes = usuarioPuedeVerModulo('cuentas_corrientes', usuarioActual);
   const puedeUsarOfertas = usuarioPuedeVerModulo('ofertas', usuarioActual);
@@ -21487,6 +23875,7 @@ function obtenerCategoriaProducto(producto) {
   const mostrarNavegacion = [
     puedeVerCaja,
     puedeVerVentas,
+    puedeVerVendedores,
     puedeVerClientes,
     puedeVerCuentasCorrientes,
     puedeUsarCombos,
@@ -21511,6 +23900,8 @@ function obtenerCategoriaProducto(producto) {
     { visible: puedeVerNotificaciones, vista: 'notificaciones', etiqueta: 'Notificaciones', Icono: Bell, color: 'rose' },
     { visible: puedeVerCaja, vista: 'caja', etiqueta: 'Caja diaria', Icono: Wallet, color: 'blue' },
     { visible: puedeVerVentas, vista: 'ventas', etiqueta: 'Ventas', Icono: ClipboardList, color: 'emerald' },
+    { visible: puedeVerVendedores, vista: 'vendedores', etiqueta: 'Vendedores', Icono: UserCog, color: 'teal' },
+    { visible: puedeVerAjustes && usuarioActualSeguro.rol === 'admin', vista: 'tarjetas_planes', etiqueta: 'Tarjetas y planes', Icono: CreditCard, color: 'indigo' },
     { visible: puedeVerClientes || puedeVerCuentasCorrientes, vista: 'clientes', etiqueta: 'Cuentas corrientes', Icono: CreditCard, color: 'purple' },
     { visible: puedeVerPresupuestos, vista: 'presupuestos', etiqueta: 'Presupuestos', Icono: FileText, color: 'teal' },
     { visible: puedeUsarCombos, vista: 'combos', etiqueta: 'Presupuesto combo', Icono: FileText, color: 'indigo' },
@@ -21530,10 +23921,13 @@ function obtenerCategoriaProducto(producto) {
     { visible: puedeVerAyuda, vista: 'ayuda', etiqueta: 'Ayuda', Icono: BookOpen, color: 'blue' }
   ];
   const opcionesNavegacionVisibles = opcionesNavegacion.filter((opcion) => opcion.visible);
-  const limiteMenuLateral = perfilPantalla.alto < 860 ? 12 : 18;
-  const opcionesMenuLateral = paginaMenuLateral === 'principal'
-    ? opcionesNavegacionVisibles.slice(0, limiteMenuLateral)
-    : opcionesNavegacionVisibles.slice(limiteMenuLateral);
+  const obtenerRutaSidebar = (vistaRuta) => opcionesNavegacionVisibles.find((opcion) => opcion.vista === vistaRuta);
+  const gruposSidebar = [
+    { id: 'ventas', etiqueta: 'Ventas', Icono: ShoppingCart, rutas: ['ventas', 'vendedores', 'tarjetas_planes', 'caja', 'clientes', 'presupuestos', 'combos', 'flyer'] },
+    { id: 'inventario', etiqueta: 'Inventario', Icono: Package, rutas: ['inventario', 'stock_bajo', 'compras', 'variacion_precios', 'mod_masiva', 'sugerencias', 'comparativa'] }
+  ].map((grupo) => ({ ...grupo, hijos: grupo.rutas.map(obtenerRutaSidebar).filter(Boolean) })).filter((grupo) => grupo.hijos.length > 0);
+  const entradasSidebarGestion = ['notificaciones', 'proveedores', 'comparativa_paralela', 'rastreo'].map(obtenerRutaSidebar).filter(Boolean);
+  const entradasSidebarSistema = ['reportes', 'ajustes', 'ayuda'].map(obtenerRutaSidebar).filter(Boolean);
 
   const esAccionPersistente = (elemento) => {
     const texto = `${elemento?.textContent || ''} ${elemento?.getAttribute?.('title') || ''}`.toLowerCase();
@@ -21787,7 +24181,7 @@ function obtenerCategoriaProducto(producto) {
         .sf-enterprise-shell .sf-stat-card p:first-child { color:#687991; font-size:.7rem; font-weight:900; text-transform:uppercase; letter-spacing:.055em; }
         .sf-enterprise-shell .sf-stat-card h3 { color:#142441; font-size:1.55rem; letter-spacing:-.035em; }
         .sf-enterprise-shell .sf-module-page > div:first-child { border-color:#dfe7f1; box-shadow:0 3px 12px rgba(15,34,67,.06); }
-        .sf-enterprise-shell .sf-module-sales > div:first-child, .sf-enterprise-shell .sf-module-inventory > div:first-child { background:linear-gradient(135deg,#fff 0%,#f7fbff 100%); border-left:4px solid #1769d5; }
+        .sf-enterprise-shell .sf-module-sales > div:first-child, .sf-enterprise-shell .sf-module-inventory > div:first-child { background:linear-gradient(135deg,#fff 0%,#f7fbff 100%); border-left:4px solid #1769d5; padding-left:16px; }
         .sf-enterprise-shell .sf-module-sales > div:first-child h2, .sf-enterprise-shell .sf-module-inventory > div:first-child h2 { font-size:1.25rem; font-weight:900; }
         .sf-enterprise-shell .sf-module-sales > div:nth-child(3), .sf-enterprise-shell .sf-module-inventory > div:nth-child(2) { border-color:#dfe7f1; box-shadow:0 3px 12px rgba(15,34,67,.045); }
         .sf-enterprise-shell .sf-module-sales table tbody td, .sf-enterprise-shell .sf-module-inventory table tbody td { color:#3d4f68; }
@@ -21885,6 +24279,984 @@ function obtenerCategoriaProducto(producto) {
         .sf-enterprise-shell .sf-modal-body button.bg-emerald-600, .sf-enterprise-shell .sf-modal-body button.bg-green-600 { background:#079669; }
         .sf-enterprise-shell .sf-modal-body button.bg-purple-600, .sf-enterprise-shell .sf-modal-body button.bg-violet-600 { background:#6546d9; }
         .sf-enterprise-shell .sf-modal-body button.bg-red-600 { background:#d64545; }
+
+        /* SeniorFlow Design System · base visual compartida */
+        .sf-enterprise-shell {
+          --sf-canvas:#f8fafc;
+          --sf-surface:#ffffff;
+          --sf-surface-muted:#f4f7f8;
+          --sf-border-subtle:#e3e9ea;
+          --sf-border-strong:#cfdadc;
+          --sf-text:#1f2937;
+          --sf-text-secondary:#64748b;
+          --sf-text-muted:#94a3b8;
+          --sf-primary:#0f8d87;
+          --sf-primary-hover:#0b756f;
+          --sf-primary-soft:#e7f7f5;
+          --sf-success:#15803d;
+          --sf-warning:#b45309;
+          --sf-danger:#dc2626;
+          --sf-info:#2563eb;
+          background:var(--sf-canvas);
+          color:var(--sf-text);
+        }
+        .sf-enterprise-shell .sf-main {
+          background:var(--sf-canvas);
+          color:var(--sf-text);
+        }
+        .sf-enterprise-shell .sf-sidebar {
+          background:var(--sf-surface);
+          color:var(--sf-text);
+          border-right:1px solid var(--sf-border-subtle);
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-sidebar > div:first-child {
+          border-bottom-color:var(--sf-border-subtle);
+        }
+        .sf-enterprise-shell .sf-sidebar button {
+          color:#475569;
+          border:1px solid transparent;
+          border-radius:6px;
+          font-weight:600;
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-sidebar button:hover {
+          background:#f1f7f7;
+          color:#0f766e;
+        }
+        .sf-enterprise-shell .sf-sidebar button.sf-nav-active {
+          background:var(--sf-primary-soft);
+          color:#0f766e;
+          border-color:#c7e9e5;
+          box-shadow:inset 2px 0 var(--sf-primary);
+        }
+        .sf-enterprise-shell .sf-sidebar .sf-sidebar-label {
+          color:#94a3b8;
+          font-size:.62rem;
+          font-weight:700;
+          letter-spacing:.08em;
+        }
+        .sf-enterprise-shell .sf-sidebar .sf-brand-mark {
+          background:var(--sf-primary);
+          border-radius:8px;
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-sidebar .sf-brand-mark-white {
+          background:transparent;
+          border-radius:0;
+          filter:brightness(0) invert(1);
+        }
+        .sf-enterprise-shell .sf-topbar {
+          background:rgba(255,255,255,.98);
+          border-bottom:1px solid var(--sf-border-subtle);
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-breadcrumb {
+          color:var(--sf-text-secondary);
+          font-size:.8125rem;
+          font-weight:500;
+        }
+        .sf-enterprise-shell .sf-breadcrumb-current {
+          color:#334155;
+          font-weight:600;
+        }
+        .sf-enterprise-shell .sf-user-menu {
+          color:#334155;
+          font-size:.8125rem;
+          font-weight:600;
+        }
+        .sf-enterprise-shell .sf-user-avatar {
+          background:#eef2f3;
+          color:#475569;
+          border:1px solid var(--sf-border-subtle);
+        }
+        .sf-enterprise-shell .card,
+        .sf-enterprise-shell .table-container,
+        .sf-enterprise-shell .sf-main .bg-white.border.rounded-xl,
+        .sf-enterprise-shell .sf-main .bg-white.border.rounded-2xl,
+        .sf-enterprise-shell .sf-main .bg-white.border.rounded-3xl {
+          border-color:var(--sf-border-subtle);
+          border-radius:8px;
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .card:hover { box-shadow:none; }
+        .sf-enterprise-shell .sf-main .rounded-3xl,
+        .sf-enterprise-shell .sf-main .rounded-2xl,
+        .sf-enterprise-shell .sf-main .rounded-xl { border-radius:8px; }
+        .sf-enterprise-shell .sf-main .font-black { font-weight:700; }
+        .sf-enterprise-shell .sf-main .font-extrabold { font-weight:700; }
+        .sf-enterprise-shell .sf-main h1 { font-size:1.625rem; font-weight:700; letter-spacing:-.025em; }
+        .sf-enterprise-shell .sf-main h2 { font-weight:700; letter-spacing:-.018em; }
+        .sf-enterprise-shell .sf-main h3 { font-weight:650; }
+        .sf-enterprise-shell .sf-main .text-gray-500,
+        .sf-enterprise-shell .sf-main .text-slate-500 { color:var(--sf-text-secondary); }
+        .sf-enterprise-shell input,
+        .sf-enterprise-shell select,
+        .sf-enterprise-shell textarea {
+          border-color:var(--sf-border-strong);
+          border-radius:6px;
+          box-shadow:none;
+        }
+        .sf-enterprise-shell input:focus,
+        .sf-enterprise-shell select:focus,
+        .sf-enterprise-shell textarea:focus {
+          border-color:var(--sf-primary);
+          box-shadow:0 0 0 3px rgba(15,141,135,.12);
+        }
+        .sf-enterprise-shell table thead,
+        .sf-enterprise-shell .sf-module-inventory table thead {
+          background:#f8fafc;
+        }
+        .sf-enterprise-shell table thead th,
+        .sf-enterprise-shell .sf-module-inventory table thead th {
+          color:#64748b;
+          border-color:var(--sf-border-subtle);
+          font-size:.66rem;
+          font-weight:700;
+          letter-spacing:.035em;
+        }
+        .sf-enterprise-shell table tbody td { border-color:#edf1f2; }
+        .sf-enterprise-shell table tbody tr:hover { background:#f8fcfc; }
+        .sf-enterprise-shell .badge {
+          border-radius:4px;
+          font-weight:600;
+          letter-spacing:0;
+        }
+        .sf-enterprise-shell button.bg-blue-600,
+        .sf-enterprise-shell button.bg-indigo-600,
+        .sf-enterprise-shell button.bg-emerald-600,
+        .sf-enterprise-shell button.bg-green-600,
+        .sf-enterprise-shell button.bg-teal-600 {
+          background:var(--sf-primary);
+          border-radius:6px;
+          box-shadow:none;
+          font-weight:700;
+        }
+        .sf-enterprise-shell button.bg-blue-600:hover,
+        .sf-enterprise-shell button.bg-indigo-600:hover,
+        .sf-enterprise-shell button.bg-emerald-600:hover,
+        .sf-enterprise-shell button.bg-green-600:hover,
+        .sf-enterprise-shell button.bg-teal-600:hover { background:var(--sf-primary-hover); }
+        .sf-enterprise-shell .btn {
+          min-height:38px;
+          border-radius:6px;
+          box-shadow:none;
+          font-weight:600;
+        }
+        .sf-enterprise-shell .btn-primary { background:var(--sf-primary); border-color:var(--sf-primary); }
+        .sf-enterprise-shell .btn-primary:hover { background:var(--sf-primary-hover); border-color:var(--sf-primary-hover); }
+        .sf-enterprise-shell .sf-modal-panel {
+          border-color:var(--sf-border-subtle);
+          border-radius:10px;
+          box-shadow:0 18px 45px rgba(15,23,42,.18);
+        }
+        .sf-enterprise-shell .sf-modal-panel h2 { font-weight:700; }
+
+        /* Caja diaria · dashboard operativo */
+        .sf-enterprise-shell .sf-cash-header {
+          background:transparent;
+          border:0;
+          border-radius:0;
+          box-shadow:none;
+          padding:0 0 4px;
+        }
+        .sf-enterprise-shell .sf-cash-header .sf-cash-kicker {
+          color:#0f766e;
+          font-size:.68rem;
+          font-weight:700;
+          letter-spacing:.06em;
+          text-transform:uppercase;
+        }
+        .sf-enterprise-shell .sf-cash-header h1 { margin-top:2px; font-size:1.5rem; }
+        .sf-enterprise-shell .sf-cash-header p:last-child { color:var(--sf-text-secondary); font-size:.8125rem; }
+        .sf-enterprise-shell .sf-cash-kpis { gap:12px; }
+        .sf-enterprise-shell .sf-cash-kpi,
+        .sf-enterprise-shell .sf-cash-kpis .sf-stat-card {
+          min-height:94px;
+          border-radius:8px;
+          padding:16px;
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-cash-kpi:hover,
+        .sf-enterprise-shell .sf-cash-kpis .sf-stat-card:hover {
+          transform:none;
+          box-shadow:none;
+          border-color:#b8dcd9;
+        }
+        .sf-enterprise-shell .sf-cash-actions {
+          display:grid;
+          grid-template-columns:repeat(5,minmax(0,1fr));
+          gap:8px;
+          padding:0;
+        }
+        .sf-enterprise-shell .sf-cash-action {
+          min-height:38px;
+          padding:0 12px;
+          border-radius:6px;
+          box-shadow:none;
+          font-size:.75rem;
+          font-weight:600;
+          letter-spacing:0;
+          text-transform:none;
+        }
+        .sf-enterprise-shell .sf-cash-action.sf-cash-action-secondary {
+          background:#fff;
+          color:#334155;
+          border:1px solid var(--sf-border-strong);
+        }
+        .sf-enterprise-shell .sf-cash-action.sf-cash-action-danger { background:#dc2626; }
+        .sf-enterprise-shell .sf-cash-action.sf-cash-action-warning { background:#c2410c; }
+        .sf-enterprise-shell .sf-cash-panel {
+          border-radius:8px;
+          border-color:var(--sf-border-subtle);
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-cash-list-header {
+          padding:14px 16px;
+          background:#fff;
+          border-bottom-color:var(--sf-border-subtle);
+        }
+        .sf-enterprise-shell .sf-cash-list-header h3 {
+          font-size:.875rem;
+          font-weight:700;
+          letter-spacing:0;
+          text-transform:none;
+        }
+        .sf-enterprise-shell .sf-cash-list-header input { min-height:32px; }
+        .sf-enterprise-shell .sf-cash-row {
+          padding:12px 16px;
+          gap:12px;
+        }
+        .sf-enterprise-shell .sf-cash-row:hover { background:#f8fcfc; }
+        .sf-enterprise-shell .sf-cash-row .sf-cash-amount { font-size:1rem; font-weight:700; }
+        /* Ventas · panel comercial */
+        .sf-enterprise-shell .sf-sales-header {
+          background:transparent;
+          border:0;
+          border-radius:0;
+          box-shadow:none;
+          padding:0 0 4px;
+        }
+        .sf-enterprise-shell .sf-sales-header .sf-sales-kicker {
+          color:#0f766e;
+          font-size:.68rem;
+          font-weight:700;
+          letter-spacing:.06em;
+          text-transform:uppercase;
+        }
+        .sf-enterprise-shell .sf-sales-header h1 { margin-top:2px; font-size:1.5rem; }
+        .sf-enterprise-shell .sf-sales-header p:last-child { color:var(--sf-text-secondary); font-size:.8125rem; }
+        .sf-enterprise-shell .sf-sales-header .sf-sales-header-actions { display:flex; gap:8px; flex-wrap:wrap; }
+        .sf-enterprise-shell .sf-sales-header .sf-sales-header-actions button {
+          min-height:38px;
+          border-radius:6px;
+          padding:0 12px;
+          font-size:.75rem;
+          font-weight:600;
+          letter-spacing:0;
+          text-transform:none;
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-sales-kpis { gap:12px; }
+        .sf-enterprise-shell .sf-sales-kpis .sf-stat-card {
+          min-height:94px;
+          border-radius:8px;
+          padding:16px;
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-sales-filter,
+        .sf-enterprise-shell .sf-sales-table,
+        .sf-enterprise-shell .sf-sales-side > div {
+          border-color:var(--sf-border-subtle);
+          border-radius:8px;
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-sales-filter { padding:14px 16px; }
+        .sf-enterprise-shell .sf-sales-filter h3 {
+          font-size:.875rem;
+          font-weight:700;
+          text-transform:none;
+          letter-spacing:0;
+        }
+        .sf-enterprise-shell .sf-sales-table > div:first-child {
+          padding:14px 16px;
+          background:#fff;
+          border-bottom-color:var(--sf-border-subtle);
+        }
+        .sf-enterprise-shell .sf-sales-table > div:first-child h3 { font-weight:700; }
+        .sf-enterprise-shell .sf-sales-side > div { padding:16px; }
+        .sf-enterprise-shell .sf-sales-side strong { font-weight:700; }
+
+        /* Rediseño integral · módulos restantes */
+        .sf-enterprise-shell .sf-sidebar {
+          background:linear-gradient(180deg,#071d41 0%,#061633 100%);
+          color:#dbe7f7;
+          border-right:1px solid rgba(148,163,184,.18);
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-sidebar > div:first-child { border-bottom:1px solid rgba(226,232,240,.14); }
+        .sf-enterprise-shell .sf-sidebar .sf-brand-mark { background:transparent; border-radius:0; box-shadow:none; }
+        .sf-enterprise-shell .sf-sidebar button { color:#cbd8eb; border-color:transparent; border-radius:6px; }
+        .sf-enterprise-shell .sf-sidebar button:hover { background:rgba(255,255,255,.08); color:#fff; }
+        .sf-enterprise-shell .sf-sidebar button.sf-nav-active {
+          background:linear-gradient(90deg,rgba(35,105,190,.72),rgba(35,105,190,.34));
+          color:#fff;
+          box-shadow:inset 3px 0 #43c6a0;
+        }
+        .sf-enterprise-shell .sf-sidebar .text-slate-800 { color:#f8fafc; }
+        .sf-enterprise-shell .sf-sidebar .text-slate-400 { color:#9fb2cf; }
+        .sf-enterprise-shell .sf-sidebar .border-slate-800,
+        .sf-enterprise-shell .sf-sidebar .border-slate-700 { border-color:rgba(226,232,240,.14); }
+        .sf-enterprise-shell .sf-sidebar .bg-slate-800,
+        .sf-enterprise-shell .sf-sidebar .bg-slate-900 { background:rgba(255,255,255,.07); }
+        .sf-enterprise-shell .sf-topbar { background:rgba(255,255,255,.98); box-shadow:none; }
+        .sf-enterprise-shell .sf-main { background:#f7f9fc; }
+        .sf-enterprise-shell .sf-module-page > div:first-child:not(.sf-cash-header):not(.sf-sales-header),
+        .sf-enterprise-shell .sf-module-budgets > div:first-child,
+        .sf-enterprise-shell .sf-module-tracking > div:first-child,
+        .sf-enterprise-shell .sf-reports-page > div:first-child {
+          border-radius:8px;
+          border-color:var(--sf-border-subtle);
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-module-page > div:first-child h2,
+        .sf-enterprise-shell .sf-module-budgets > div:first-child h2,
+        .sf-enterprise-shell .sf-module-tracking > div:first-child h2,
+        .sf-enterprise-shell .sf-reports-page > div:first-child h2 { font-weight:700; }
+        .sf-enterprise-shell .sf-module-providers > div,
+        .sf-enterprise-shell .sf-module-clients > div,
+        .sf-enterprise-shell .sf-module-budgets > div,
+        .sf-enterprise-shell .sf-module-tracking > div,
+        .sf-enterprise-shell .sf-reports-page > div {
+          border-radius:8px;
+          border-color:var(--sf-border-subtle);
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-module-providers table thead,
+        .sf-enterprise-shell .sf-module-clients table thead,
+        .sf-enterprise-shell .sf-module-budgets table thead,
+        .sf-enterprise-shell .sf-module-tracking table thead,
+        .sf-enterprise-shell .sf-reports-page table thead,
+        .sf-enterprise-shell .sf-module-inventory table thead {
+          background:#edf8f7 !important;
+        }
+        .sf-enterprise-shell .sf-module-providers table thead th,
+        .sf-enterprise-shell .sf-module-clients table thead th,
+        .sf-enterprise-shell .sf-module-budgets table thead th,
+        .sf-enterprise-shell .sf-module-tracking table thead th,
+        .sf-enterprise-shell .sf-reports-page table thead th,
+        .sf-enterprise-shell .sf-module-inventory table thead th {
+          color:#356461 !important;
+          border-color:#d7ece9 !important;
+          font-size:.67rem;
+        }
+        .sf-enterprise-shell .sf-module-inventory table thead button { color:#356461; }
+        .sf-enterprise-shell .sf-module-inventory table thead button:hover { color:#0f766e; }
+        .sf-enterprise-shell .sf-module-providers table tbody tr:hover,
+        .sf-enterprise-shell .sf-module-clients table tbody tr:hover,
+        .sf-enterprise-shell .sf-module-budgets table tbody tr:hover,
+        .sf-enterprise-shell .sf-module-tracking table tbody tr:hover,
+        .sf-enterprise-shell .sf-module-inventory table tbody tr:hover { background:#f7fbfb; }
+        .sf-enterprise-shell .sf-module-providers .overflow-auto,
+        .sf-enterprise-shell .sf-module-clients .overflow-auto,
+        .sf-enterprise-shell .sf-module-budgets .sf-budget-list,
+        .sf-enterprise-shell .sf-module-tracking .sf-tracking-list,
+        .sf-enterprise-shell .sf-reports-page .sf-report-list,
+        .sf-enterprise-shell .sf-module-inventory .sf-inventory-table {
+          scrollbar-width:thin;
+          scrollbar-color:#b9d6d2 transparent;
+        }
+        .sf-enterprise-shell .sf-modal-panel { max-height:min(88vh,860px); }
+        .sf-enterprise-shell .sf-modal-panel .sf-modal-body { scrollbar-width:thin; scrollbar-color:#bfd2d9 transparent; }
+        .sf-enterprise-shell .sf-modal-panel .sf-modal-body > .space-y-5 > :not([hidden]) ~ :not([hidden]) { margin-top:.85rem; }
+        .sf-enterprise-shell .sf-module-stock-low .sf-stat-card,
+        .sf-enterprise-shell .sf-module-price-variation .sf-stat-card { min-height:88px; }
+        .sf-enterprise-shell .sf-screen-header.bg-slate-900 {
+          background:#fff;
+          border:1px solid var(--sf-border-subtle);
+          border-radius:8px;
+          box-shadow:none;
+          padding:10px;
+        }
+        .sf-enterprise-shell .sf-screen-header.bg-slate-900 > p { color:#64748b; }
+        .sf-enterprise-shell .sf-screen-header.bg-slate-900 .bg-slate-800 { background:#f7f9fc; color:#52627a; }
+        .sf-enterprise-shell .sf-screen-header.bg-slate-900 .bg-slate-700 { background:#eef7f6; color:#0f766e; }
+        .sf-enterprise-shell .sf-screen-header.bg-slate-900 button { border-radius:6px; min-height:52px; }
+        .sf-enterprise-shell .sf-screen-header.bg-slate-900 button:hover { box-shadow:none; }
+        .sf-enterprise-shell .sf-modal-panel > div:first-child { padding:14px 18px; }
+        .sf-enterprise-shell .sf-modal-panel .sf-modal-body { padding:16px 18px; }
+        .sf-enterprise-shell .sf-modal-panel button[type="submit"] { min-height:38px; border-radius:6px; box-shadow:none; }
+        .sf-enterprise-shell .sf-modal-panel form > .grid > label > span:first-child,
+        .sf-enterprise-shell .sf-modal-panel form > label > span:first-child {
+          color:#52627a;
+          font-size:.68rem;
+          font-weight:700;
+          letter-spacing:.055em;
+          text-transform:uppercase;
+        }
+        .sf-enterprise-shell .sf-modal-panel input,
+        .sf-enterprise-shell .sf-modal-panel select,
+        .sf-enterprise-shell .sf-modal-panel textarea { border-radius:6px; }
+        .sf-enterprise-shell .recibo-a4-sheet { border-color:#d9e6e5; border-radius:8px; box-shadow:none; }
+        .sf-enterprise-shell .recibo-a4-sheet .bg-slate-900 { background:#124b48; }
+        .sf-enterprise-shell .recibo-a4-sheet .border-slate-200 { border-color:#d9e6e5; }
+        /* Nueva venta / remito · workspace de operación */
+        .sf-enterprise-shell .sf-modal-panel:has(.sf-pv-workspace) { max-width:min(1420px,calc(100vw - 1rem)); }
+        .sf-enterprise-shell .sf-modal-fullscreen .sf-modal-body:has(.sf-pv-workspace) {
+          display:flex;
+          overflow:hidden;
+          padding:0;
+          background:#f7f9fc;
+        }
+        .sf-enterprise-shell .sf-pv-workspace {
+          padding:16px;
+          gap:12px;
+          max-width:1420px;
+        }
+        .sf-enterprise-shell .sf-pv-display-toolbar {
+          min-height:52px;
+          width:fit-content;
+          border-radius:8px;
+          background:#12355d;
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-pv-display-toolbar button {
+          min-height:32px;
+          border-radius:6px;
+          box-shadow:none;
+          font-size:.69rem;
+          letter-spacing:.025em;
+        }
+        .sf-enterprise-shell .sf-pv-context,
+        .sf-enterprise-shell .sf-pv-document { gap:10px; }
+        .sf-enterprise-shell .sf-pv-context .card,
+        .sf-enterprise-shell .sf-pv-document > div,
+        .sf-enterprise-shell .sf-pv-items,
+        .sf-enterprise-shell .sf-pv-summary > div {
+          border-color:#dbe7e6;
+          border-radius:8px;
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-pv-context .card { padding:14px; }
+        .sf-enterprise-shell .sf-pv-context input,
+        .sf-enterprise-shell .sf-pv-context select,
+        .sf-enterprise-shell .sf-pv-document input,
+        .sf-enterprise-shell .sf-pv-document select {
+          min-height:34px;
+          border-radius:6px;
+          border-color:#cfdfdd;
+          box-shadow:none;
+        }
+        .sf-enterprise-shell .sf-pv-document {
+          padding:12px 14px;
+          background:#fff;
+          border:1px solid #dbe7e6;
+          border-radius:8px;
+        }
+        .sf-enterprise-shell .sf-pv-document label { color:#52627a; font-size:.67rem; letter-spacing:.055em; }
+        .sf-enterprise-shell .sf-punto-venta-items.sf-pv-items {
+          height:auto;
+          min-height:180px;
+          padding:12px;
+          border-radius:8px;
+        }
+        .sf-enterprise-shell .sf-pv-items h3 { font-size:1rem; font-weight:700; }
+        .sf-enterprise-shell .sf-pv-items-scroll { border-color:#dfe8e7; border-radius:6px; scrollbar-width:thin; scrollbar-color:#aaccc8 transparent; }
+        .sf-enterprise-shell .sf-pv-items-scroll table thead { background:#edf8f7; }
+        .sf-enterprise-shell .sf-pv-items-scroll table thead th { color:#48716e; border-color:#d7ece9; }
+        .sf-enterprise-shell .sf-pv-items-scroll table tbody tr:hover { background:#f8fcfc; }
+        .sf-enterprise-shell .sf-pv-items-scroll input,
+        .sf-enterprise-shell .sf-pv-items-scroll select { border-radius:4px; }
+        .sf-enterprise-shell .sf-pv-summary { gap:12px; }
+        .sf-enterprise-shell .sf-pv-summary > div { padding:12px; }
+        .sf-enterprise-shell .sf-pv-summary textarea { min-height:50px; max-height:60px; border-radius:6px; }
+        .sf-enterprise-shell .sf-pv-summary > div:last-child {
+          border-left:3px solid #0f8d87;
+          background:#f4fbfa;
+        }
+        .sf-enterprise-shell .sf-pv-summary > div:last-child p:last-child { color:#087c76; font-size:1.65rem !important; font-weight:800; }
+        .sf-enterprise-shell .sf-pv-actions {
+          margin-top:0;
+          padding:12px 0 0;
+          border-color:#dbe7e6;
+        }
+        .sf-enterprise-shell .sf-pv-actions .btn { min-height:38px; border-radius:6px; box-shadow:none; }
+        .sf-enterprise-shell .sf-pv-actions .btn-primary { min-width:190px; }
+        @media (max-width:767px) {
+          .sf-enterprise-shell .sf-modal-fullscreen .sf-modal-body:has(.sf-pv-workspace) { overflow:auto; }
+          .sf-enterprise-shell .sf-pv-workspace { height:auto; min-height:100%; padding:10px; }
+          .sf-enterprise-shell .sf-pv-display-toolbar { width:100%; }
+          .sf-enterprise-shell .sf-punto-venta-items.sf-pv-items { min-height:300px; flex:none; }
+          .sf-enterprise-shell .sf-pv-actions .btn-primary { min-width:0; }
+        }
+        /* Ajustes · centro de configuración unificado */
+        .sf-enterprise-shell .sf-settings-page { width:100%; max-width:1400px; margin:0 auto; }
+        .sf-enterprise-shell .sf-settings-page-header { padding:2px 0 4px; }
+        .sf-enterprise-shell .sf-settings-breadcrumb { color:#72829a; font-size:.72rem; font-weight:600; }
+        .sf-enterprise-shell .sf-settings-breadcrumb span { color:#a1afc1; padding:0 .42rem; }
+        .sf-enterprise-shell .sf-settings-page-header h1 { margin-top:6px; font-size:1.55rem; font-weight:700; color:#17233c; }
+        .sf-enterprise-shell .sf-settings-page-header > p:last-child { color:#66778e; font-size:.82rem; margin-top:2px; }
+        .sf-enterprise-shell .sf-settings-nav {
+          position:relative;
+          top:auto;
+          z-index:auto;
+          background:#fff;
+          border-color:var(--sf-border-subtle);
+          border-radius:8px;
+          box-shadow:none;
+          padding:14px 16px;
+        }
+        .sf-enterprise-shell .sf-settings-nav > p { color:#52627a; padding:0 0 10px; font-size:.68rem; letter-spacing:.06em; }
+        .sf-enterprise-shell .sf-settings-nav > div { gap:8px; }
+        .sf-enterprise-shell .sf-settings-nav button {
+          min-height:72px;
+          background:#fff !important;
+          color:#506078 !important;
+          border:1px solid #e0e8ee !important;
+          border-radius:6px !important;
+          box-shadow:none !important;
+          font-size:.67rem;
+          letter-spacing:.025em;
+        }
+        .sf-enterprise-shell .sf-settings-nav button:hover { background:#f5faf9 !important; color:#0f766e !important; border-color:#b9dcd8 !important; }
+        .sf-enterprise-shell .sf-settings-nav button.bg-white,
+        .sf-enterprise-shell .sf-settings-nav button.bg-emerald-500,
+        .sf-enterprise-shell .sf-settings-nav button.bg-amber-500,
+        .sf-enterprise-shell .sf-settings-nav button.bg-violet-500,
+        .sf-enterprise-shell .sf-settings-nav button.bg-blue-500,
+        .sf-enterprise-shell .sf-settings-nav button.bg-slate-600,
+        .sf-enterprise-shell .sf-settings-nav button.bg-orange-500 {
+          background:#edf9f7 !important;
+          color:#087c76 !important;
+          border-color:#70c5bc !important;
+          box-shadow:inset 0 0 0 1px rgba(15,141,135,.05) !important;
+        }
+        .sf-enterprise-shell .sf-settings-content { max-width:none; margin:0; }
+        .sf-enterprise-shell .sf-settings-section {
+          border-color:var(--sf-border-subtle) !important;
+          border-radius:8px !important;
+          box-shadow:none !important;
+          background:#fff;
+        }
+        .sf-enterprise-shell .sf-settings-section-header {
+          background:#fff;
+          border-color:#e2eaef;
+          border-radius:6px;
+          padding:14px 16px;
+        }
+        .sf-enterprise-shell .sf-settings-section-header > div:first-child > p:first-child { color:#0f8d87; }
+        .sf-enterprise-shell .sf-settings-section-header button { min-height:34px; border-radius:6px; box-shadow:none; }
+        .sf-enterprise-shell .sf-settings-content form > div.space-y-4 > div[class*="border"] {
+          border-color:#dce8e7 !important;
+          border-radius:8px !important;
+          background:#fff !important;
+        }
+        .sf-enterprise-shell .sf-settings-content form > div.space-y-4 > div[class*="border"] > div {
+          background:#fff !important;
+          border-color:#dce8e7 !important;
+        }
+        .sf-enterprise-shell .sf-settings-content input,
+        .sf-enterprise-shell .sf-settings-content select,
+        .sf-enterprise-shell .sf-settings-content textarea { border-radius:6px !important; border-color:#cfdfdd !important; }
+        .sf-enterprise-shell .sf-settings-content input:focus,
+        .sf-enterprise-shell .sf-settings-content select:focus,
+        .sf-enterprise-shell .sf-settings-content textarea:focus { border-color:#0f8d87 !important; box-shadow:0 0 0 3px rgba(15,141,135,.12) !important; }
+        .sf-enterprise-shell .sf-settings-access > button { padding:18px 20px; border-bottom:1px solid #e3eceb; }
+        .sf-enterprise-shell .sf-settings-access > button > div > div:first-child { background:#edf9f7; color:#087c76; box-shadow:none; }
+        .sf-enterprise-shell .sf-settings-access > button > div > div:first-child svg { color:#087c76; }
+        .sf-enterprise-shell .sf-settings-access > div { padding:18px 20px 20px; }
+        .sf-enterprise-shell .sf-settings-primary-action { background:#0f8d87 !important; min-height:36px; border-radius:6px !important; box-shadow:none !important; }
+        .sf-enterprise-shell .sf-settings-primary-action:hover { background:#08766f !important; }
+        .sf-enterprise-shell .sf-settings-access table thead { background:#f6faf9; }
+        .sf-enterprise-shell .sf-settings-access table thead th { color:#5a7080; border-color:#dfe9e8; }
+        .sf-enterprise-shell .sf-settings-access table tbody tr:hover { background:#f8fcfc; }
+        .sf-enterprise-shell .sf-settings-access code { background:#edf9f7 !important; color:#087c76 !important; }
+        /* Nuevo producto · workspace de inventario */
+        .sf-enterprise-shell .sf-modal-fullscreen .sf-modal-body:has(.sf-product-workspace) {
+          padding:0;
+          background:#f7f9fc;
+        }
+        .sf-enterprise-shell .sf-product-workspace {
+          max-width:1480px;
+          padding:16px;
+          padding-bottom:86px;
+          margin:0 auto;
+          color:#24364e;
+        }
+        .sf-enterprise-shell .sf-product-workspace > div { margin-top:14px; }
+        .sf-enterprise-shell .sf-product-workspace h3 { color:#253952; font-size:.73rem; font-weight:700; letter-spacing:.06em; margin-bottom:9px; }
+        .sf-enterprise-shell .sf-product-workspace label { color:#5d6e84; font-size:.66rem; letter-spacing:.045em; }
+        .sf-enterprise-shell .sf-product-workspace input,
+        .sf-enterprise-shell .sf-product-workspace select,
+        .sf-enterprise-shell .sf-product-workspace textarea { border-color:#d5e1e0; border-radius:6px; box-shadow:none; }
+        .sf-enterprise-shell .sf-product-workspace input:focus,
+        .sf-enterprise-shell .sf-product-workspace select:focus,
+        .sf-enterprise-shell .sf-product-workspace textarea:focus { border-color:#0f8d87; box-shadow:0 0 0 3px rgba(15,141,135,.11); }
+        .sf-enterprise-shell .sf-product-images > .grid { gap:12px; }
+        .sf-enterprise-shell .sf-product-images > .grid > div > div[class*="min-h"] {
+          min-height:98px;
+          padding:10px;
+          border-width:1px;
+          border-color:#cbdedc;
+          border-radius:8px;
+          background:#fff;
+        }
+        .sf-enterprise-shell .sf-product-images > .grid > div > div[class*="min-h"] .min-h-\[126px\] { min-height:76px; }
+        .sf-enterprise-shell .sf-product-images > .grid > div > div[class*="min-h"] .h-24 { height:62px; }
+        .sf-enterprise-shell .sf-product-images button,
+        .sf-enterprise-shell .sf-product-images label.btn { min-height:30px; border-radius:5px; box-shadow:none; }
+        .sf-enterprise-shell .sf-product-images > .grid > div > .mt-3 { margin-top:8px; display:flex; justify-content:flex-start; }
+        .sf-enterprise-shell .sf-product-images > .grid > div > .mt-3 button { min-height:30px; padding:.35rem .7rem; border-radius:5px; }
+        .sf-enterprise-shell .sf-product-stock,
+        .sf-enterprise-shell .sf-product-general,
+        .sf-enterprise-shell .sf-product-pricing {
+          background:#fff;
+          border:1px solid #dce8e7;
+          border-radius:8px;
+          padding:12px 14px;
+        }
+        .sf-enterprise-shell .sf-product-stock > .grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+        .sf-enterprise-shell .sf-product-stock .sm\:col-span-2 { grid-column:span 1 / span 1; }
+        .sf-enterprise-shell .sf-product-stock .sm\:col-span-3 { grid-column:span 4 / span 4; }
+        .sf-enterprise-shell .sf-product-stock .space-y-2 { display:contents; }
+        .sf-enterprise-shell .sf-product-stock .grid.grid-cols-1.sm\:grid-cols-2 { display:contents; }
+        .sf-enterprise-shell .sf-product-stock input,
+        .sf-enterprise-shell .sf-product-stock select,
+        .sf-enterprise-shell .sf-product-general input,
+        .sf-enterprise-shell .sf-product-general textarea,
+        .sf-enterprise-shell .sf-product-pricing input,
+        .sf-enterprise-shell .sf-product-pricing select { min-height:34px; padding-top:.4rem; padding-bottom:.4rem; }
+        .sf-enterprise-shell .sf-product-stock label.inline-flex { padding:8px 10px; border-radius:6px; background:#f1f8f7; border-color:#cce7e3; color:#236b66; }
+        .sf-enterprise-shell .sf-product-general { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+        .sf-enterprise-shell .sf-product-general > h3,
+        .sf-enterprise-shell .sf-product-general > div:first-of-type,
+        .sf-enterprise-shell .sf-product-general > label { grid-column:1 / -1; }
+        .sf-enterprise-shell .sf-product-general textarea { min-height:46px; }
+        .sf-enterprise-shell .sf-product-pricing .grid { gap:10px; }
+        .sf-enterprise-shell .sf-product-providers { border-color:#cfe4e1; border-radius:8px; background:#fff; }
+        .sf-enterprise-shell .sf-product-providers > div:first-child { padding:10px 14px; border-bottom-color:#dcebe9; background:#f1faf8; }
+        .sf-enterprise-shell .sf-product-providers table thead { background:#f5faf9; }
+        .sf-enterprise-shell .sf-product-providers table thead th { color:#58716f; border-color:#dbeae8; font-size:.62rem; }
+        .sf-enterprise-shell .sf-product-providers table td { padding-top:.35rem; padding-bottom:.35rem; }
+        .sf-enterprise-shell .sf-product-providers table input,
+        .sf-enterprise-shell .sf-product-providers table select { min-height:30px; }
+        .sf-enterprise-shell .sf-product-final-price { background:#fff; border:1px solid #cfe4e1; border-radius:8px; padding:10px 14px; }
+        .sf-enterprise-shell .sf-product-final-price input { min-height:42px; border-color:#b9ded9; background:#f4fbfa; color:#087c76; font-size:1.35rem; border-radius:6px; }
+        .sf-enterprise-shell .sf-product-actions {
+          position:sticky;
+          bottom:-1px;
+          z-index:10;
+          margin-top:14px !important;
+          padding:12px 0 0;
+          background:linear-gradient(180deg,rgba(247,249,252,0),#f7f9fc 24%,#f7f9fc);
+          border-color:#dce8e7;
+        }
+        .sf-enterprise-shell .sf-product-actions .btn { min-height:38px; border-radius:6px; box-shadow:none; }
+        .sf-enterprise-shell .sf-product-actions .btn-primary { min-width:188px; }
+        /* Regla global: cabecera y acciones pueden permanecer fuera del área variable. */
+        .sf-enterprise-shell .sf-modal-footer { z-index:5; box-shadow:0 -5px 16px rgba(15,35,55,.05); }
+        /* Punto de venta: los ítems son el área prioritaria del workspace. */
+        .sf-enterprise-shell .sf-pv-workspace { gap:8px; padding:10px 14px; }
+        .sf-enterprise-shell .sf-pv-display-toolbar { min-height:42px; padding:5px 8px; }
+        .sf-enterprise-shell .sf-pv-display-toolbar button { min-height:28px; padding:.28rem .55rem; font-size:.64rem; }
+        .sf-enterprise-shell .sf-pv-context { gap:8px; }
+        .sf-enterprise-shell .sf-pv-context .card { padding:9px 12px; }
+        .sf-enterprise-shell .sf-pv-context .space-y-3 > :not([hidden]) ~ :not([hidden]) { margin-top:.45rem; }
+        .sf-enterprise-shell .sf-pv-context input,
+        .sf-enterprise-shell .sf-pv-context select { min-height:31px; padding-top:.3rem; padding-bottom:.3rem; }
+        .sf-enterprise-shell .sf-pv-context .min-h-\[24px\] { min-height:0; display:none; }
+        .sf-enterprise-shell .sf-pv-document { padding:8px 12px; gap:8px; }
+        .sf-enterprise-shell .sf-pv-document input,
+        .sf-enterprise-shell .sf-pv-document select { min-height:31px; padding-top:.3rem; padding-bottom:.3rem; }
+        .sf-enterprise-shell .sf-punto-venta-items.sf-pv-items {
+          min-height:260px;
+          flex:1 1 260px;
+          padding:9px 12px;
+        }
+        .sf-enterprise-shell .sf-pv-items h3 { margin:0; font-size:.9rem; }
+        .sf-enterprise-shell .sf-pv-items-scroll table thead th { padding-top:.42rem; padding-bottom:.42rem; }
+        .sf-enterprise-shell .sf-pv-items-scroll table tbody tr { height:36px; }
+        .sf-enterprise-shell .sf-pv-items-scroll table td { padding-top:2px; padding-bottom:2px; }
+        .sf-enterprise-shell .sf-pv-items-scroll input,
+        .sf-enterprise-shell .sf-pv-items-scroll select { background:transparent; border-color:transparent; }
+        .sf-enterprise-shell .sf-pv-items-scroll input:hover,
+        .sf-enterprise-shell .sf-pv-items-scroll input:focus,
+        .sf-enterprise-shell .sf-pv-items-scroll select:hover,
+        .sf-enterprise-shell .sf-pv-items-scroll select:focus { background:#fff; border-color:#b9dcd8; box-shadow:none; }
+        .sf-pv-item-actions { display:flex; flex:0 0 auto; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
+        .sf-modal-panel .sf-pv-item-actions button { display:inline-flex !important; flex:0 0 auto; min-height:34px !important; height:34px !important; padding:0 14px !important; border-radius:6px !important; font-size:.8125rem !important; font-weight:600 !important; letter-spacing:0; text-transform:none; white-space:nowrap; color:#fff !important; box-shadow:0 2px 5px rgba(15,23,42,.14); transition:background-color .15s ease,transform .15s ease,box-shadow .15s ease !important; }
+        .sf-modal-panel .sf-pv-item-actions button:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 5px 12px rgba(15,23,42,.16) !important; }
+        .sf-modal-panel .sf-pv-item-actions button:active:not(:disabled) { transform:translateY(0); }
+        .sf-modal-panel .sf-pv-item-actions .sf-pv-add-product { width:104px !important; min-width:104px !important; border:1px solid #16a34a !important; background:#16a34a !important; }
+        .sf-modal-panel .sf-pv-item-actions .sf-pv-add-product:hover { background:#15803d !important; }
+        .sf-modal-panel .sf-pv-item-actions .sf-pv-add-service { width:120px !important; min-width:120px !important; border:1px solid #2563eb !important; background:#2563eb !important; }
+        .sf-modal-panel .sf-pv-item-actions .sf-pv-add-service:hover { background:#1d4ed8 !important; }
+        .sf-purchase-item-header { display:grid !important; grid-template-columns:minmax(0,1fr) max-content !important; align-items:center !important; gap:12px; width:100%; min-width:0; min-height:48px !important; height:auto !important; overflow:visible !important; }
+        .sf-purchase-item-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .sf-purchase-actions-grid { display:grid !important; grid-template-columns:112px 112px 100px !important; align-items:center !important; justify-content:end !important; gap:8px !important; width:340px !important; min-width:340px !important; overflow:visible !important; }
+        .sf-purchase-actions-grid > .sf-purchase-action { appearance:none !important; display:inline-flex !important; position:static !important; inset:auto !important; transform:none !important; margin:0 !important; box-sizing:border-box !important; width:100% !important; min-width:0 !important; height:34px !important; min-height:34px !important; padding:0 12px !important; align-items:center !important; justify-content:center !important; gap:6px !important; border-radius:7px !important; font-size:11px !important; line-height:1 !important; font-weight:800 !important; letter-spacing:0 !important; text-transform:none !important; white-space:nowrap !important; overflow:hidden !important; }
+        .sf-enterprise-shell .sf-purchase-actions-grid > .sf-purchase-action-add { width:100% !important; min-width:0 !important; height:34px !important; min-height:34px !important; padding:0 12px !important; border:1px solid #16a34a !important; background:#16a34a !important; color:#fff !important; }
+        .sf-purchase-actions-grid > .sf-purchase-action-manual { border:1px solid #2563eb !important; background:#2563eb !important; color:#fff !important; }
+        .sf-purchase-actions-grid > .sf-purchase-action-clear { border:1px solid #dbe3ee !important; background:#fff !important; color:#475569 !important; }
+        .sf-purchase-actions-grid > .sf-purchase-action:disabled { cursor:not-allowed !important; opacity:.45 !important; }
+        @media (max-width:680px) {
+          .sf-purchase-item-header { grid-template-columns:1fr !important; align-items:start !important; min-height:0 !important; }
+          .sf-purchase-actions-grid { grid-template-columns:1fr 1fr !important; width:100% !important; min-width:0 !important; }
+          .sf-purchase-actions-grid > .sf-purchase-action-clear { grid-column:1 / -1; }
+        }
+        .sf-enterprise-shell .sf-pv-item-header { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; width:100%; margin-bottom:8px; flex:0 0 auto; }
+        .sf-enterprise-shell .sf-pv-item-header h3 { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        @media (max-width:680px) {
+          .sf-enterprise-shell .sf-pv-items > div:first-child { align-items:flex-start; flex-wrap:wrap; }
+          .sf-enterprise-shell .sf-pv-item-actions { width:100%; justify-content:flex-start; }
+          .sf-enterprise-shell .sf-pv-item-header { grid-template-columns:1fr; align-items:flex-start; }
+        }
+        .sf-enterprise-shell .sf-pv-summary { grid-template-columns:minmax(0,1fr)_170px; gap:8px; }
+        .sf-enterprise-shell .sf-pv-summary > div { padding:8px 10px; }
+        .sf-enterprise-shell .sf-pv-summary textarea { min-height:32px; max-height:42px; margin-top:4px; }
+        .sf-enterprise-shell .sf-pv-summary > div > p:last-child { margin-top:0; }
+        .sf-enterprise-shell .sf-pv-summary > div:last-child p:last-child { font-size:1.35rem !important; }
+        .sf-enterprise-shell .sf-pv-actions { padding-top:8px; gap:8px; }
+        .sf-enterprise-shell .sf-pv-actions .btn { min-height:34px; }
+        /* Selector de inventario: sólo se desplaza la lista; búsqueda y acciones quedan visibles. */
+        .sf-enterprise-shell .sf-modal-fullscreen .sf-modal-body:has(.sf-inventory-selector) { display:flex; overflow:hidden; padding:12px; background:#f7f9fc; }
+        .sf-enterprise-shell .sf-inventory-selector { width:min(1320px,100%); margin:0 auto; }
+        .sf-enterprise-shell .sf-inventory-selector > .relative { flex:0 0 auto; }
+        .sf-enterprise-shell .sf-inventory-selector > .relative input { min-height:36px; border-color:#cfe0de; border-radius:6px; box-shadow:none; }
+        .sf-enterprise-shell .sf-inventory-selector-list { border-color:#dce8e7; border-radius:8px; scrollbar-width:thin; scrollbar-color:#aaccc8 transparent; }
+        .sf-enterprise-shell .sf-inventory-selector-row { min-height:52px; padding:7px 12px; }
+        .sf-enterprise-shell .sf-inventory-selector-row:hover { background:#f5fbfa !important; }
+        .sf-enterprise-shell .sf-inventory-selector-row.bg-indigo-50 { background:#eef9f7 !important; box-shadow:inset 3px 0 #0f8d87; }
+        .sf-enterprise-shell .sf-inventory-selector-row input[type="checkbox"] { accent-color:#0f8d87; }
+        .sf-enterprise-shell .sf-inventory-selector-row .h-10,
+        .sf-enterprise-shell .sf-inventory-selector-row .w-10 { height:36px; width:36px; }
+        .sf-enterprise-shell .sf-inventory-selector-row .text-base { font-size:.82rem; }
+        .sf-enterprise-shell .sf-inventory-selector-row > span:last-child { color:#087c76; font-size:.82rem; }
+        .sf-enterprise-shell .sf-inventory-selector-actions { flex:0 0 auto; min-height:48px; padding:8px 0 0; border-top:1px solid #dce8e7; }
+        .sf-enterprise-shell .sf-inventory-selector-actions button { min-height:34px; border-radius:6px; box-shadow:none; padding:.45rem .8rem; }
+        .sf-enterprise-shell .sf-inventory-selector-actions button.bg-indigo-600 { background:#0f8d87; }
+        .sf-enterprise-shell .sf-inventory-selector-actions button.bg-indigo-600:hover { background:#08766f; }
+        /* Cuentas corrientes: grilla financiera compacta, sin acciones ni datos repetidos. */
+        .sf-enterprise-shell .sf-clients-hero { background:linear-gradient(135deg,#fff 0%,#f4fbfa 100%); border-color:#d5ebe7; border-left:4px solid #0f8d87; }
+        .sf-enterprise-shell .sf-clients-kpis .sf-stat-card { min-height:70px; padding:.65rem .85rem; border-radius:8px; box-shadow:none; }
+        .sf-enterprise-shell .sf-clients-kpis .sf-stat-card h3 { font-size:1.25rem; line-height:1.1; }
+        .sf-enterprise-shell .sf-clients-kpis .sf-stat-card p:first-child { font-size:.62rem; }
+        .sf-enterprise-shell .sf-clients-kpis .sf-stat-card svg { width:20px; height:20px; }
+        .sf-enterprise-shell .sf-clients-table-panel { border-color:#dfe8ee; }
+        .sf-enterprise-shell .sf-clients-toolbar { background:#fbfcfd; }
+        .sf-enterprise-shell .sf-clients-list { scrollbar-width:thin; scrollbar-color:#b9d6d2 transparent; overflow-x:auto; overflow-y:auto; }
+        .sf-enterprise-shell .sf-clients-export-button { display:inline-flex !important; align-items:center; justify-content:center; flex:0 0 38px; width:38px !important; min-width:38px !important; height:38px !important; padding:0 !important; border:1px solid #0f8d87 !important; border-radius:6px !important; background:#0f8d87 !important; color:#fff !important; box-shadow:0 2px 5px rgba(15,141,135,.18); transition:background-color .15s ease,transform .15s ease,box-shadow .15s ease !important; }
+        .sf-enterprise-shell .sf-clients-export-button:hover:not(:disabled) { background:#08766f !important; transform:translateY(-1px); box-shadow:0 5px 12px rgba(15,141,135,.22) !important; }
+        .sf-enterprise-shell .sf-clients-export-button:active:not(:disabled) { transform:translateY(0); }
+        .sf-enterprise-shell .sf-clients-export-button svg { width:18px !important; height:18px !important; stroke-width:2 !important; }
+        .sf-enterprise-shell .sf-clients-table thead { background:#edf8f7 !important; }
+        .sf-enterprise-shell .sf-clients-table th { height:34px; padding:0 .8rem; border-bottom:1px solid #d7ece9; color:#356461; font-size:.65rem; font-weight:900; letter-spacing:.055em; text-transform:uppercase; white-space:nowrap; }
+        .sf-enterprise-shell .sf-clients-table td { height:52px; padding:.35rem .8rem; border-bottom:1px solid #edf1f4; vertical-align:middle; }
+        .sf-enterprise-shell .sf-clients-table tbody tr:hover { background:#f6fbfa; }
+        .sf-enterprise-shell .sf-client-avatar { display:grid; place-items:center; flex:0 0 auto; width:29px; height:29px; border-radius:50%; background:#e4f4f2; color:#087c76; font-size:.64rem; font-weight:900; }
+        .sf-enterprise-shell .sf-client-status { display:inline-flex; align-items:center; min-height:21px; padding:0 .46rem; border-radius:999px; font-size:.63rem; font-weight:900; letter-spacing:.035em; text-transform:uppercase; white-space:nowrap; }
+        .sf-enterprise-shell .sf-client-status-ok { color:#13805c; background:#e9f8ef; }
+        .sf-enterprise-shell .sf-client-recargo { display:inline-flex; align-items:center; min-height:20px; padding:0 .4rem; border-radius:999px; color:#a85a10; background:#fff4df; font-size:.62rem; font-weight:900; }
+        .sf-enterprise-shell .sf-client-icon-action { display:grid; place-items:center; width:31px; height:31px; border:1px solid #dce7ec; border-radius:6px; background:#fff; color:#49617a; font-weight:900; line-height:1; }
+        .sf-enterprise-shell .sf-client-icon-action:hover { color:#087c76; border-color:#a8d7d0; background:#f1fbfa; box-shadow:none; }
+        /* Sistema global de acciones: lineal, semántico y sin cajas permanentes. */
+        .sf-enterprise-shell .sf-icon-action,
+        .sf-enterprise-shell .sf-client-icon-action,
+        .sf-enterprise-shell button[title]:has(> svg:only-child) {
+          display:inline-flex !important;
+          width:32px !important;
+          min-width:32px !important;
+          height:32px !important;
+          min-height:32px !important;
+          align-items:center !important;
+          justify-content:center !important;
+          padding:0 !important;
+          border:0 !important;
+          border-color:transparent !important;
+          border-radius:6px !important;
+          background:transparent !important;
+          box-shadow:none !important;
+          color:#1f2a44 !important;
+          line-height:1 !important;
+          transition:background-color .15s ease,color .15s ease,opacity .15s ease !important;
+        }
+        .sf-enterprise-shell .sf-icon-action svg,
+        .sf-enterprise-shell .sf-client-icon-action svg,
+        .sf-enterprise-shell button[title]:has(> svg:only-child) svg { width:18px !important; height:18px !important; stroke-width:1.75 !important; }
+        .sf-enterprise-shell .sf-icon-action:hover:not(:disabled),
+        .sf-enterprise-shell .sf-client-icon-action:hover:not(:disabled),
+        .sf-enterprise-shell button[title]:has(> svg:only-child):hover:not(:disabled) {
+          background:#f1f5f9 !important;
+          box-shadow:none !important;
+        }
+        .sf-enterprise-shell .sf-icon-action:focus-visible,
+        .sf-enterprise-shell .sf-client-icon-action:focus-visible,
+        .sf-enterprise-shell button[title]:has(> svg:only-child):focus-visible {
+          outline:2px solid rgba(15,141,135,.42) !important;
+          outline-offset:1px;
+        }
+        .sf-enterprise-shell .sf-icon-action:disabled,
+        .sf-enterprise-shell .sf-client-icon-action:disabled,
+        .sf-enterprise-shell button[title]:has(> svg:only-child):disabled { color:#94a3b8 !important; opacity:1 !important; cursor:not-allowed !important; }
+        .sf-enterprise-shell .sf-icon-action-edit,
+        .sf-enterprise-shell button[title^="Editar"]:has(> svg:only-child) { color:#2563eb !important; }
+        .sf-enterprise-shell .sf-icon-action-edit:hover:not(:disabled),
+        .sf-enterprise-shell button[title^="Editar"]:has(> svg:only-child):hover:not(:disabled) { background:#eff6ff !important; }
+        .sf-enterprise-shell .sf-icon-action-delete,
+        .sf-enterprise-shell button[title^="Eliminar"]:has(> svg:only-child),
+        .sf-enterprise-shell button[title^="Quitar"]:has(> svg:only-child) { color:#dc2626 !important; }
+        .sf-enterprise-shell .sf-icon-action-delete:hover:not(:disabled),
+        .sf-enterprise-shell button[title^="Eliminar"]:has(> svg:only-child):hover:not(:disabled),
+        .sf-enterprise-shell button[title^="Quitar"]:has(> svg:only-child):hover:not(:disabled) { background:#fef2f2 !important; }
+        .sf-enterprise-shell .sf-icon-action-copy,
+        .sf-enterprise-shell button[title^="Duplicar"]:has(> svg:only-child),
+        .sf-enterprise-shell button[title^="Copiar"]:has(> svg:only-child) { color:#7c3aed !important; }
+        .sf-enterprise-shell .sf-icon-action-copy:hover:not(:disabled),
+        .sf-enterprise-shell button[title^="Duplicar"]:has(> svg:only-child):hover:not(:disabled),
+        .sf-enterprise-shell button[title^="Copiar"]:has(> svg:only-child):hover:not(:disabled) { background:#f5f3ff !important; }
+        .sf-enterprise-shell .sf-icon-action-view,
+        .sf-enterprise-shell button[title^="Ver"]:has(> svg:only-child),
+        .sf-enterprise-shell button[title^="Buscar"]:has(> svg:only-child),
+        .sf-enterprise-shell button[title^="Filtrar"]:has(> svg:only-child) { color:#334155 !important; }
+        .sf-enterprise-shell .sf-icon-action-confirm,
+        .sf-enterprise-shell button[title^="Confirmar"]:has(> svg:only-child),
+        .sf-enterprise-shell button[title^="Enviar"]:has(> svg:only-child) { color:#16a34a !important; }
+        .sf-enterprise-shell .sf-icon-action-confirm:hover:not(:disabled),
+        .sf-enterprise-shell button[title^="Confirmar"]:has(> svg:only-child):hover:not(:disabled),
+        .sf-enterprise-shell button[title^="Enviar"]:has(> svg:only-child):hover:not(:disabled) { background:#f0fdf4 !important; }
+        .sf-enterprise-shell .sf-icon-action-warning,
+        .sf-enterprise-shell button[title^="Advertir"]:has(> svg:only-child) { color:#d97706 !important; }
+        .sf-enterprise-shell .sf-icon-action-secondary { color:#7c3aed !important; }
+        .sf-enterprise-shell table td:has(button[title]:has(> svg:only-child)) > div.flex { gap:3px !important; }
+        .sf-enterprise-shell .sf-client-more { position:relative; }
+        .sf-enterprise-shell .sf-client-more > summary { list-style:none; cursor:pointer; font-size:18px; }
+        .sf-enterprise-shell .sf-client-more > summary::-webkit-details-marker { display:none; }
+        .sf-enterprise-shell .sf-client-more-menu { position:absolute; z-index:25; right:0; top:36px; display:none; width:190px; padding:5px; border:1px solid #dce7ec; border-radius:8px; background:#fff; box-shadow:0 12px 24px rgba(15,34,67,.14); }
+        .sf-enterprise-shell .sf-client-more[open] .sf-client-more-menu { display:block; }
+        .sf-enterprise-shell .sf-client-more-menu button { display:flex; align-items:center; width:100%; gap:.5rem; padding:.48rem .55rem; border-radius:5px; color:#40516b; font-size:.7rem; font-weight:800; text-align:left; }
+        .sf-enterprise-shell .sf-client-more-menu button:hover { background:#f1f7f7; box-shadow:none; }
+        .sf-enterprise-shell .sf-client-more-menu button:disabled { opacity:.45; cursor:not-allowed; }
+        .sf-enterprise-shell .sf-client-more-menu .sf-client-more-danger { color:#c53535; }
+        /* Paginación administrativa unificada: las listas grandes no usan scroll infinito. */
+        .sf-enterprise-shell .sf-pagination { background:#fff; }
+        .sf-enterprise-shell .sf-pagination button { display:inline-flex; align-items:center; justify-content:center; min-width:28px; height:28px; padding:0 .45rem; border:1px solid #e1e8ee; border-radius:5px; background:#fff; color:#52647b; font-size:.7rem; font-weight:800; line-height:1; box-shadow:none; }
+        .sf-enterprise-shell .sf-pagination button:hover:not(:disabled) { border-color:#99d1c9; background:#f1fbfa; color:#087c76; }
+        .sf-enterprise-shell .sf-pagination button:disabled { opacity:.4; cursor:not-allowed; }
+        .sf-enterprise-shell .sf-pagination .sf-pagination-active { border-color:#0f8d87; background:#0f8d87; color:#fff; }
+        .sf-enterprise-shell .sf-pagination .sf-pagination-active:hover { background:#08766f; color:#fff; }
+        /* Sidebar único: jerarquía compacta, grupos expandibles y ruta activa visible. */
+        .sf-enterprise-shell .sf-sidebar-nav { scrollbar-width:thin; scrollbar-color:rgba(203,216,235,.45) transparent; }
+        .sf-enterprise-shell .sf-sidebar-group { margin-bottom:3px; }
+        .sf-enterprise-shell .sf-sidebar-group-trigger,
+        .sf-enterprise-shell .sf-sidebar-entry { display:flex; align-items:center; width:100%; min-height:40px; gap:.7rem; padding:0 .7rem; border-radius:6px; color:#cbd8eb; font-size:.78rem; font-weight:800; text-align:left; }
+        .sf-enterprise-shell .sf-sidebar-group-trigger:hover,
+        .sf-enterprise-shell .sf-sidebar-entry:hover { background:rgba(255,255,255,.08); color:#fff; box-shadow:none; }
+        .sf-enterprise-shell .sf-sidebar-group-active { color:#fff; background:rgba(35,105,190,.34); }
+        .sf-enterprise-shell .sf-sidebar-children { display:grid; gap:1px; margin:.15rem 0 .35rem 1.05rem; padding-left:.7rem; border-left:1px solid rgba(203,216,235,.22); }
+        .sf-enterprise-shell .sf-sidebar-child { position:relative; display:flex; align-items:center; min-height:33px; padding:0 .65rem; border-radius:5px; color:#aebed6; font-size:.72rem; font-weight:700; text-align:left; }
+        .sf-enterprise-shell .sf-sidebar-child:hover { color:#fff; background:rgba(255,255,255,.07); box-shadow:none; }
+        .sf-enterprise-shell .sf-sidebar-child-active { color:#fff; background:rgba(67,198,160,.13); font-weight:900; }
+        .sf-enterprise-shell .sf-sidebar-child-active::before { position:absolute; left:-.76rem; width:2px; height:18px; border-radius:2px; background:#43c6a0; content:''; }
+        .sf-enterprise-shell .sf-sidebar-section { margin-top:.7rem; padding-top:.65rem; border-top:1px solid rgba(226,232,240,.14); }
+        .sf-enterprise-shell .sf-sidebar-section > p { margin:0 0 .22rem; padding:0 .7rem; color:#8095b5; font-size:.59rem; font-weight:900; letter-spacing:.09em; text-transform:uppercase; }
+        .sf-enterprise-shell .sf-sidebar-count { display:inline-flex; min-width:18px; height:18px; align-items:center; justify-content:center; border-radius:999px; background:#e84b4b; padding:0 .3rem; color:#fff; font-size:.6rem; font-weight:900; }
+        /* Arquitectura global de ventanas: los workspaces ocupan la altura útil y sólo su body puede desplazarse. */
+        .sf-enterprise-shell .sf-modal-overlay { isolation:isolate; }
+        .sf-enterprise-shell .sf-modal-panel { max-height:calc(100dvh - 2rem); min-height:0; }
+        /* Avisos y confirmaciones: un único patrón para todo SeniorFlow. */
+        .sf-enterprise-shell .sf-modal-panel.sf-system-dialog { width:min(480px,calc(100vw - 2rem)); border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 10px 30px rgba(15,23,42,.08); }
+        .sf-enterprise-shell .sf-system-dialog > .sf-modal-header { min-height:108px; padding:20px 18px 20px 34px; border-bottom:1px solid #e5e7eb; }
+        .sf-enterprise-shell .sf-system-dialog .sf-modal-header h2 { color:#182642; font-size:1.05rem; font-weight:800; }
+        .sf-enterprise-shell .sf-system-dialog .sf-modal-header-icon { background:#eef5ff; color:#2563eb; }
+        .sf-enterprise-shell .sf-system-dialog-warning .sf-modal-header-icon { background:#fff6df; color:#c96a00; }
+        .sf-enterprise-shell .sf-system-dialog-error .sf-modal-header-icon { background:#fff0f0; color:#dc2626; }
+        .sf-enterprise-shell .sf-system-dialog-success .sf-modal-header-icon { background:#e8f8f2; color:#07856e; }
+        .sf-enterprise-shell .sf-system-dialog > .sf-modal-header > button { width:34px; height:34px; padding:0; border-radius:6px; color:#94a3b8; }
+        .sf-enterprise-shell .sf-system-dialog > .sf-modal-header > button:hover { background:#f1f5f9; color:#475569; }
+        .sf-enterprise-shell .sf-system-dialog > .sf-modal-body { padding:26px 34px 0; overflow:visible; }
+        .sf-enterprise-shell .sf-system-dialog-content { min-height:92px; }
+        .sf-enterprise-shell .sf-system-dialog-actions { margin:24px -34px 0; padding:20px 34px 26px; border-top:1px solid #e5e7eb; }
+        .sf-enterprise-shell .sf-system-dialog-accept { min-width:104px; border:1px solid #087b73; background:#0b827a; box-shadow:0 4px 10px rgba(11,130,122,.16); }
+        .sf-enterprise-shell .sf-system-dialog-accept:hover { background:#076e68; }
+        .sf-enterprise-shell .sf-system-dialog-cancel { min-width:94px; }
+        @media (max-width:520px) {
+          .sf-enterprise-shell .sf-system-dialog > .sf-modal-header { min-height:auto; padding:16px 16px; }
+          .sf-enterprise-shell .sf-system-dialog > .sf-modal-body { padding:20px 20px 0; }
+          .sf-enterprise-shell .sf-system-dialog-actions { margin:20px -20px 0; padding:16px 20px 20px; }
+        }
+        .sf-enterprise-shell .sf-modal-panel.sf-modal-fullscreen { width:calc(100vw - 1rem); height:calc(100dvh - 1rem); max-width:none; max-height:calc(100dvh - 1rem); min-height:0; }
+        .sf-enterprise-shell .sf-modal-panel.sf-modal-fullscreen > .sf-modal-body { display:flex; flex:1 1 auto; min-width:0; min-height:0; overflow:auto; }
+        .sf-enterprise-shell .sf-modal-panel > .sf-modal-body { min-width:0; min-height:0; }
+        .sf-enterprise-shell .sf-modal-panel > .sf-modal-footer { flex:0 0 auto; }
+        .sf-enterprise-shell .sf-modal-fullscreen .sf-product-workspace { width:100%; max-width:none; min-height:100%; margin:0; padding:14px clamp(14px,2vw,34px) 76px; }
+        .sf-enterprise-shell .sf-modal-fullscreen .sf-product-workspace > div { max-width:none; }
+        .sf-enterprise-shell .sf-modal-fullscreen .sf-client-account-layout,
+        .sf-enterprise-shell .sf-modal-fullscreen .sf-pv-workspace { width:100%; max-width:none; }
+        /* Extracto de cuenta: una fila compacta por movimiento y detalle sólo al expandir. */
+        .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout { gap:10px; }
+        .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout > div:first-child { border:1px solid #dce8e7; border-radius:8px; background:#fff; padding:12px 14px; }
+        .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout > div:first-child > .mt-3.grid { display:flex; gap:0; margin-top:10px; border-top:1px solid #e5eeed; border-bottom:1px solid #e5eeed; }
+        .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout > div:first-child > .mt-3.grid > div { flex:1; border:0; border-radius:0; background:transparent; padding:7px 12px; }
+        .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout > div:first-child > .mt-3.grid > div + div { border-left:1px solid #e5eeed; }
+        .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout > div:first-child > .mt-3.flex { margin-top:10px; }
+        .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout > div:first-child > .mt-3.flex > button { min-height:31px; padding:.38rem .6rem; border-radius:5px; border-color:#d8e4e6; background:#fff; color:#52647b; box-shadow:none; }
+        .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout > div:first-child > .mt-3.flex > button:nth-child(5) { border-color:#0f8d87; background:#0f8d87; color:#fff; }
+        .sf-enterprise-shell .sf-client-account-history-card { border-radius:8px; border-color:#dfe8ee; }
+        .sf-enterprise-shell .sf-client-account-history { overflow-x:hidden !important; overflow-y:auto !important; }
+        @media (min-width:1024px) {
+          .sf-enterprise-shell .sf-clients-toolbar { display:grid !important; grid-template-columns:minmax(320px,1fr) max-content; align-items:center; }
+          .sf-enterprise-shell .sf-clients-toolbar > .w-full { width:100% !important; max-width:none !important; }
+          .sf-enterprise-shell .sf-clients-toolbar-actions { margin-left:0 !important; flex-wrap:nowrap !important; justify-content:flex-end; }
+          .sf-enterprise-shell .sf-clients-toolbar-actions button { white-space:nowrap; }
+        }
+        .sf-enterprise-shell .sf-client-account-row { min-height:52px; padding:7px 12px; border-bottom:1px solid #edf1f4; gap:8px; }
+        .sf-enterprise-shell .sf-client-account-row:hover { background:#f7fbfb; }
+        .sf-enterprise-shell .sf-account-expand { display:inline-grid; width:24px; height:24px; place-items:center; border:1px solid #dce7ec; border-radius:5px; background:#fff; color:#547088; }
+        .sf-enterprise-shell .sf-client-account-row:not(.is-expanded) > .min-w-0.flex-1 > :nth-child(n+3),
+        .sf-enterprise-shell .sf-client-account-row:not(.is-expanded) > .shrink-0 > :nth-child(n+3) { display:none; }
+        .sf-enterprise-shell .sf-client-account-row:not(.is-expanded) > .min-w-0.flex-1 > p { margin-top:0; font-size:.78rem; }
+        .sf-enterprise-shell .sf-client-account-row:not(.is-expanded) > .shrink-0 > p:first-child { display:none; }
+        .sf-enterprise-shell .sf-client-account-row:not(.is-expanded) > .shrink-0 > p:nth-child(2) { font-variant-numeric:tabular-nums; font-size:.82rem; }
+        .sf-enterprise-shell .sf-client-account-row.is-expanded { background:#fbfdfd; padding-top:12px; padding-bottom:12px; }
+        @media (max-width:767px) {
+          .sf-enterprise-shell .sf-modal-overlay { padding:0; }
+          .sf-enterprise-shell .sf-modal-panel.sf-modal-fullscreen { width:100vw; height:100dvh; max-height:100dvh; border-radius:0; }
+          .sf-enterprise-shell .sf-modal-fullscreen .sf-product-workspace { padding:10px 10px 74px; }
+        }
+        @media (max-width:767px) {
+          .sf-enterprise-shell .sf-module-clients { overflow:auto; }
+          .sf-enterprise-shell .sf-clients-list { overflow-x:auto; }
+          .sf-enterprise-shell .sf-clients-kpis .sf-stat-card { min-height:66px; }
+        }
+        @media (max-height:800px) and (min-width:768px) {
+          .sf-enterprise-shell .sf-pv-workspace { padding-top:7px; padding-bottom:7px; gap:6px; }
+          .sf-enterprise-shell .sf-pv-context .card { padding:7px 10px; }
+          .sf-enterprise-shell .sf-pv-context .space-y-3 > :not([hidden]) ~ :not([hidden]) { margin-top:.3rem; }
+          .sf-enterprise-shell .sf-punto-venta-items.sf-pv-items { min-height:220px; }
+          .sf-enterprise-shell .sf-pv-summary > div { padding:6px 9px; }
+        }
+        @media (max-width:900px) {
+          .sf-enterprise-shell .sf-product-stock > .grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+          .sf-enterprise-shell .sf-product-stock .sm\:col-span-3 { grid-column:1 / -1; }
+          .sf-enterprise-shell .sf-product-general { grid-template-columns:1fr; }
+        }
+        @media (max-width:640px) {
+          .sf-enterprise-shell .sf-product-workspace { padding:10px; padding-bottom:76px; }
+          .sf-enterprise-shell .sf-product-stock > .grid { grid-template-columns:1fr; }
+          .sf-enterprise-shell .sf-product-stock .sm\:col-span-2,
+          .sf-enterprise-shell .sf-product-stock .sm\:col-span-3 { grid-column:auto; }
+          .sf-enterprise-shell .sf-product-actions .btn-primary { min-width:0; }
+          .sf-enterprise-shell .sf-pv-summary { grid-template-columns:1fr; }
+          .sf-enterprise-shell .sf-punto-venta-items.sf-pv-items { min-height:300px; }
+          .sf-enterprise-shell .sf-modal-fullscreen .sf-modal-body:has(.sf-inventory-selector) { overflow:auto; padding:8px; }
+          .sf-enterprise-shell .sf-inventory-selector { min-height:520px; }
+        }
+        @media (max-width:1023px) {
+          .sf-enterprise-shell .sf-cash-actions { grid-template-columns:repeat(3,minmax(0,1fr)); }
+        }
+        @media (max-width:767px) {
+          .sf-enterprise-shell .sf-cash-actions { display:none; }
+        }
         @media (max-width:767px) {
           .sf-enterprise-shell .sf-sidebar { display:none; }
           .sf-enterprise-shell .sf-mobile-nav { display:flex; }
@@ -21900,33 +25272,46 @@ function obtenerCategoriaProducto(producto) {
       `}</style>
       
       {/* NAVEGACIÓN EMPRESARIAL */}
-      <aside className="sf-sidebar fixed left-0 top-0 bottom-0 z-[55] hidden w-[248px] flex-col print:hidden md:flex">
-        <div className="flex h-[70px] items-center gap-3 border-b border-white/10 px-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-lg shadow-emerald-950/30"><Store size={22} /></div>
-          <div className="min-w-0"><p className="truncate text-lg font-black tracking-tight text-white">{configuracion.nombre || 'Empresa'}</p></div>
-        </div>
-        <div className="flex-1 overflow-hidden px-3 py-4">
-          <p className="px-3 pb-2 text-[10px] font-black uppercase tracking-[.16em] text-slate-500">Módulos del sistema</p>
-          <div className="space-y-1">
-            {opcionesMenuLateral.map(({ vista: vistaOpcion, etiqueta, Icono }) => {
-              const activo = vista === vistaOpcion || (vistaOpcion === 'ajustes' && ['usuarios', 'configuracion'].includes(vista));
-              return <button key={`side-${vistaOpcion}`} onClick={() => setVista(vistaOpcion)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] font-bold ${activo ? 'sf-nav-active' : ''}`}><Icono size={17} strokeWidth={2.2} /><span className="truncate">{etiqueta}</span>{vistaOpcion === 'notificaciones' && notificacionesNoLeidas.length > 0 && <span className="ml-auto inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white">{notificacionesNoLeidas.length > 99 ? '99+' : notificacionesNoLeidas.length}</span>}</button>;
-            })}
-            {opcionesNavegacionVisibles.length > limiteMenuLateral && (paginaMenuLateral === 'principal'
-              ? <button type="button" onClick={() => setPaginaMenuLateral('mas')} className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-xs font-black text-white hover:bg-white/10"><Plus size={16} /> Más módulos</button>
-              : <button type="button" onClick={() => setPaginaMenuLateral('principal')} className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-xs font-black text-white hover:bg-white/10">← Volver</button>
-            )}
+<aside className="sf-sidebar fixed left-0 top-0 bottom-0 z-[55] hidden w-[248px] flex-col print:hidden md:flex">
+        <div className="flex h-[70px] items-center gap-3 px-5">
+          <div className="flex w-[62px] shrink-0 items-center justify-center" aria-label="SeniorFlow">
+            <img src="./assets/sf-mark.png" alt="SeniorFlow" className="sf-brand-mark sf-brand-mark-white h-12 w-[62px] object-contain" />
           </div>
+          <div className="min-w-0">
+            <p className="truncate text-[17px] font-bold tracking-tight text-slate-800">{configuracion.nombre || 'Empresa'}</p>
+          </div>
+        </div>
+        <div className="flex-1 min-h-0 overflow-hidden px-3 py-4 flex flex-col">
+          <p className="sf-sidebar-label shrink-0 px-3 pb-2 uppercase">Módulos</p>
+          <nav className="sf-sidebar-nav min-h-0 flex-1 overflow-y-auto pr-1" aria-label="Módulos del sistema">
+            {gruposSidebar.map((grupo) => {
+              const activoEnGrupo = grupo.hijos.some((hijo) => hijo.vista === vista);
+              const abierto = activoEnGrupo || gruposSidebarAbiertos[grupo.id];
+              const IconoGrupo = grupo.Icono;
+              return <div key={grupo.id} className="sf-sidebar-group">
+                <button type="button" onClick={() => setGruposSidebarAbiertos((prev) => ({ ...prev, [grupo.id]: !abierto }))} className={`sf-sidebar-group-trigger ${activoEnGrupo ? 'sf-sidebar-group-active' : ''}`}><IconoGrupo size={17} strokeWidth={2.1} /><span>{grupo.etiqueta}</span><ChevronDown size={15} className={`ml-auto transition-transform duration-200 ${abierto ? 'rotate-0' : '-rotate-90'}`} /></button>
+                {abierto && <div className="sf-sidebar-children">{grupo.hijos.map(({ vista: vistaOpcion, etiqueta }) => <button key={`side-${vistaOpcion}`} type="button" onClick={() => setVista(vistaOpcion)} className={`sf-sidebar-child ${vista === vistaOpcion ? 'sf-sidebar-child-active' : ''}`}>{etiqueta}</button>)}</div>}
+              </div>;
+            })}
+            {entradasSidebarGestion.length > 0 && <div className="sf-sidebar-section"><p>Gestión</p>{entradasSidebarGestion.map(({ vista: vistaOpcion, etiqueta, Icono }) => <button key={`side-${vistaOpcion}`} type="button" onClick={() => setVista(vistaOpcion)} className={`sf-sidebar-entry ${vista === vistaOpcion ? 'sf-nav-active' : ''}`}><Icono size={17} strokeWidth={2.1} /><span>{etiqueta}</span>{vistaOpcion === 'notificaciones' && notificacionesNoLeidas.length > 0 && <span className="ml-auto sf-sidebar-count">{notificacionesNoLeidas.length > 99 ? '99+' : notificacionesNoLeidas.length}</span>}</button>)}</div>}
+            {entradasSidebarSistema.length > 0 && <div className="sf-sidebar-section"><p>Sistema</p>{entradasSidebarSistema.map(({ vista: vistaOpcion, etiqueta, Icono }) => <button key={`side-${vistaOpcion}`} type="button" onClick={() => setVista(vistaOpcion)} className={`sf-sidebar-entry ${vista === vistaOpcion || (vistaOpcion === 'ajustes' && ['usuarios', 'configuracion'].includes(vista)) ? 'sf-nav-active' : ''}`}><Icono size={17} strokeWidth={2.1} /><span>{etiqueta}</span></button>)}</div>}
+          </nav>
         </div>
         <div className="border-t border-white/10 p-3">
           <div className="mb-2 flex items-center gap-3 rounded-lg bg-white/5 px-3 py-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700 text-xs font-black text-white">{(usuarioActualSeguro.nombre || 'U').slice(0,1).toUpperCase()}</div><div className="min-w-0"><p className="truncate text-xs font-black text-white">{usuarioActualSeguro.nombre || 'Usuario'}</p><p className="text-[10px] font-bold uppercase text-slate-400">{usuarioActualSeguro.rol || 'Usuario'}</p></div></div>
           <button onClick={cerrarSesion} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs font-black text-red-300 hover:bg-red-500/10 hover:text-red-200"><LogOut size={16} /> Cerrar sesión</button>
         </div>
       </aside>
-      <header className="sf-topbar sticky top-0 z-50 print:hidden">
-        <div className="flex min-h-[70px] items-center justify-between gap-3 px-4 lg:px-7">
-          <div className="min-w-0"><p className="truncate text-xl font-black tracking-tight text-slate-900">{opcionesNavegacion.find((opcion) => opcion.vista === vista)?.etiqueta || 'Panel general'}</p><p className="text-[11px] font-bold text-slate-400">{configuracion.nombre || 'Empresa'} · {new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'long', year:'numeric' })}</p></div>
-          <div className={`hidden items-center gap-2 rounded-lg border px-3 py-2 text-xs font-black sm:flex ${cajaSegura.estado === 'abierta' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}><span className={`h-2 w-2 rounded-full ${cajaSegura.estado === 'abierta' ? 'bg-emerald-500' : 'bg-slate-400'}`} /> Caja {cajaSegura.estado === 'abierta' ? 'abierta' : 'cerrada'}</div>
+<header className="sf-topbar sticky top-0 z-50 print:hidden">
+        <div className="flex min-h-[70px] items-center justify-between gap-4 px-4 lg:px-7">
+          <nav className="sf-breadcrumb flex min-w-0 items-center gap-2" aria-label="Ubicación actual">
+            <span>Inicio</span>
+            <ChevronRight size={15} className="shrink-0 text-slate-300" />
+            <span className="sf-breadcrumb-current truncate">{opcionesNavegacion.find((opcion) => opcion.vista === vista)?.etiqueta || 'Panel general'}</span>
+          </nav>
+          <div className="ml-auto flex shrink-0 items-center gap-3">
+            <div className={`hidden items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-semibold sm:flex ${cajaSegura.estado === 'abierta' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}><span className={`h-2 w-2 rounded-full ${cajaSegura.estado === 'abierta' ? 'bg-emerald-500' : 'bg-slate-400'}`} /> Caja {cajaSegura.estado === 'abierta' ? 'abierta' : 'cerrada'}</div>
+          </div>
         </div>
         <div className="sf-mobile-nav gap-1 overflow-x-auto border-t border-slate-100 px-3 py-2">
           {opcionesNavegacion.filter((opcion) => opcion.visible).slice(0, 8).map(({ vista: vistaOpcion, etiqueta, Icono }) => <button key={`mobile-${vistaOpcion}`} onClick={() => setVista(vistaOpcion)} className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-[10px] font-black ${vista === vistaOpcion ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}><Icono size={13} />{etiqueta}</button>)}
@@ -22109,8 +25494,15 @@ function obtenerCategoriaProducto(producto) {
         {/* --- VISTA: CAJA DIARIA --- */}
         {cajaSegura.estado === 'abierta' && vista === 'caja' && (
           <div className="sf-module-page sf-module-cash h-full min-h-0 flex flex-col gap-4 overflow-hidden animate-in fade-in duration-300 print:hidden">
-            <div className="shrink-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div onClick={() => setFiltroTipo('todos')} className={`bg-white p-4 rounded-2xl shadow-sm border flex items-center justify-between relative group cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] ${filtroTipo === 'todos' ? 'ring-2 ring-blue-500 border-transparent' : 'border-gray-100'}`}>
+            <div className="sf-screen-header sf-cash-header shrink-0 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="sf-cash-kicker">Operación financiera</p>
+                <h1>Caja diaria</h1>
+                <p>Movimientos, ingresos, gastos y control del turno actual.</p>
+              </div>
+            </div>
+            <div className="sf-cash-kpis shrink-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+              <div onClick={() => setFiltroTipo('todos')} className={`sf-cash-kpi bg-white border flex items-center justify-between relative group cursor-pointer transition-colors ${filtroTipo === 'todos' ? 'ring-1 ring-teal-500 border-teal-300' : 'border-gray-100'}`}>
                  <div className="min-w-0 pr-2">
                   <p className="text-sm font-medium text-gray-500 mb-1">Efectivo en Caja</p>
                   <h3 className="text-xl sm:text-2xl font-bold text-blue-600 truncate">{formatearDinero(saldoActual)}</h3>
@@ -22123,22 +25515,24 @@ function obtenerCategoriaProducto(producto) {
                 <div className="p-3 rounded-full shrink-0 bg-blue-100"><Wallet size={24} className="text-blue-600" /></div>
               </div>
 
-              <WidgetCard titulo="Ventas Totales" monto={totalesFiltradosCaja.ventas} icono={TrendingUp} colorClase="text-green-600" onClick={() => setFiltroTipo('venta')} activo={filtroTipo === 'venta'} activeClass="ring-2 ring-green-500 border-transparent"/>
-              <WidgetCard titulo="Otros Ingresos" monto={totalesFiltradosCaja.otrosIngresos} icono={PlusCircle} colorClase="text-teal-600" onClick={() => setFiltroTipo('ingreso_extra')} activo={filtroTipo === 'ingreso_extra'} activeClass="ring-2 ring-teal-500 border-transparent"/>
-              <WidgetCard titulo="Gastos Totales" monto={totalesFiltradosCaja.gastos} icono={TrendingDown} colorClase="text-red-600" onClick={() => setFiltroTipo('gasto')} activo={filtroTipo === 'gasto'} activeClass="ring-2 ring-red-500 border-transparent"/>
+              {usuarioPuedeVerResumenes() && <>
+                <WidgetCard titulo="Ventas Totales" monto={totalesFiltradosCaja.ventas} icono={TrendingUp} colorClase="text-green-600" onClick={() => setFiltroTipo('venta')} activo={filtroTipo === 'venta'} activeClass="ring-2 ring-green-500 border-transparent"/>
+                <WidgetCard titulo="Otros Ingresos" monto={totalesFiltradosCaja.otrosIngresos} icono={PlusCircle} colorClase="text-teal-600" onClick={() => setFiltroTipo('ingreso_extra')} activo={filtroTipo === 'ingreso_extra'} activeClass="ring-2 ring-teal-500 border-transparent"/>
+                <WidgetCard titulo="Gastos Totales" monto={totalesFiltradosCaja.gastos} icono={TrendingDown} colorClase="text-red-600" onClick={() => setFiltroTipo('gasto')} activo={filtroTipo === 'gasto'} activeClass="ring-2 ring-red-500 border-transparent"/>
+              </>}
             </div>
 
             {/* BOTONERA DE ACCIÓN PRINCIPAL */}
-            <div className="hidden shrink-0 md:flex gap-3 lg:gap-4 pt-2">
-              <button onClick={() => setVista('ventas')} className="flex-1 bg-green-600 hover:bg-green-700 text-white p-3 lg:p-4 rounded-xl font-bold text-sm lg:text-base uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all active:scale-95"><Plus size={20} /> Punto de venta</button>
-              <button onClick={() => abrirModalMovimiento('ingreso_extra')} className="flex-1 bg-teal-600 hover:bg-teal-700 text-white p-3 lg:p-4 rounded-xl font-bold text-sm lg:text-base uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all active:scale-95"><PlusCircle size={20} /> Ingreso</button>
-              <button onClick={() => abrirModalMovimiento('gasto')} className="flex-1 bg-red-600 hover:bg-red-700 text-white p-3 lg:p-4 rounded-xl font-bold text-sm lg:text-base uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all active:scale-95"><Minus size={20} /> Gasto</button>
-              <button onClick={() => abrirModalMovimiento('retiro_caja')} className="flex-1 bg-orange-500 hover:bg-orange-600 text-white p-3 lg:p-4 rounded-xl font-bold text-sm lg:text-base uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all active:scale-95"><ArrowDownCircle size={20} /> Retiro</button>
-              <button onClick={() => setModalActivo('cerrar')} className="flex-1 bg-gray-900 hover:bg-black text-white p-3 lg:p-4 rounded-xl font-bold text-sm lg:text-base uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all active:scale-95 border border-gray-900"><Lock size={18} /> Cerrar</button>
+            <div className="sf-cash-actions shrink-0">
+              <button onClick={() => setVista('ventas')} className="sf-cash-action bg-teal-600 text-white flex items-center justify-center gap-2"><Plus size={17} /> Punto de venta</button>
+              <button onClick={() => abrirModalMovimiento('ingreso_extra')} className="sf-cash-action sf-cash-action-secondary flex items-center justify-center gap-2"><PlusCircle size={17} /> Ingreso</button>
+              <button onClick={() => abrirModalMovimiento('gasto')} className="sf-cash-action sf-cash-action-danger text-white flex items-center justify-center gap-2"><Minus size={17} /> Gasto</button>
+              <button onClick={() => abrirModalMovimiento('retiro_caja')} className="sf-cash-action sf-cash-action-warning text-white flex items-center justify-center gap-2"><ArrowDownCircle size={17} /> Retiro</button>
+              <button onClick={() => setModalActivo('cerrar')} className="sf-cash-action sf-cash-action-secondary flex items-center justify-center gap-2"><Lock size={16} /> Cerrar caja</button>
             </div>
 
-            <div className="flex flex-1 min-h-0 flex-col bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="shrink-0 p-4 border-b border-gray-100 bg-gray-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="sf-cash-panel flex flex-1 min-h-0 flex-col bg-white border overflow-hidden">
+              <div className="sf-cash-list-header shrink-0 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-xl ${filtroTipo !== 'todos' ? 'bg-blue-100' : 'bg-gray-200'}`}><Filter size={20} className={filtroTipo !== 'todos' ? 'text-blue-700' : 'text-gray-600'} /></div>
                   <h3 className="font-bold text-gray-800 text-base uppercase tracking-tight">{filtroTipo === 'todos' ? 'Todos los Movimientos' : `Filtrando: ${filtroTipo.replace('_', ' ')}`}</h3>
@@ -22155,7 +25549,7 @@ function obtenerCategoriaProducto(producto) {
                     <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className="outline-none bg-transparent text-gray-800 font-bold w-full min-w-[8.5rem] text-xs"/>
                   </div>
                   {(fechaDesde || fechaHasta || filtroTipo !== 'todos') && (
-                    <button onClick={() => { const hoy = obtenerFechaInputLocal(); setFechaDesde(hoy); setFechaHasta(hoy); setFiltroTipo('todos'); }} className="text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center justify-center gap-1 w-full md:w-auto text-xs uppercase"><X size={14} /> Limpiar</button>
+                    <button type="button" title="Limpiar filtros" aria-label="Limpiar filtros" onClick={() => { const hoy = obtenerFechaInputLocal(); setFechaDesde(hoy); setFechaHasta(hoy); setFiltroTipo('todos'); }} className="text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors"><X size={16} /></button>
                   )}
                 </div>
               </div>
@@ -22177,7 +25571,7 @@ function obtenerCategoriaProducto(producto) {
                       )
                       : '';
                     return (
-                    <div key={mov.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-blue-50/30 transition-colors group">
+                    <div key={mov.id} className="sf-cash-row flex flex-col sm:flex-row sm:items-center justify-between hover:bg-teal-50/30 transition-colors group">
                       <div className="flex items-start sm:items-center gap-4 flex-1 min-w-0">
                         <div className={`p-3 rounded-xl shrink-0 shadow-sm ${mov.tipo === 'gasto' ? 'bg-red-100 text-red-600' : (mov.tipo === 'cobro' ? 'bg-purple-100 text-purple-600' : (mov.tipo === 'ingreso_extra' ? 'bg-teal-100 text-teal-600' : (isRetiro ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600')))}`}>
                           {mov.tipo === 'gasto' ? <TrendingDown size={20} /> : (mov.tipo === 'cobro' ? <Users size={20} /> : (mov.tipo === 'ingreso_extra' ? <PlusCircle size={20} /> : (isRetiro ? <ArrowDownCircle size={20} /> : <TrendingUp size={20} />)))}
@@ -22200,7 +25594,7 @@ function obtenerCategoriaProducto(producto) {
                       </div>
                       
                       <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto border-t sm:border-0 pt-3 sm:pt-0 border-gray-100">
-                        <div className={`font-black text-xl whitespace-nowrap tracking-tight ${mov.tipo === 'gasto' || isRetiro ? 'text-red-600' : (mov.tipo === 'cobro' ? 'text-purple-600' : (mov.tipo === 'ingreso_extra' ? 'text-teal-600' : 'text-green-600'))}`}>
+                        <div className={`sf-cash-amount whitespace-nowrap tracking-tight ${mov.tipo === 'gasto' || isRetiro ? 'text-red-600' : (mov.tipo === 'cobro' ? 'text-purple-600' : (mov.tipo === 'ingreso_extra' ? 'text-teal-600' : 'text-green-600'))}`}>
                           {mov.tipo === 'gasto' || isRetiro ? '-' : '+'}{formatearDinero(mov.monto)}
                         </div>
                         <div className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex gap-1">
@@ -22219,25 +25613,26 @@ function obtenerCategoriaProducto(producto) {
         {/* --- VISTA: PUNTO DE VENTA --- */}
         {puedeVerVentas && vista === 'ventas' && (
           <div className="sf-module-page sf-module-sales h-full min-h-0 flex flex-col gap-4 overflow-hidden animate-in fade-in duration-300 print:hidden">
-            <div className="sf-screen-header sf-sales-hero shrink-0 bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-emerald-600 p-2.5 rounded-xl shadow-sm"><ClipboardList size={20} className="text-white"/></div>
-                <div>
-                  <p className="text-[10px] font-black text-emerald-700 uppercase tracking-[.16em]">Operación comercial</p>
-                  <h2 className="text-2xl font-black text-gray-900 tracking-tight">Ventas</h2>
-                  <p className="text-xs font-bold text-gray-500">Comprobantes, cobros y cuenta corriente en un solo lugar.</p>
-                </div>
+            <div className="sf-screen-header sf-sales-header shrink-0 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="sf-sales-kicker">Operación comercial</p>
+                <h1>Ventas</h1>
+                <p>Comprobantes, cobros y cuenta corriente en un solo lugar.</p>
+              </div>
+              <div className="sf-sales-header-actions">
+                <button type="button" onClick={abrirPuntoVenta} className="bg-teal-600 text-white inline-flex items-center gap-2"><Plus size={16} /> Nueva venta</button>
+                <button type="button" onClick={abrirRemitoRManual} className="border border-slate-300 bg-white text-slate-700 inline-flex items-center gap-2"><FileText size={15} /> Remito R</button>
               </div>
             </div>
 
-            <div className="shrink-0 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+            {usuarioPuedeVerResumenes() && <div className="sf-sales-kpis shrink-0 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
               <WidgetCard titulo="Comprobantes" monto={movimientosPuntoVentaPeriodo.length} icono={FileText} colorClase="text-blue-600" formato="numero" subtitulo="En el período" />
               <WidgetCard titulo="Ventas del período" monto={totalPuntoVentaPeriodo} icono={TrendingUp} colorClase="text-emerald-600" subtitulo="Total facturado" />
               <WidgetCard titulo="Cobrado directo" monto={totalPuntoVentaPagado} icono={Wallet} colorClase="text-green-600" subtitulo="Efectivo, transferencia y tarjeta" />
               <WidgetCard titulo="Cuenta corriente" monto={totalPuntoVentaCuentaCorriente} icono={Users} colorClase="text-purple-600" subtitulo="Saldo incorporado a clientes" />
-            </div>
+            </div>}
 
-            <div className="sf-sales-workspace flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_280px] gap-4 overflow-hidden">
+            <div className="sf-sales-workspace flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_240px] gap-4 overflow-hidden">
               <div className="sf-sales-column flex min-h-0 flex-col gap-4 min-w-0">
             <div className="sf-sales-filter shrink-0 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
               <div>
@@ -22285,13 +25680,14 @@ function obtenerCategoriaProducto(producto) {
                         <th className="px-4 py-3">Fecha</th>
                         <th className="px-4 py-3">Comprobante</th>
                         <th className="px-4 py-3">Cliente</th>
+                        {puedeVerVendedores && <th className="px-4 py-3">Vendedor</th>}
                         <th className="px-4 py-3">Pago</th>
                         <th className="px-4 py-3 text-right">Total</th>
                         <th className="px-4 py-3 text-right">Acciones</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {movimientosPuntoVentaPeriodo.map((mov) => {
+                      {ventasPaginadas.items.map((mov) => {
                         const detalles = mov?.detallesPago || {};
                         const tipoComp = OPCIONES_COMPROBANTE_VENTA.find((op) => op.value === detalles?.tipoComprobante)?.label || 'Comprobante';
                         const esNotaCredito = detalles?.tipoComprobante === 'nota_credito';
@@ -22304,6 +25700,9 @@ function obtenerCategoriaProducto(producto) {
                               <p className="text-[10px] font-black uppercase tracking-wider text-gray-500">{textoSeguroTrim(detalles?.numeroComprobante, 'Sin número')}</p>
                             </td>
                             <td className="px-4 py-3 font-bold text-gray-800">{textoSeguroTrim(detalles?.cliente, '-')}</td>
+                            {puedeVerVendedores && <td className="px-4 py-3">
+                              {detalles?.vendedorId ? <div><p className="font-black text-teal-700">{textoSeguroTrim(detalles?.vendedorNombre, 'Vendedor')}</p><p className="text-[10px] font-black text-slate-500">{formatearCantidad(detalles?.comisionPorcentaje)}% · {formatearDinero(Number(detalles?.comisionMonto || 0))}</p></div> : <span className="text-[10px] font-bold text-slate-400">Sin asignar</span>}
+                            </td>}
                             <td className="px-4 py-3">
                               <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wider border ${normalizarMetodoPago(mov.metodoPago) === 'cuenta_corriente' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
                                 {obtenerEtiquetaMetodoPago(mov.metodoPago)}
@@ -22323,22 +25722,24 @@ function obtenerCategoriaProducto(producto) {
                                 {!esRemitoR && (
                                   <button
                                     type="button"
-                                    onClick={() => descargarPdfVentaDocumentoConFotos(mov)}
-                                    disabled={descargandoPdfVistaImpresion}
-                                    className="p-2 rounded-lg border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 transition-colors"
-                                    title="Descargar comprobante con fotos"
-                                  >
-                                    <ImageIcon size={14} />
-                                  </button>
-                                )}
-                                {!esRemitoR && (
-                                  <button
-                                    type="button"
                                     onClick={() => abrirRemitoRDesdeComprobanteVenta(mov)}
                                     className="p-2 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition-colors"
                                     title="Generar Remito R con fotos"
                                   >
                                     <FileText size={14} />
+                                  </button>
+                                )}
+                                {!esRemitoR && !esNotaCredito && (
+                                  <button type="button" onClick={() => abrirDevolucionDesdeComprobanteVenta(mov)} className="p-2 rounded-lg border border-orange-200 text-orange-700 bg-orange-50 hover:bg-orange-100 transition-colors" title="Registrar devolución"><Undo2 size={14} /></button>
+                                )}
+                                {puedeVerVendedores && !esNotaCredito && (
+                                  <button
+                                    type="button"
+                                    onClick={() => abrirAsignacionVendedorVenta(mov)}
+                                    className={`p-2 rounded-lg border transition-colors ${detalles?.vendedorId ? 'border-teal-200 text-teal-700 bg-teal-50 hover:bg-teal-100' : 'border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100'}`}
+                                    title={detalles?.vendedorId ? 'Editar vendedor y comisión' : 'Asignar vendedor y comisión'}
+                                  >
+                                    <UserPlus size={14} />
                                   </button>
                                 )}
                                 <button
@@ -22366,6 +25767,14 @@ function obtenerCategoriaProducto(producto) {
                   </table>
                 </div>
               )}
+              {movimientosPuntoVentaPeriodo.length > 0 && <SFPagination
+                pagina={ventasPaginadas.pagina}
+                porPagina={paginacionListados.ventas.porPagina}
+                total={ventasPaginadas.total}
+                entidad="comprobantes"
+                onPaginaChange={(pagina) => setPaginacionListados((prev) => ({ ...prev, ventas: { ...prev.ventas, pagina } }))}
+                onPorPaginaChange={(porPagina) => setPaginacionListados((prev) => ({ ...prev, ventas: { pagina: 1, porPagina } }))}
+              />}
             </div>
               </div>
               <aside className="sf-sales-side space-y-4">
@@ -22377,72 +25786,67 @@ function obtenerCategoriaProducto(producto) {
                     <div className="flex justify-between gap-3"><span className="font-bold text-slate-500">A cuenta corriente</span><strong className="text-violet-700">{formatearDinero(totalPuntoVentaCuentaCorriente)}</strong></div>
                   </div>
                 </div>
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                  <p className="text-[10px] font-black uppercase tracking-[.14em] text-emerald-700">Acciones rápidas</p>
-                  <div className="mt-3 space-y-2">
-                    <button type="button" onClick={abrirPuntoVenta} className="w-full flex items-center justify-between rounded-xl bg-emerald-600 px-3 py-3 text-left text-xs font-black text-white"><span className="flex items-center gap-2"><Plus size={15} /> Nueva venta</span><ChevronRight size={16} /></button>
-                    <button type="button" onClick={abrirRemitoRManual} className="w-full flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-3 text-left text-xs font-black text-slate-700"><span className="flex items-center gap-2"><FileText size={15} /> Remito R</span><ChevronRight size={16} /></button>
-                  </div>
-                </div>
               </aside>
             </div>
           </div>
         )}
 
+        {puedeVerVendedores && vista === 'vendedores' && (
+          <ModuloVendedores
+            vendedores={vendedores}
+            retiros={retirosVendedores}
+            movimientos={movimientos}
+            notificar={notificarSistema}
+            usuario={usuarioActual}
+            nombreEmpresa={configuracion?.nombre || 'SeniorFlow'}
+            onVerVenta={(movimiento) => abrirPreviewVentaDocumento(movimiento)}
+            onEditarComision={(movimiento) => abrirAsignacionVendedorVenta(movimiento)}
+          />
+        )}
+
         {/* --- VISTA: CLIENTES --- */}
         {puedeVerClientes && vista === 'clientes' && (
           <div className="sf-module-page sf-module-clients h-full min-h-0 flex flex-col gap-4 overflow-hidden animate-in fade-in duration-300 print:hidden">
-            <div className="sf-screen-header sf-clients-hero shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 rounded-2xl border p-5 shadow-sm">
-              <div className="flex items-center gap-3"><div className="rounded-xl bg-violet-600 p-3 text-white shadow-sm"><CreditCard size={21} /></div><div><p className="text-[10px] font-black text-violet-700 uppercase tracking-[.16em]">Gestión de saldos</p><h2 className="text-2xl font-black text-slate-900">Cuentas corrientes</h2><p className="text-xs font-bold text-slate-500">Clientes, deuda pendiente, cobros y comprobantes.</p></div></div>
-              <button type="button" onClick={() => { setClienteAEditar(null); setFormCliente(formularioClienteVacio); setModalActivo('cliente_form'); }} className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white"><Plus size={16} /> Nuevo cliente</button>
+            <div className="sf-screen-header sf-clients-hero shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 rounded-2xl border p-4 shadow-sm">
+              <div className="flex items-center gap-3"><div className="rounded-lg bg-teal-600 p-2.5 text-white shadow-sm"><CreditCard size={19} /></div><div><p className="text-[10px] font-black text-teal-700 uppercase tracking-[.16em]">Gestión financiera</p><h2 className="text-xl font-black text-slate-900">Cuentas corrientes</h2><p className="text-xs font-bold text-slate-500">Clientes, deuda pendiente, cobros y comprobantes.</p></div></div>
+              <button type="button" onClick={() => { setClienteAEditar(null); setFormCliente(formularioClienteVacio); setModalActivo('cliente_form'); }} className="inline-flex h-10 items-center gap-2 rounded-lg bg-teal-600 px-4 text-xs font-black uppercase tracking-wider text-white"><Plus size={16} /> Nuevo cliente</button>
             </div>
-            <div className="shrink-0 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-              <WidgetCard titulo="Saldo pendiente" monto={resumenDeudaGeneralClientes.total} icono={CreditCard} colorClase="text-violet-600" subtitulo="Total de cuentas corrientes" />
+            {usuarioPuedeVerResumenes() && <div className="sf-clients-kpis shrink-0 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+              <WidgetCard titulo="Saldo pendiente total" monto={resumenDeudaGeneralClientes.total} icono={CreditCard} colorClase="text-red-600" subtitulo="Total de cuentas corrientes" />
               <WidgetCard titulo="Clientes con deuda" monto={resumenDeudaGeneralClientes.clientesConDeuda} icono={Users} colorClase="text-amber-600" formato="numero" />
               <WidgetCard titulo="Clientes registrados" monto={clientes.length} icono={Users} colorClase="text-blue-600" formato="numero" />
               <WidgetCard titulo="Al día" monto={Math.max(0, clientes.length - (resumenDeudaGeneralClientes.clientesConDeuda || 0))} icono={CheckCircle} colorClase="text-emerald-600" formato="numero" />
-            </div>
-            <div className="flex flex-1 min-h-0 flex-col bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="shrink-0 p-4 border-b border-gray-100 bg-gray-50/50 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2 tracking-tight">
-                  <div className="bg-purple-600 p-1.5 rounded-lg"><Users size={16} className="text-white" /></div> Directorio de Clientes
-                </h3>
-                <div className="w-full lg:flex-1 flex flex-col sm:flex-row gap-2 sm:items-center lg:justify-end">
-                  <div className="w-full sm:flex-1 lg:max-w-md h-11 flex items-center gap-2 px-3 bg-white border border-gray-200 rounded-xl">
+            </div>}
+            <div className="sf-clients-table-panel flex flex-1 min-h-0 flex-col bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="sf-clients-toolbar shrink-0 p-3 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center gap-2">
+                <div className="w-full lg:max-w-xl h-10 flex items-center gap-2 px-3 bg-white border border-gray-200 rounded-lg">
                     <Search size={16} className="text-gray-400 shrink-0" />
                     <input 
-                      type="text" placeholder="Buscar por nombre, teléfono, doc o email..." value={busquedaDirectorio} onChange={(e) => setBusquedaDirectorio(e.target.value)}
+                      type="text" placeholder="Buscar por nombre, teléfono, documento o email..." value={busquedaDirectorio} onChange={(e) => setBusquedaDirectorio(e.target.value)}
                       className="w-full bg-transparent text-sm font-bold text-gray-700 placeholder:text-gray-400 outline-none"
                     />
-                  </div>
-                  <label className="h-11 inline-flex items-center gap-2 px-3 rounded-xl border border-purple-200 bg-purple-50/50 text-xs font-bold text-purple-700 whitespace-nowrap">
+                </div>
+                <div className="sf-clients-toolbar-actions flex flex-wrap items-center gap-2 lg:ml-auto">
+                  <label className="h-10 inline-flex items-center gap-2 px-3 rounded-lg text-xs font-bold text-slate-600 whitespace-nowrap">
                     <input
                       type="checkbox"
                       checked={mostrarSoloConSaldoPendiente}
                       onChange={(e) => setMostrarSoloConSaldoPendiente(e.target.checked)}
-                      className="w-4 h-4 text-purple-600 border-purple-300 rounded focus:ring-purple-500"
+                      className="w-4 h-4 text-teal-600 border-slate-300 rounded focus:ring-teal-500"
                     />
                     Mostrar clientes con saldo pendiente
                   </label>
                   <button
                     type="button"
                     onClick={descargarPdfPendientesClientes}
-                    className="h-11 px-3 shrink-0 bg-white border border-purple-200 text-purple-700 hover:bg-purple-50 rounded-xl shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs font-black uppercase tracking-wider"
-                    title="Descargar PDF de clientes con saldo pendiente"
+                    className="sf-clients-export-button"
+                    aria-label="Descargar PDF de clientes con saldo pendiente"
                   >
-                    <Download size={14} /> PDF pendientes
-                  </button>
-                  <button
-                    onClick={() => setModalActivo('acciones_clientes')}
-                    aria-label="Acciones de clientes"
-                    title="Acciones de clientes"
-                    className="h-11 w-11 shrink-0 bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-sm transition-all active:scale-95 flex items-center justify-center"
-                  >
-                    <Plus size={18} />
+                    <Download size={18} />
                   </button>
                 </div>
               </div>
-              <div className="flex-1 min-h-0 divide-y divide-gray-100 overflow-y-auto">
+              <div className="sf-clients-list flex-1 min-h-0 overflow-y-auto">
                 {clientesVisiblesSegunAcceso.length === 0 ? (
                    <div className="p-16 text-center text-gray-400 flex flex-col items-center bg-gray-50/30">
                     <Users size={48} className="mb-4 opacity-30 text-gray-500" />
@@ -22462,9 +25866,19 @@ function obtenerCategoriaProducto(producto) {
                     </p>
                    </div>
                 ) : (
-                  clientesVisualizados.map((cliente) => (
-                    <div key={cliente.id} onClick={() => abrirDetalleCliente(cliente)} className="group p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-purple-50/30 transition-colors cursor-pointer">
-                      {(() => {
+                  <table className="sf-clients-table w-full min-w-[900px] border-collapse text-sm">
+                    <thead className="sticky top-0 z-10">
+                      <tr>
+                        <th className="text-left">Cliente</th>
+                        <th className="text-left">Estado</th>
+                        <th className="text-right">Saldo pendiente</th>
+                        <th className="text-right">Vencimiento más antiguo</th>
+                        <th className="w-[110px] text-right">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                    {clientesPaginados.items.map((cliente) => (
+                      (() => {
                         const estado = estadoCuentaClientes[cliente.id] || {};
                         const semaforo = obtenerSemaforoEstadoCuenta(estado);
                         const saldoClass = semaforo.saldoClass;
@@ -22487,112 +25901,55 @@ function obtenerCategoriaProducto(producto) {
                         const whatsappClienteUrl = construirUrlWhatsApp(cliente?.whatsapp || '');
                         const esAdmin = (usuarioActual?.rol || '').toLowerCase() === 'admin';
                         return (
-                        <>
-                      <div className="min-w-0">
-                        <div className="flex items-center flex-wrap gap-2 mb-2">
-                          <p className="font-bold text-gray-900 text-lg">{cliente.nombre}</p>
-                          {esAdmin && (
-                            <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity">
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); limpiarCuentaCliente(cliente); }}
-                                className="p-1.5 rounded-md border border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors"
-                                title="Limpiar cuenta corriente"
-                              >
-                                <XCircle size={13} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); eliminarClienteDirectorio(cliente); }}
-                                className="p-1.5 rounded-md border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
-                                title="Eliminar cliente"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex flex-nowrap gap-2 items-center overflow-x-auto pb-1">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); enviarRecordatorioCliente(cliente, estado); }}
-                            disabled={!estado.tieneDeuda}
-                            className="text-xs font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-md flex items-center gap-1.5 hover:bg-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors w-max shrink-0"
-                            title={estado.tieneDeuda ? 'Enviar recordatorio por WhatsApp' : 'Cliente al día'}
-                          >
-                            <Send size={12} /> Enviar recordatorio ({recordatorios})
-                          </button>
-                          <span className="text-[10px] font-black text-purple-700 bg-purple-100 border border-purple-200 px-2 py-1 rounded-md tracking-wider uppercase shrink-0">
-                            {obtenerNumeroClienteTexto(cliente)}
-                          </span>
-                          {cliente.whatsapp && whatsappClienteUrl ? (
-                            <a onClick={(e) => e.stopPropagation()} href={whatsappClienteUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-green-700 bg-green-50 border border-green-100 px-2.5 py-1 rounded-md flex items-center gap-1.5 hover:bg-green-100 transition-colors w-max shrink-0"><Phone size={12} /> {cliente.whatsapp}</a>
-                          ) : (
-                            <span className="text-xs font-bold text-gray-400 bg-gray-50 border px-2.5 py-1 rounded-md flex items-center gap-1.5 w-max shrink-0"><Phone size={12}/> Sin número guardado</span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {esAdmin && mostrarIndicadoresDeudaCliente && recargosAplicados > 0 && (
-                            <span
-                              className="text-[10px] font-black text-orange-700 bg-orange-50 border border-orange-200 px-2 py-1 rounded-md tracking-wider uppercase"
-                              title={ultimaFechaRecargoValida ? `Último recargo: ${formatearFecha(ultimaFechaRecargoCliente)}` : 'Recargos aplicados'}
-                            >
-                              R {recargosAplicados}
-                            </span>
-                          )}
-                          {esAdmin && mostrarIndicadoresDeudaCliente && recargosAplicados > 0 && ultimaFechaRecargoValida && (
-                            <span
-                              className="text-[10px] font-black text-orange-700 bg-orange-50 border border-orange-200 px-2 py-1 rounded-md tracking-wider uppercase"
-                              title={diasDesdeUltimoRecargoCliente !== null ? `${diasDesdeUltimoRecargoCliente} días desde el último recargo` : 'Último recargo aplicado'}
-                            >
-                              Últ. recargo {formatearFecha(ultimaFechaRecargoCliente)}{diasDesdeUltimoRecargoCliente !== null ? ` • ${diasDesdeUltimoRecargoCliente} días` : ''}
-                            </span>
-                          )}
-                          {esAdmin && estado.tieneDeuda && porcentajeSugeridoRecargoCliente > 0 && (
-                            <span className="text-[10px] font-black text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md tracking-wider uppercase">
-                              Sug. aplicar +{formatearPorcentaje(porcentajeSugeridoRecargoCliente)}% ({tramosSugeridosRecargoCliente} tramo{tramosSugeridosRecargoCliente === 1 ? '' : 's'} x {formatearPorcentaje(porcentajeBaseRecargoCliente)}%)
-                            </span>
-                          )}
-                          {esAdmin && mostrarIndicadoresDeudaCliente && recargosAplicados === 0 && porcentajeSugeridoRecargoCliente <= 0 && diasDeudaCliente !== null && diasDeudaCliente > 30 && (
-                            <span className="text-[10px] font-black text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md tracking-wider uppercase">
-                              Hace {diasDeudaCliente} días que no se aplican recargos
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {cliente.email && (
-                            <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-md flex items-center gap-1.5 w-max"><Mail size={12}/> {cliente.email}</span>
-                          )}
-                          {cliente.direccion && (
-                            <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-md flex items-center gap-1.5 w-max"><MapPin size={12}/> {cliente.direccion}</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4 justify-between sm:justify-end border-t sm:border-0 pt-3 sm:pt-0 border-gray-100">
-                        <div className="text-left sm:text-right bg-gray-50 px-3 py-1.5 rounded-lg border">
-                          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5">{estado.tieneDeuda ? 'Saldo pendiente' : 'Estado de cuenta'}</p>
-                          {!estado.tieneDeuda ? (
-                            <p className="font-black text-sm tracking-tight text-green-700">Al día sin saldo</p>
-                          ) : (
-                            <>
-                              <p className={`font-black text-xl tracking-tight ${saldoClass}`}>{formatearDinero(saldoPendiente)}</p>
-                              <p className={`mt-1 inline-flex px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-wider ${estadoClass}`}>{estadoTexto}</p>
-                            </>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button disabled={!puedeAbonar} onClick={(e) => { e.stopPropagation(); abrirCobroCliente(cliente); }} className="bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:bg-gray-200 disabled:text-gray-400 px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-sm hover:shadow-md active:scale-95 uppercase tracking-wider">
-                            ABONAR <ArrowRight size={16} />
-                          </button>
-                        </div>
-                      </div>
-                        </>
+                          <tr key={cliente.id} onClick={() => abrirDetalleCliente(cliente)} className="cursor-pointer">
+                            <td>
+                              <div className="flex items-center gap-3 min-w-0">
+                                <span className="sf-client-avatar">{(cliente.nombre || '?').trim().slice(0, 2).toUpperCase()}</span>
+                                <div className="min-w-0">
+                                  <p className="font-bold text-slate-900 truncate">{cliente.nombre}</p>
+                                  <p className="mt-0.5 text-[11px] font-medium text-slate-500 truncate">{obtenerNumeroClienteTexto(cliente)}{cliente.whatsapp ? ` · ${cliente.whatsapp}` : ''}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="flex items-center gap-2">
+                                <span className={`sf-client-status ${estado.tieneDeuda ? estadoClass : 'sf-client-status-ok'}`}>{estado.tieneDeuda ? estadoTexto : 'Al día'}</span>
+                                {recargosAplicados > 0 && <span className="sf-client-recargo" title={ultimaFechaRecargoValida ? `Último recargo: ${formatearFecha(ultimaFechaRecargoCliente)}` : 'Recargos aplicados'}>R{recargosAplicados}</span>}
+                                {recordatorios > 0 && <span className="text-[10px] font-bold text-slate-400">{recordatorios} REC.</span>}
+                              </div>
+                            </td>
+                            <td className={`text-right font-black tabular-nums ${estado.tieneDeuda ? saldoClass : 'text-slate-400'}`}>{estado.tieneDeuda ? formatearDinero(saldoPendiente) : '—'}</td>
+                            <td className={`text-right text-xs font-bold ${diasDeudaCliente !== null && diasDeudaCliente > 30 ? 'text-amber-700' : 'text-slate-500'}`}>{estado.tieneDeuda && diasDeudaCliente !== null ? `${diasDeudaCliente} días` : '—'}</td>
+                            <td onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-end gap-1">
+                                <button type="button" onClick={() => abrirDetalleCliente(cliente)} className="sf-client-icon-action" title="Ver cuenta corriente" aria-label="Ver cuenta corriente"><ArrowRight size={16} /></button>
+                                <details className="sf-client-more">
+                                  <summary className="sf-client-icon-action" title="Más acciones" aria-label="Más acciones">⋮</summary>
+                                  <div className="sf-client-more-menu">
+                                    <button type="button" disabled={!puedeAbonar} onClick={() => abrirCobroCliente(cliente)}><ArrowRight size={14} /> Registrar cobro</button>
+                                    <button type="button" disabled={!estado.tieneDeuda} onClick={() => enviarRecordatorioCliente(cliente, estado)}><Send size={14} /> Enviar recordatorio</button>
+                                    <button type="button" onClick={() => abrirFormularioCliente(cliente)}><Edit2 size={14} /> Editar cliente</button>
+                                    {esAdmin && <><button type="button" onClick={() => limpiarCuentaCliente(cliente)}><XCircle size={14} /> Limpiar cuenta</button><button type="button" className="sf-client-more-danger" onClick={() => eliminarClienteDirectorio(cliente)}><Trash2 size={14} /> Eliminar cliente</button></>}
+                                  </div>
+                                </details>
+                              </div>
+                            </td>
+                          </tr>
                         );
-                      })()}
-                    </div>
-                  ))
+                      })()
+                    ))}
+                    </tbody>
+                  </table>
                 )}
               </div>
+              {clientesVisualizados.length > 0 && <SFPagination
+                pagina={clientesPaginados.pagina}
+                porPagina={paginacionListados.clientes.porPagina}
+                total={clientesPaginados.total}
+                entidad="clientes"
+                onPaginaChange={(pagina) => setPaginacionListados((prev) => ({ ...prev, clientes: { ...prev.clientes, pagina } }))}
+                onPorPaginaChange={(porPagina) => setPaginacionListados((prev) => ({ ...prev, clientes: { pagina: 1, porPagina } }))}
+              />}
             </div>
           </div>
         )}
@@ -24059,7 +27416,7 @@ function obtenerCategoriaProducto(producto) {
                               setMenuContextualPedidoCompra({ x: e.clientX, y: e.clientY, pedido });
                             }}
                           >
-                            <td className="px-4 py-3 font-bold text-gray-700">{formatearFecha(pedido?.fechaComprobante || pedido?.fechaActualizacion || pedido?.fechaCreacion || new Date())}</td>
+                            <td className="px-4 py-3 font-bold text-gray-700">{formatearFecha(pedido?.fechaPedido || pedido?.fechaComprobante || pedido?.fechaCreacion || pedido?.fechaActualizacion || new Date())}</td>
                             <td className="px-4 py-3">
                               <p className="font-black text-gray-900">PC-{textoSeguroTrim(pedido?.numero, '000000')}</p>
                               {pedido?.tipoRegistro === 'compra_directa' && <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Compra directa</p>}
@@ -24095,7 +27452,7 @@ function obtenerCategoriaProducto(producto) {
                             </td>
                             <td className="px-4 py-3 text-right">
                               <div className="flex justify-end gap-1.5">
-                                <button type="button" onClick={() => abrirPedidoCompraGuardado(pedido)} className="p-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100" title="Abrir pedido"><Eye size={14} /></button>
+                                <button type="button" onClick={() => abrirPedidoCompraGuardado(pedido)} className="p-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100" title="Editar pedido" aria-label="Editar pedido"><Edit2 size={14} /></button>
                                 <button type="button" onClick={async () => {
                                   const filas = construirFilasPedidoCompra(pedido?.items || []);
                                   if (!filas.length) return;
@@ -24114,32 +27471,6 @@ function obtenerCategoriaProducto(producto) {
                                     incluirTransporte: Boolean(pedido?.mostrarTransporte)
                                   });
                                 }} className="p-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" title="PDF general"><Download size={14} /></button>
-                                <button type="button" onClick={async () => {
-                                  const filas = construirFilasPedidoCompra(pedido?.items || []);
-                                  if (!filas.length) return;
-                                  const grupos = filas.reduce((acc, item) => {
-                                    const prov = textoSeguroTrim(item?.proveedor, 'Sin proveedor');
-                                    if (!acc[prov]) acc[prov] = [];
-                                    acc[prov].push(item);
-                                    return acc;
-                                  }, {});
-                                  for (const [prov, lista] of Object.entries(grupos)) {
-                                    await generarPdfPedidoCompra({
-                                      items: lista,
-                                      titulo: `Pedido a proveedor: ${prov}`,
-                                      nombreArchivo: `pedido_compra_${normalizarTextoArchivo(prov)}_pc_${textoSeguroTrim(pedido?.numero, '000000')}`,
-                                      incluirImagenes: Boolean(pedido?.incluirImagenes),
-                                      mostrarPrecioUnitario: pedido?.mostrarPrecioUnitario !== false,
-                                      mostrarSubtotal: pedido?.mostrarSubtotal !== false,
-                                      mostrarTotal: pedido?.mostrarTotal !== false,
-                                      notas: pedido?.notas || '',
-                                      numeroPedido: `PC-${textoSeguroTrim(pedido?.numero, '000000')}`,
-                                      fechaPedido: pedido?.fechaPedido || pedido?.fechaComprobante || '',
-                                      transporte: pedido?.transporte || '',
-                                      incluirTransporte: Boolean(pedido?.mostrarTransporte)
-                                    });
-                                  }
-                                }} className="p-2 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100" title="PDF por proveedor"><FileSpreadsheet size={14} /></button>
                                 <button type="button" onClick={() => eliminarPedidoCompraGuardado(pedido)} className="p-2 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100" title="Eliminar"><Trash2 size={14} /></button>
                               </div>
                             </td>
@@ -24585,7 +27916,7 @@ function obtenerCategoriaProducto(producto) {
                                 </div>
                               <div className="flex items-center gap-2">
                                 <button type="button" disabled={!proveedorActivo} onClick={() => abrirPagoProveedor(proveedorActivo)} className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5"><Plus size={14} /> Cargar pago</button>
-                                <button type="button" disabled={!proveedorActivo} onClick={() => imprimirCuentaProveedor(proveedorActivo)} className="px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 text-slate-700 text-xs font-black uppercase tracking-wider flex items-center gap-1.5"><Printer size={14} /> Imprimir</button>
+                                <button type="button" disabled={!proveedorActivo} onClick={() => imprimirCuentaProveedor(proveedorActivo).catch(async (error) => { console.error('No se pudo descargar la cuenta del proveedor.', error); const detalleErrorPdf = textoSeguroTrim(error?.message, 'Error desconocido'); await notificarSistema(`No se pudo generar el PDF de la cuenta del proveedor. Detalle: ${detalleErrorPdf}`, { tipo: 'error', titulo: 'Error al descargar PDF' }); })} className="px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 text-slate-700 text-xs font-black uppercase tracking-wider flex items-center gap-1.5"><Printer size={14} /> Imprimir</button>
                                 <span className="px-2 py-1 rounded-md bg-slate-100 text-slate-700 text-xs font-black">{movimientosProveedorFiltrados.length}</span>
                               </div>
                             </div>
@@ -24642,7 +27973,7 @@ function obtenerCategoriaProducto(producto) {
                                           </td>
                                           <td className="px-3 py-2 min-w-[260px]">
                                             <p className="font-bold text-slate-900">{esPago ? (mov.notas || 'Pago a proveedor') : mov.descripcion}</p>
-                                            <p className="text-[10px] font-bold text-slate-500 line-clamp-2">{esPago ? `${obtenerEtiquetaMetodoPago(mov.metodoPago)}${(mov.adjuntos || []).length ? ` · ${mov.adjuntos.length} adjunto(s)` : ''}` : detalleItems}</p>
+                                            <p className="text-[10px] font-bold text-slate-500 line-clamp-2">{esPago ? `${obtenerEtiquetaMetodoPago(mov.metodoPago)}${Number(mov.saldoFavorConsumido || 0) > 0.009 ? ` · saldo a favor utilizado ${formatearDinero(mov.saldoFavorConsumido)}` : ''}${Number(mov.saldoFavorGenerado || 0) > 0.009 ? ` · disponible ${formatearDinero(mov.saldoFavorGenerado)}` : ''}${(mov.adjuntos || []).length ? ` · ${mov.adjuntos.length} adjunto(s)` : ''}` : detalleItems}</p>
                                           </td>
 	                                          <td className="px-3 py-2 text-xs font-bold text-slate-600">
 	                                            {esPago
@@ -24936,13 +28267,6 @@ function obtenerCategoriaProducto(producto) {
               </div>
             </div>
 
-            <div className="shrink-0 grid grid-cols-2 xl:grid-cols-4 gap-3">
-              <WidgetCard titulo="Productos activos" monto={productos.length} icono={Package} colorClase="text-blue-600" formato="numero" />
-              <WidgetCard titulo="Stock bajo" monto={productosStockBajo.length} icono={AlertCircle} colorClase="text-amber-600" formato="numero" />
-              <WidgetCard titulo="Sin stock" monto={(productos || []).filter((producto) => Math.max(0, parseNumeroBasico(producto?.cantidad ?? producto?.stock ?? 0) || 0) <= 0).length} icono={XCircle} colorClase="text-red-600" formato="numero" />
-              <WidgetCard titulo="Unidades en inventario" monto={(productos || []).reduce((total, producto) => total + Math.max(0, parseNumeroBasico(producto?.cantidad ?? producto?.stock ?? 0) || 0), 0)} icono={BarChart2} colorClase="text-emerald-600" formato="numero" />
-            </div>
-
             <div className="flex-1 min-h-0 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
               <div className="shrink-0 p-4 border-b border-gray-100 bg-gray-50/50 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                 <div className="hidden sm:flex flex-col gap-1">
@@ -25137,22 +28461,16 @@ function obtenerCategoriaProducto(producto) {
                       );})}
                     </tbody>
                   </table>
-                  {productosInventarioRenderizados.length < productosVisualizados.length && (
-                    <div className="bg-white border-t border-gray-100 px-4 py-5 text-center">
-                      <p className="text-xs font-bold text-gray-500">
-                        Mostrando {productosInventarioRenderizados.length} de {productosVisualizados.length} productos.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setLimiteRenderInventario((prev) => prev + 160)}
-                        className="mt-2 inline-flex items-center justify-center px-5 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-black uppercase tracking-wider"
-                      >
-                        Ver más productos
-                      </button>
-                    </div>
-                  )}
                 </div>
               )}
+              {productosVisualizados.length > 0 && <SFPagination
+                pagina={inventarioPaginado.pagina}
+                porPagina={paginacionListados.inventario.porPagina}
+                total={inventarioPaginado.total}
+                entidad="productos"
+                onPaginaChange={(pagina) => setPaginacionListados((prev) => ({ ...prev, inventario: { ...prev.inventario, pagina } }))}
+                onPorPaginaChange={(porPagina) => setPaginacionListados((prev) => ({ ...prev, inventario: { pagina: 1, porPagina } }))}
+              />}
             </div>
           </div>
         )}
@@ -26225,11 +29543,14 @@ function obtenerCategoriaProducto(producto) {
           <div className="sf-reports-page h-[calc(100vh-7.5rem)] flex flex-col gap-4 overflow-hidden animate-in fade-in duration-300 print:h-auto print:overflow-visible print:space-y-4">
             <div className="sf-screen-header shrink-0 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
               <div className="flex flex-col gap-3 w-full md:w-auto">
-                <div className="flex gap-2 bg-slate-100 p-1 rounded-lg self-start">
+                <div className="flex flex-wrap gap-2 bg-slate-100 p-1 rounded-lg self-start">
                   <button onClick={() => setReporteTipo('general')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${reporteTipo === 'general' ? 'bg-white shadow-sm text-blue-700' : 'text-gray-500 hover:text-gray-800'}`}>BALANCE DE CAJA</button>
                   <button onClick={() => setReporteTipo('clientes')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${reporteTipo === 'clientes' ? 'bg-white shadow-sm text-purple-700' : 'text-gray-500 hover:text-gray-800'}`}>CTAS CORRIENTES</button>
+                  <button onClick={() => setReporteTipo('vendedores')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${reporteTipo === 'vendedores' ? 'bg-white shadow-sm text-emerald-700' : 'text-gray-500 hover:text-gray-800'}`}>VENDEDORES</button>
+                  <button onClick={() => setReporteTipo('tarjetas')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${reporteTipo === 'tarjetas' ? 'bg-white shadow-sm text-indigo-700' : 'text-gray-500 hover:text-gray-800'}`}>TARJETAS</button>
+                  <button onClick={() => setReporteTipo('impuestos')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${reporteTipo === 'impuestos' ? 'bg-white shadow-sm text-orange-700' : 'text-gray-500 hover:text-gray-800'}`}>REPORTES IMPOSITIVOS</button>
                 </div>
-                {reporteTipo === 'general' && (
+                {['general', 'impuestos', 'vendedores', 'tarjetas'].includes(reporteTipo) && (
                   <div className="flex flex-wrap gap-2 items-end">
                     <button onClick={() => setReporteTiempo('hoy')} className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${reporteTiempo === 'hoy' ? 'bg-blue-50 border-blue-600 text-blue-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>Hoy</button>
                     <button onClick={() => setReporteTiempo('mes')} className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${reporteTiempo === 'mes' ? 'bg-blue-50 border-blue-600 text-blue-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>Mes</button>
@@ -26292,32 +29613,14 @@ function obtenerCategoriaProducto(producto) {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-6 print:gap-2 print:mb-4">
-                    <WidgetCard titulo="Ingresos Totales" monto={datosReporte.ingresos} icono={TrendingUp} colorClase="text-green-600" printOculto={false} onClick={() => mostrarDetalleIndicadorReporte('ingresos')} subtitulo="Toca para ver detalle" />
-                    <WidgetCard titulo="Cobros (Cuentas)" monto={datosReporte.cobros} icono={Users} colorClase="text-purple-600" printOculto={false} onClick={() => mostrarDetalleIndicadorReporte('cobros')} subtitulo="Toca para ver detalle" />
-                    <WidgetCard titulo="Egresos Totales" monto={datosReporte.egresos} icono={TrendingDown} colorClase="text-red-600" printOculto={false} onClick={() => mostrarDetalleIndicadorReporte('egresos')} subtitulo="Toca para ver detalle" />
-                    <WidgetCard titulo="Transferencias Netas" monto={datosReporte.flujoTransferencia} icono={CreditCard} colorClase={datosReporte.flujoTransferencia >= 0 ? "text-blue-600" : "text-red-600"} printOculto={false} onClick={() => mostrarDetalleIndicadorReporte('transferencias')} subtitulo="Toca para ver detalle" />
-                    <WidgetCard titulo="Retiros Efectivo" monto={datosReporte.retiros} icono={ArrowDownCircle} colorClase="text-orange-600" printOculto={false} onClick={() => mostrarDetalleIndicadorReporte('retiros')} subtitulo="Toca para ver detalle" />
-                    <WidgetCard titulo="Ganancia (Neto)" monto={datosReporte.neto} icono={Wallet} colorClase={datosReporte.neto >= 0 ? "text-blue-600" : "text-red-600"} printOculto={false} onClick={() => mostrarDetalleIndicadorReporte('ganancia')} subtitulo="Toca para ver detalle" />
-                  </div>
-
-                  <h3 className="text-lg font-bold text-gray-800 mb-3 border-b border-gray-200 pb-2 mt-8 print:mt-4 print:mb-2">Balance Real por Medios de Pago</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 print:grid-cols-4 print:gap-2 print:mb-4">
-                      <div className="bg-gray-50 border border-gray-200 p-4 rounded-xl text-center print:bg-white print:border-gray-400">
-                          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 print:text-gray-800">Efectivo Neto</p>
-                          <p className={`text-2xl font-black tracking-tight ${datosReporte.flujoEfectivo >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatearDinero(datosReporte.flujoEfectivo)}</p>
-                      </div>
-                      <div className="bg-gray-50 border border-gray-200 p-4 rounded-xl text-center print:bg-white print:border-gray-400">
-                          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 print:text-gray-800">Transf. Netas</p>
-                          <p className={`text-2xl font-black tracking-tight ${datosReporte.flujoTransferencia >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatearDinero(datosReporte.flujoTransferencia)}</p>
-                      </div>
-                      <div className="bg-gray-50 border border-gray-200 p-4 rounded-xl text-center print:bg-white print:border-gray-400">
-                          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 print:text-gray-800">Tarjetas Netas</p>
-                          <p className={`text-2xl font-black tracking-tight ${datosReporte.flujoTarjeta >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatearDinero(datosReporte.flujoTarjeta)}</p>
-                      </div>
-                      <div className="bg-gray-50 border border-gray-200 p-4 rounded-xl text-center print:bg-white print:border-gray-400">
-                          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 print:text-gray-800">Cheques Netos</p>
-                          <p className={`text-2xl font-black tracking-tight ${datosReporte.flujoCheque >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatearDinero(datosReporte.flujoCheque)}</p>
-                      </div>
+                    <WidgetCard titulo="Ventas del período" monto={datosReporte.ventas} icono={TrendingUp} colorClase="text-green-600" printOculto={false} onClick={() => mostrarDetalleIndicadorReporte('ventas')} subtitulo="Facturadas, incluso las ventas a cuenta" />
+                    <WidgetCard titulo="Cobros de cuenta" monto={datosReporte.cobros} icono={Users} colorClase="text-purple-600" printOculto={false} onClick={() => mostrarDetalleIndicadorReporte('cobros')} subtitulo="Dinero recuperado de cuentas corrientes" />
+                    <WidgetCard titulo="Otros ingresos" monto={datosReporte.otrosIngresos} icono={PlusCircle} colorClase="text-teal-600" printOculto={false} onClick={() => mostrarDetalleIndicadorReporte('otrosIngresos')} subtitulo="Ingresos manuales que impactan reportes" />
+                    <WidgetCard titulo="Gastos diarios" monto={datosReporte.gastosOperativos} icono={TrendingDown} colorClase="text-red-600" printOculto={false} onClick={() => mostrarDetalleIndicadorReporte('gastos')} subtitulo="Gastos operativos, sin pagos a proveedores" />
+                    <WidgetCard titulo="Pagos a proveedores" monto={datosReporte.pagosProveedores} icono={Truck} colorClase="text-orange-600" printOculto={false} onClick={() => mostrarDetalleIndicadorReporte('proveedores')} subtitulo="Pagos reales que impactan caja y reportes" />
+                    <WidgetCard titulo="Retiros de caja" monto={datosReporte.retiros} icono={ArrowDownCircle} colorClase="text-amber-600" printOculto={false} onClick={() => mostrarDetalleIndicadorReporte('retiros')} subtitulo="Salida de dinero, no es gasto operativo" />
+                    <WidgetCard titulo="Resultado del negocio" monto={datosReporte.neto} icono={Wallet} colorClase={datosReporte.neto >= 0 ? "text-blue-600" : "text-red-600"} printOculto={false} onClick={() => mostrarDetalleIndicadorReporte('ganancia')} subtitulo="Ventas + ingresos - gastos - proveedores" />
+                    <WidgetCard titulo="Flujo neto disponible" monto={datosReporte.flujoNeto} icono={Landmark} colorClase={datosReporte.flujoNeto >= 0 ? "text-emerald-600" : "text-red-600"} printOculto={false} onClick={() => mostrarDetalleIndicadorReporte('flujo')} subtitulo="Cobrado realmente, menos egresos y retiros" />
                   </div>
 
                   <h3 className="text-lg font-bold text-gray-800 mb-3 border-b border-gray-200 pb-2 mt-8 print:mt-4 print:mb-2">Desglose de Movimientos</h3>
@@ -26332,10 +29635,13 @@ function obtenerCategoriaProducto(producto) {
                         <tbody className="divide-y divide-gray-100 font-medium">
                           {datosReporte.movimientos.map(m => {
                             const isRetiro = m.tipo === 'retiro_caja';
+                            const esPagoProveedor = m.tipo === 'gasto' && Boolean(m?.pagoProveedorId || m?.detallesPago?.origen === 'pago_proveedor' || normalizarTextoBusqueda(m?.categoria || '').includes('pago a proveedor'));
+                            const esPagoVendedor = m.tipo === 'gasto' && m?.detallesPago?.origen === 'retiro_vendedor';
+                            const tipoVisible = esPagoProveedor ? 'pago proveedor' : (esPagoVendedor ? 'pago vendedor' : m.tipo.replace('_', ' '));
                             return (
                             <tr key={m.id} className="hover:bg-slate-50 print:hover:bg-transparent">
                               <td className="px-4 py-3 whitespace-nowrap print:px-2 print:py-2">{formatearFecha(m.fecha)} {formatearHora(m.fecha)}</td>
-                              <td className="px-4 py-3 font-bold print:px-2 print:py-2"><span className={`text-[10px] uppercase tracking-wider ${m.tipo === 'gasto' ? 'text-red-600' : (m.tipo === 'cobro' ? 'text-purple-600' : (isRetiro ? 'text-orange-600' : 'text-green-600'))}`}>{m.tipo.replace('_', ' ')}</span></td>
+                              <td className="px-4 py-3 font-bold print:px-2 print:py-2"><span className={`text-[10px] uppercase tracking-wider ${m.tipo === 'gasto' ? 'text-red-600' : (m.tipo === 'cobro' ? 'text-purple-600' : (isRetiro ? 'text-orange-600' : 'text-green-600'))}`}>{tipoVisible}</span></td>
                               <td className="px-4 py-3 font-bold text-gray-800 print:px-2 print:py-2">{m.descripcion}</td>
                               <td className="px-4 py-3 capitalize print:px-2 print:py-2">{m.metodoPago?.replace('_', ' ')}</td>
                               <td className="px-4 py-3 text-gray-500 print:px-2 print:py-2">{m.usuario || '-'}</td>
@@ -26347,6 +29653,101 @@ function obtenerCategoriaProducto(producto) {
                     </div>
                   )}
                 </>
+              )}
+
+              {reporteTipo === 'vendedores' && (
+                <div className="space-y-5">
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                    <h2 className="text-lg font-black text-emerald-900">Comisiones y pagos a vendedores</h2>
+                    <p className="mt-1 text-xs font-bold text-emerald-700">Ventas asignadas, ganancia por comisión y retiros registrados dentro del período seleccionado.</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                    <WidgetCard titulo="Ventas asignadas" monto={datosReporte.vendedores.ventas} icono={TrendingUp} colorClase="text-blue-600" printOculto={false} subtitulo="Importe de comprobantes con vendedor" />
+                    <WidgetCard titulo="Ganancia vendedores" monto={datosReporte.vendedores.comisiones} icono={Users} colorClase="text-emerald-600" printOculto={false} subtitulo="Comisiones generadas en el período" />
+                    <WidgetCard titulo="Pagos a vendedores" monto={datosReporte.vendedores.pagos} icono={ArrowDownCircle} colorClase="text-red-600" printOculto={false} subtitulo="Retiros registrados, impacten o no caja" />
+                    <WidgetCard titulo="Balance del período" monto={datosReporte.vendedores.balancePeriodo} icono={Wallet} colorClase={datosReporte.vendedores.balancePeriodo >= 0 ? 'text-amber-600' : 'text-purple-600'} printOculto={false} subtitulo="Comisiones menos pagos del período" />
+                  </div>
+                  <div className="overflow-x-auto rounded-2xl border border-slate-200 print:overflow-visible">
+                    <table className="w-full text-left text-sm text-slate-600 print:text-[10.5px]">
+                      <thead className="bg-slate-900 text-[10px] font-black uppercase tracking-wider text-white print:bg-transparent print:text-slate-900">
+                        <tr>
+                          <th className="px-4 py-3">Vendedor</th>
+                          <th className="px-4 py-3 text-center">Comprobantes</th>
+                          <th className="px-4 py-3 text-right">Ventas</th>
+                          <th className="px-4 py-3 text-right">Ganancia / comisión</th>
+                          <th className="px-4 py-3 text-right">Pagado</th>
+                          <th className="px-4 py-3 text-right">Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-bold">
+                        {datosReporte.vendedores.filas.map((fila) => (
+                          <tr key={fila.vendedorId}>
+                            <td className="px-4 py-3 font-black text-slate-900">{fila.vendedorNombre}</td>
+                            <td className="px-4 py-3 text-center">{fila.comprobantes}</td>
+                            <td className="px-4 py-3 text-right">{formatearDinero(fila.ventas)}</td>
+                            <td className="px-4 py-3 text-right text-emerald-700">{formatearDinero(fila.comisiones)}</td>
+                            <td className="px-4 py-3 text-right text-red-600">{formatearDinero(fila.pagos)}</td>
+                            <td className="px-4 py-3 text-right font-black text-amber-700">{formatearDinero(fila.balancePeriodo)}</td>
+                          </tr>
+                        ))}
+                        {!datosReporte.vendedores.filas.length && (
+                          <tr><td colSpan="6" className="px-4 py-10 text-center font-bold text-slate-400">No hay ventas ni pagos de vendedores en este período.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-[11px] font-bold text-slate-500">Los pagos con “Descontar de caja” se registran además como gasto “Pago de comisión a vendedor”. Los pagos sin impacto en caja igualmente figuran en este reporte y en la cuenta del vendedor.</p>
+                </div>
+              )}
+
+              {reporteTipo === 'tarjetas' && (
+                <div className="space-y-5">
+                  <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+                    <h2 className="text-lg font-black text-indigo-900">Ventas con tarjetas</h2>
+                    <p className="mt-1 text-xs font-bold text-indigo-700">Detalle por tarjeta, tipo y plan. El total POSNET es lo cobrado al cliente; el neto estimado es lo que debería acreditar la tarjeta.</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                    <WidgetCard titulo="Cobrado en POSNET" monto={datosReporte.tarjetas.totalPosnet} icono={CreditCard} colorClase="text-indigo-600" printOculto={false} subtitulo={`${datosReporte.tarjetas.operaciones} operación(es)`} />
+                    <WidgetCard titulo="Valor contado" monto={datosReporte.tarjetas.totalContado} icono={Wallet} colorClase="text-slate-700" printOculto={false} subtitulo="Precio base de las ventas" />
+                    <WidgetCard titulo="Financiación trasladada" monto={datosReporte.tarjetas.recargo} icono={TrendingUp} colorClase="text-amber-600" printOculto={false} subtitulo="Diferencia cobrada por los planes" />
+                    <WidgetCard titulo="Neto estimado" monto={datosReporte.tarjetas.netoEstimado} icono={Wallet} colorClase="text-emerald-600" printOculto={false} subtitulo="Importe estimado a acreditar" />
+                  </div>
+                  <div className="overflow-x-auto rounded-2xl border border-slate-200 print:overflow-visible">
+                    <table className="w-full text-left text-sm text-slate-600 print:text-[10.5px]">
+                      <thead className="bg-slate-900 text-[10px] font-black uppercase tracking-wider text-white print:bg-transparent print:text-slate-900">
+                        <tr>
+                          <th className="px-4 py-3">Tipo</th>
+                          <th className="px-4 py-3">Tarjeta / plan</th>
+                          <th className="px-4 py-3 text-center">Operaciones</th>
+                          <th className="px-4 py-3 text-center">Cuotas</th>
+                          <th className="px-4 py-3 text-right">Contado</th>
+                          <th className="px-4 py-3 text-right">Financiación</th>
+                          <th className="px-4 py-3 text-right">POSNET</th>
+                          <th className="px-4 py-3 text-right">Neto estimado</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-bold">
+                        {datosReporte.tarjetas.filas.map((fila) => (
+                          <tr key={fila.clave}>
+                            <td className="px-4 py-3"><span className={`rounded-md px-2 py-1 text-[9px] font-black uppercase ${fila.tipo === 'debito' ? 'bg-emerald-50 text-emerald-700' : 'bg-indigo-50 text-indigo-700'}`}>{fila.tipo === 'debito' ? 'Débito' : 'Crédito'}</span></td>
+                            <td className="px-4 py-3"><p className="font-black text-slate-900">{fila.tarjeta}</p><p className="text-[10px] text-slate-500">{fila.plan}</p></td>
+                            <td className="px-4 py-3 text-center">{fila.operaciones}</td>
+                            <td className="px-4 py-3 text-center">{fila.cuotas}</td>
+                            <td className="px-4 py-3 text-right">{formatearDinero(fila.totalContado)}</td>
+                            <td className="px-4 py-3 text-right text-amber-700">{formatearDinero(fila.recargo)}</td>
+                            <td className="px-4 py-3 text-right font-black text-indigo-700">{formatearDinero(fila.totalPosnet)}</td>
+                            <td className="px-4 py-3 text-right text-emerald-700">{formatearDinero(fila.netoEstimado)}</td>
+                          </tr>
+                        ))}
+                        {!datosReporte.tarjetas.filas.length && <tr><td colSpan="8" className="px-4 py-10 text-center font-bold text-slate-400">No hay ventas con tarjeta en este período.</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+               {reporteTipo === 'impuestos' && (
+                <div className="space-y-5"><div className="rounded-2xl border border-orange-200 bg-orange-50 p-4"><h2 className="text-lg font-black text-orange-900">Balance de IVA e impuestos</h2><p className="text-xs font-bold text-orange-700 mt-1">Facturas A/B de ventas y compras dentro del período seleccionado.</p></div><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4"><WidgetCard titulo="IVA ventas 21%" monto={datosReporte.impuestos.ventas21} icono={TrendingUp} colorClase="text-red-600" /><WidgetCard titulo="IVA ventas 10,5%" monto={datosReporte.impuestos.ventas105} icono={TrendingUp} colorClase="text-red-600" /><WidgetCard titulo="IVA compras 21%" monto={datosReporte.impuestos.compras21} icono={Truck} colorClase="text-emerald-600" /><WidgetCard titulo="IVA compras 10,5%" monto={datosReporte.impuestos.compras105} icono={Truck} colorClase="text-emerald-600" /></div><div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3"><div className="flex justify-between font-black"><span>IVA débito fiscal (ventas)</span><span className="text-red-700">{formatearDinero(datosReporte.impuestos.ventas21 + datosReporte.impuestos.ventas105)}</span></div><div className="flex justify-between font-black"><span>IVA crédito fiscal (compras)</span><span className="text-emerald-700">{formatearDinero(datosReporte.impuestos.compras21 + datosReporte.impuestos.compras105)}</span></div><div className="border-t pt-3 flex justify-between text-lg font-black"><span>Saldo IVA estimado</span><span>{formatearDinero(datosReporte.impuestos.ventas21 + datosReporte.impuestos.ventas105 - datosReporte.impuestos.compras21 - datosReporte.impuestos.compras105)}</span></div></div></div>
               )}
 
               {reporteTipo === 'clientes' && (
@@ -26391,13 +29792,19 @@ function obtenerCategoriaProducto(producto) {
         )}
 
         {/* --- VISTA: AJUSTES (Solo Admin) --- */}
-        {(vista === 'ajustes' || vista === 'configuracion' || vista === 'usuarios') && usuarioActual.rol === 'admin' && (
-          <div className="space-y-6 animate-in fade-in duration-300 print:hidden">
-            <div className="sf-screen-header bg-slate-900 p-2 rounded-2xl shadow-lg border border-slate-700">
+        {(vista === 'ajustes' || vista === 'configuracion' || vista === 'usuarios' || vista === 'tarjetas_planes') && usuarioActual.rol === 'admin' && (
+          <div className="sf-settings-page space-y-6 animate-in fade-in duration-300 print:hidden">
+            <div className="sf-settings-page-header shrink-0">
+              <p className="sf-settings-breadcrumb">Inicio <span>›</span> {vista === 'tarjetas_planes' ? 'Ventas' : 'Ajustes'} <span>›</span> {({ negocio: 'Negocio', cobro: 'Cobro', tarjetas: 'Tarjetas y planes', recargos: 'Recargos', inventario: 'Inventario', historialCaja: 'Caja', diagnostico: 'Diagnóstico', backup: 'Backup', accesos: 'Accesos' })[seccionConfiguracionActiva] || 'Ajustes'}</p>
+              <h1>{vista === 'tarjetas_planes' ? 'Tarjetas y planes' : 'Ajustes'}</h1>
+              <p>{vista === 'tarjetas_planes' ? 'Configurá las tarjetas, cuotas y descuentos utilizados en el punto de ventas.' : 'Configurá los parámetros y preferencias del sistema.'}</p>
+            </div>
+            <div className={`sf-settings-nav sf-screen-header bg-slate-900 p-2 rounded-2xl shadow-lg border border-slate-700 ${vista === 'tarjetas_planes' ? 'hidden' : ''}`}>
               <p className="px-2 pb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Centro de configuración</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-1.5">
                 <button type="button" onClick={() => setSeccionConfiguracionActiva('negocio')} className={`px-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wide flex flex-col items-center justify-center gap-1 transition-all ${seccionConfiguracionActiva === 'negocio' ? 'bg-white text-slate-900 shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}><Store size={15} />Negocio</button>
                 <button type="button" onClick={() => setSeccionConfiguracionActiva('cobro')} className={`px-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wide flex flex-col items-center justify-center gap-1 transition-all ${seccionConfiguracionActiva === 'cobro' ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}><CreditCard size={15} />Cobro</button>
+                <button type="button" onClick={() => setSeccionConfiguracionActiva('tarjetas')} className={`px-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wide flex flex-col items-center justify-center gap-1 transition-all ${seccionConfiguracionActiva === 'tarjetas' ? 'bg-indigo-500 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}><CreditCard size={15} />Tarjetas</button>
                 <button type="button" onClick={() => setSeccionConfiguracionActiva('recargos')} className={`px-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wide flex flex-col items-center justify-center gap-1 transition-all ${seccionConfiguracionActiva === 'recargos' ? 'bg-amber-500 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}><Clock size={15} />Recargos</button>
                 <button type="button" onClick={() => setSeccionConfiguracionActiva('inventario')} className={`px-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wide flex flex-col items-center justify-center gap-1 transition-all ${seccionConfiguracionActiva === 'inventario' ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}><Package size={15} />Inventario</button>
                 <button type="button" onClick={() => setSeccionConfiguracionActiva('historialCaja')} className={`px-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wide flex flex-col items-center justify-center gap-1 transition-all ${seccionConfiguracionActiva === 'historialCaja' ? 'bg-violet-500 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}><History size={15} />Caja</button>
@@ -26407,11 +29814,11 @@ function obtenerCategoriaProducto(producto) {
               </div>
             </div>
 
-            <div className={`max-w-5xl mx-auto w-full ${seccionConfiguracionActiva === 'accesos' ? 'hidden' : ''}`}>
-            <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
+            <div className={`sf-settings-content w-full ${seccionConfiguracionActiva === 'accesos' ? 'hidden' : ''}`}>
+            <div className="sf-settings-section bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
               <form onSubmit={guardarConfiguracion} className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                  <div><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Configuración</p><p className="text-sm font-black text-slate-800">{({ negocio: 'Datos del negocio', cobro: 'Medios de cobro', recargos: 'Recargos', inventario: 'Inventario', historialCaja: 'Caja', diagnostico: 'Diagnóstico', backup: 'Backup' })[seccionConfiguracionActiva] || 'Ajustes'}</p></div>
+                <div className="sf-settings-section-header flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  <div><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Configuración</p><p className="text-sm font-black text-slate-800">{({ negocio: 'Datos del negocio', cobro: 'Medios de cobro', tarjetas: 'Tarjetas y planes', recargos: 'Recargos', inventario: 'Inventario', historialCaja: 'Caja', diagnostico: 'Diagnóstico', backup: 'Backup' })[seccionConfiguracionActiva] || 'Ajustes'}</p></div>
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={alternarEdicionConfiguracion} className="px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 text-[11px] font-black uppercase tracking-wider">{editandoConfiguracion ? 'Cancelar edición' : 'Editar'}</button>
                     <button type="submit" disabled={!editandoConfiguracion || !configuracionEditada} className="px-3 py-2 rounded-lg border border-slate-900 bg-slate-900 text-white disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-black uppercase tracking-wider">Guardar cambios</button>
@@ -26571,7 +29978,45 @@ function obtenerCategoriaProducto(producto) {
                   </div>
                     </div>
                   )}
-                </div>
+</div>
+<div className={`border border-indigo-200 rounded-xl overflow-hidden ${seccionConfiguracionActiva === 'tarjetas' ? '' : 'hidden'}`}>
+  {seccionesConfiguracionAbiertas.tarjetas && (
+    <div className="bg-indigo-50 border-t border-indigo-200 p-3 sm:p-4 space-y-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div><p className="text-xs font-black text-indigo-900 uppercase tracking-wider">Planes disponibles en el punto de ventas</p><p className="text-[11px] font-bold text-indigo-700">El precio del inventario queda como contado. El sistema calcula cuánto cobrar en el POSNET para recuperar los descuentos.</p></div>
+        <button type="button" disabled={!editandoConfiguracion} onClick={() => setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: [...(Array.isArray(prev?.tarjetasPlanes) ? prev.tarjetasPlanes : []), { id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, tipo: 'credito', tarjeta: '', plan: '', cuotas: 1, descuentoComercio: 0, otrosCargosPorcentaje: 0, cargoFijo: 0, diasAcreditacion: 0, vigenciaActiva: false, vigenciaDesde: '', vigenciaHasta: '', activo: true }] }))} className="rounded-lg bg-indigo-600 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-white disabled:cursor-not-allowed disabled:opacity-40"><Plus size={14} className="inline mr-1" /> Agregar plan</button>
+      </div>
+      {tarjetasPlanesConfiguracion.length === 0 ? <div className="rounded-xl border border-dashed border-indigo-300 bg-white p-8 text-center text-sm font-bold text-indigo-500">Todavía no hay planes. Agregá uno para habilitar las cuotas en el punto de ventas.</div> : <>
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2">
+          <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-wider text-indigo-900">Buscar plan</p><p className="text-[10px] font-bold text-indigo-600">{planesTarjetaConfiguracionFiltrados.length} de {tarjetasPlanesConfiguracion.length} plan(es)</p></div>
+          <input type="search" value={busquedaPlanesTarjetaConfiguracion} onChange={(e) => setBusquedaPlanesTarjetaConfiguracion(e.target.value)} className="w-full lg:w-[360px] rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Buscar por tarjeta, plan, crédito, débito o cuotas" />
+        </div>
+        {planesTarjetaConfiguracionFiltrados.length === 0 ? <div className="rounded-xl border border-dashed border-indigo-300 bg-white p-8 text-center text-sm font-bold text-indigo-500">No hay planes que coincidan con la búsqueda.</div> : <div className="max-h-[62vh] space-y-2 overflow-y-auto pr-1">
+        {planesTarjetaConfiguracionFiltrados.map(({ plan, index }) => {
+          const actualizarPlan = (campo, valor) => setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: (prev.tarjetasPlanes || []).map((actual, posicion) => posicion === index ? { ...actual, [campo]: valor } : actual) }));
+          const planNormalizado = normalizarPlanTarjeta(plan);
+          const simulacion = calcularFinanciacionTarjeta(100000, plan);
+          const vigenciaPromoActiva = Boolean(planNormalizado.vigenciaActiva);
+          const promoVigente = esPlanTarjetaPromoVigente(planNormalizado);
+          const rangoVigenciaDefault = obtenerRangoVigenciaOfertaDefault();
+          return <div key={plan.id || `plan-config-${index}`} className="rounded-xl border border-indigo-200 bg-white p-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2">
+              <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Tipo</label><select disabled={!editandoConfiguracion} value={planNormalizado.tipo} onChange={(e) => actualizarPlan('tipo', e.target.value)} className="input !py-2 disabled:bg-slate-100"><option value="credito">Crédito</option><option value="debito">Débito</option></select></div>
+              <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Tarjeta</label><input disabled={!editandoConfiguracion} value={plan.tarjeta || ''} onChange={(e) => actualizarPlan('tarjeta', e.target.value)} placeholder="Ej: Tuya" className="input !py-2 disabled:bg-slate-100" /></div>
+              <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Nombre del plan</label><input disabled={!editandoConfiguracion} value={plan.plan || ''} onChange={(e) => actualizarPlan('plan', e.target.value)} placeholder="Ej: 2 cuotas" className="input !py-2 disabled:bg-slate-100" /></div>
+              <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Cuotas</label><input type="number" min="1" step="1" disabled={!editandoConfiguracion} value={plan.cuotas ?? 1} onChange={(e) => actualizarPlan('cuotas', e.target.value)} className="input !py-2 disabled:bg-slate-100" /></div>
+              <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Descuento tarjeta %</label><input type="number" min="0" max="99.99" step="0.000001" disabled={!editandoConfiguracion} value={plan.descuentoComercio ?? 0} onChange={(e) => actualizarPlan('descuentoComercio', e.target.value)} className="input !py-2 disabled:bg-slate-100" /></div>
+              <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Otros cargos %</label><input type="number" min="0" max="99.99" step="0.000001" disabled={!editandoConfiguracion} value={plan.otrosCargosPorcentaje ?? 0} onChange={(e) => actualizarPlan('otrosCargosPorcentaje', e.target.value)} className="input !py-2 disabled:bg-slate-100" /></div>
+              <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Cargo fijo $</label><input type="number" min="0" step="0.01" disabled={!editandoConfiguracion} value={plan.cargoFijo ?? 0} onChange={(e) => actualizarPlan('cargoFijo', e.target.value)} className="input !py-2 disabled:bg-slate-100" /></div>
+            </div>
+            <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2"><div className="text-[11px] font-bold text-slate-600">Ejemplo sobre $100.000: <strong className="text-indigo-700">cobrar {formatearDinero(simulacion.totalPosnet)}</strong> · {simulacion.cuotas} de {formatearDinero(simulacion.cuota)} · recupero {formatearCantidad(simulacion.porcentajeRecuperacion)}%</div><div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-600">Acredita en <input type="number" min="0" step="1" disabled={!editandoConfiguracion} value={plan.diasAcreditacion ?? 0} onChange={(e) => actualizarPlan('diasAcreditacion', e.target.value)} className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-right disabled:bg-slate-100" /> días</label><label className={`flex items-center gap-2 rounded-lg border px-2 py-1 text-[10px] font-black uppercase ${promoVigente ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600'}`}><input type="checkbox" disabled={!editandoConfiguracion} checked={vigenciaPromoActiva} onChange={(e) => { const activoVigencia = e.target.checked; setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: (prev.tarjetasPlanes || []).map((actual, posicion) => posicion === index ? { ...actual, vigenciaActiva: activoVigencia, vigenciaDesde: activoVigencia ? (actual.vigenciaDesde || rangoVigenciaDefault.desde) : (actual.vigenciaDesde || ''), vigenciaHasta: activoVigencia ? (actual.vigenciaHasta || rangoVigenciaDefault.hasta) : (actual.vigenciaHasta || '') } : actual) })); }} /> Vigencia {promoVigente && <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[8px] text-white">Vigente</span>}</label>{vigenciaPromoActiva && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-2 py-1"><label className="flex items-center gap-1 text-[9px] font-black uppercase text-emerald-700">Desde <input type="date" disabled={!editandoConfiguracion} value={planNormalizado.vigenciaDesde || ''} onChange={(e) => actualizarPlan('vigenciaDesde', e.target.value)} className="rounded-md border border-emerald-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-900 disabled:bg-slate-100" /></label><label className="flex items-center gap-1 text-[9px] font-black uppercase text-emerald-700">Hasta <input type="date" disabled={!editandoConfiguracion} value={planNormalizado.vigenciaHasta || ''} onChange={(e) => actualizarPlan('vigenciaHasta', e.target.value)} className="rounded-md border border-emerald-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-900 disabled:bg-slate-100" /></label></div>}<label className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-600"><input type="checkbox" disabled={!editandoConfiguracion} checked={plan.activo !== false} onChange={(e) => actualizarPlan('activo', e.target.checked)} /> Activo</label><button type="button" disabled={!editandoConfiguracion} onClick={() => setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: (prev.tarjetasPlanes || []).filter((_, posicion) => posicion !== index) }))} className="rounded-lg border border-red-200 bg-red-50 p-2 text-red-600 disabled:opacity-30" title="Eliminar plan"><Trash2 size={14} /></button></div></div>
+          </div>;
+        })}
+        </div>}
+      </>}
+    </div>
+  )}
+</div>
 <div className={`border border-amber-200 rounded-xl overflow-hidden ${seccionConfiguracionActiva === 'recargos' ? '' : 'hidden'}`}>
                   <button type="button" onClick={() => alternarSeccionConfiguracion('recargos')} className="hidden">
                     <span className="text-xs font-black text-amber-800 uppercase tracking-wider">Recargos automáticos</span>
@@ -26771,7 +30216,7 @@ function obtenerCategoriaProducto(producto) {
             </div>
             </div>
 
-            <div className={`bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden ${seccionConfiguracionActiva === 'accesos' ? '' : 'hidden'}`}>
+            <div className={`sf-settings-section sf-settings-access bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden ${seccionConfiguracionActiva === 'accesos' ? '' : 'hidden'}`}>
               <button
                 type="button"
                 onClick={() => setGestionAccesosAbierta((prev) => !prev)}
@@ -26779,13 +30224,13 @@ function obtenerCategoriaProducto(producto) {
               >
                 <div className="flex items-center gap-3">
                   <div className="bg-slate-800 p-3 rounded-xl shadow-sm"><ShieldCheck size={24} className="text-white"/></div>
-                  <div><h2 className="text-lg font-bold text-gray-900 tracking-tight text-left">Gestión de Accesos</h2></div>
+                  <div><h2 className="text-lg font-bold text-gray-900 tracking-tight text-left">Gestión de Accesos</h2><p className="text-xs font-medium text-slate-500 text-left mt-0.5">Administrá los usuarios y permisos del sistema.</p></div>
                 </div>
                 <span className="text-xl font-black text-slate-600">{gestionAccesosAbierta ? '-' : '+'}</span>
               </button>
               {gestionAccesosAbierta && (
               <div className="px-5 pb-5">
-                <button onClick={() => abrirFormularioUsuario(null)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-2.5 rounded-lg shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 w-full sm:w-auto text-[10px] uppercase tracking-wide mb-4"><UserPlus size={14} /> NUEVO USUARIO</button>
+                <button onClick={() => abrirFormularioUsuario(null)} className="sf-settings-primary-action bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-2.5 rounded-lg shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 w-full sm:w-auto text-[10px] uppercase tracking-wide mb-4"><UserPlus size={14} /> NUEVO USUARIO</button>
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm text-gray-700">
@@ -27147,14 +30592,29 @@ function obtenerCategoriaProducto(producto) {
         </Modal>
       )}
 
+      {ventaAsignarVendedor && (
+        <Modal titulo="Asignar vendedor y comisión" onClose={guardandoAsignacionVendedor ? null : () => setVentaAsignarVendedor(null)} customWidth="max-w-lg" extraClases="z-[120]">
+          <form onSubmit={guardarAsignacionVendedorVenta} className="space-y-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Venta seleccionada</p><p className="mt-1 font-black text-slate-900">{OPCIONES_COMPROBANTE_VENTA.find((opcion) => opcion.value === ventaAsignarVendedor?.detallesPago?.tipoComprobante)?.label || 'Comprobante'} {textoSeguroTrim(ventaAsignarVendedor?.detallesPago?.numeroComprobante, 'Sin número')}</p><p className="text-xs font-bold text-slate-500">{textoSeguroTrim(ventaAsignarVendedor?.detallesPago?.cliente, 'Sin cliente')} · Total {formatearDinero(Number(ventaAsignarVendedor.monto || 0))}</p></div>
+            <div><label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1">Vendedor</label><select value={formAsignacionVendedor.vendedorId} onChange={(event) => setFormAsignacionVendedor((prev) => ({ ...prev, vendedorId: event.target.value }))} required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-teal-500"><option value="">Seleccionar vendedor</option>{vendedores.filter((vendedor) => vendedor.activo !== false || vendedor.id === formAsignacionVendedor.vendedorId).map((vendedor) => <option key={vendedor.id} value={vendedor.id}>{vendedor.nombre}{vendedor.activo === false ? ' (inactivo)' : ''}</option>)}</select></div>
+            <div><label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1">Porcentaje de comisión</label><div className="relative"><input inputMode="decimal" value={formAsignacionVendedor.porcentaje} onChange={(event) => setFormAsignacionVendedor((prev) => ({ ...prev, porcentaje: event.target.value.replace(/[^0-9.,]/g, '') }))} placeholder="Ej.: 5" required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pr-10 text-right text-lg font-black outline-none focus:ring-2 focus:ring-teal-500" /><span className="absolute right-3 top-1/2 -translate-y-1/2 font-black text-slate-500">%</span></div></div>
+            <div className="rounded-xl border border-teal-200 bg-teal-50 p-3 space-y-2"><div className="flex items-center justify-between gap-3"><span className="text-xs font-black uppercase text-teal-700">Comisión incorporada a los ítems</span><strong className="text-lg text-teal-800">{formatearDinero(calcularPreciosConComisionVendedor(ventaAsignarVendedor?.detallesPago?.items || [], formAsignacionVendedor.porcentaje).totalComision)}</strong></div><p className="text-[11px] font-bold text-teal-700">Al guardar se recalcula desde el precio original y cambia el total de la venta.</p></div>
+            {vendedores.length === 0 && <button type="button" onClick={() => { setVentaAsignarVendedor(null); setVista('vendedores'); }} className="w-full rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs font-black text-blue-700">Primero cargá un vendedor</button>}
+            <div className="flex flex-col sm:flex-row gap-2">{ventaAsignarVendedor?.detallesPago?.vendedorId && <button type="button" disabled={guardandoAsignacionVendedor} onClick={quitarAsignacionVendedorVenta} className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-black text-red-700">Quitar asignación</button>}<button type="button" disabled={guardandoAsignacionVendedor} onClick={() => setVentaAsignarVendedor(null)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-700">Cancelar</button><button type="submit" disabled={guardandoAsignacionVendedor || !vendedores.length} className="flex-1 rounded-xl bg-teal-600 px-4 py-3 text-xs font-black text-white disabled:bg-teal-300">{guardandoAsignacionVendedor ? 'Guardando...' : 'Guardar asignación'}</button></div>
+          </form>
+        </Modal>
+      )}
+
       {modalActivo === 'pago_proveedor' && (
         <Modal
           titulo={pagoProveedorAEditar ? 'Editar pago a proveedor' : 'Registrar pago a proveedor'}
           onClose={() => {
             setPagoProveedorAEditar(null);
+            setSobrantePagoProveedorDetectado(0);
+            setConfirmarSaldoFavorPagoProveedor(false);
             setModalActivo(null);
           }}
-          customWidth="max-w-2xl"
+          customWidth="max-w-5xl"
         >
           <form onSubmit={guardarPagoProveedor} className="space-y-4">
             {textoSeguroTrim(formPagoProveedor?.pedidoCompraId, '') && (
@@ -27165,23 +30625,56 @@ function obtenerCategoriaProducto(producto) {
                 </p>
               </div>
             )}
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3 space-y-2">
-              <label className="block text-[10px] font-black uppercase tracking-wider text-emerald-800">Aplicar pago <AyudaCampo texto="Elegí si el pago se registra como saldo general o se aplica a uno o varios remitos pendientes." /></label>
-              <select value={formPagoProveedor.tipoAplicacion || 'general'} onChange={(e) => setFormPagoProveedor((prev) => ({ ...prev, tipoAplicacion: e.target.value, pedidoCompraIds: e.target.value === 'general' ? [] : (prev.pedidoCompraIds?.length ? prev.pedidoCompraIds : (cargosPendientesPagoProveedor[0]?.pedidoId ? [cargosPendientesPagoProveedor[0].pedidoId] : [])) }))} className="w-full px-3 py-2.5 rounded-xl border border-emerald-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 space-y-3">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-emerald-800">Aplicación del pago <AyudaCampo texto="Elegí pago general o aplicalo a un comprobante. Si sobra dinero, podés marcar otro comprobante y ver el saldo restante en el momento." /></label>
+              <select
+                value={formPagoProveedor.tipoAplicacion === 'general' ? 'general' : 'ticket_multi'}
+                onChange={(e) => {
+                  setSobrantePagoProveedorDetectado(0);
+                  setConfirmarSaldoFavorPagoProveedor(false);
+                  setFormPagoProveedor((prev) => ({
+                    ...prev,
+                    tipoAplicacion: e.target.value,
+                    pedidoCompraIds: e.target.value === 'general' ? [] : (prev.pedidoCompraIds || [])
+                  }));
+                }}
+                className="w-full px-3 py-2.5 rounded-xl border border-emerald-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+              >
                 <option value="general">Pago general a la cuenta corriente</option>
-                <option value="ticket" disabled={!cargosPendientesPagoProveedor.length}>Aplicar a un remito pendiente</option>
-                <option value="ticket_multi" disabled={!cargosPendientesPagoProveedor.length}>Aplicar a remitos seleccionados</option>
+                <option value="ticket_multi" disabled={!cargosPendientesPagoProveedor.length}>Aplicar a un remito o factura seleccionado</option>
               </select>
-              {formPagoProveedor.tipoAplicacion === 'ticket' && <select value={formPagoProveedor.pedidoCompraIds?.[0] || ''} onChange={(e) => { const cargo = cargosPendientesPagoProveedor.find((item) => item.pedidoId === e.target.value); setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: e.target.value ? [e.target.value] : [], monto: cargo ? cargo.pendiente.toFixed(2) : prev.monto })); }} className="w-full px-3 py-2.5 rounded-xl border border-emerald-200 bg-white font-bold text-xs outline-none focus:ring-2 focus:ring-emerald-500">{cargosPendientesPagoProveedor.map((cargo) => <option key={`pago-prov-remito-${cargo.pedidoId}`} value={cargo.pedidoId}>{formatearFecha(cargo.fecha)} · PC-{cargo.numero} · Pendiente {formatearDinero(cargo.pendiente)}</option>)}</select>}
-              {formPagoProveedor.tipoAplicacion === 'ticket_multi' && <div className="max-h-44 overflow-y-auto divide-y divide-emerald-100 rounded-xl border border-emerald-100 bg-white"><div className="flex justify-end px-3 py-2"><button type="button" onClick={() => setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: cargosPendientesPagoProveedor.map((cargo) => cargo.pedidoId) }))} className="text-[10px] font-black uppercase text-emerald-700">Todos</button></div>{cargosPendientesPagoProveedor.map((cargo) => { const seleccionado = (formPagoProveedor.pedidoCompraIds || []).includes(cargo.pedidoId); return <label key={`pago-prov-remito-multi-${cargo.pedidoId}`} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-emerald-50"><input type="checkbox" checked={seleccionado} onChange={(e) => setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: e.target.checked ? Array.from(new Set([...(prev.pedidoCompraIds || []), cargo.pedidoId])) : (prev.pedidoCompraIds || []).filter((id) => id !== cargo.pedidoId) }))} className="w-4 h-4 text-emerald-600 rounded border-emerald-300" /><span className="text-xs font-bold text-slate-700">PC-{cargo.numero} · {formatearFecha(cargo.fecha)} · Pendiente {formatearDinero(cargo.pendiente)}</span></label>; })}</div>}
-              <p className="text-[10px] font-bold text-emerald-700">Si el importe supera lo pendiente, la diferencia queda registrada como saldo a favor del proveedor.</p>
+
+              {formPagoProveedor.tipoAplicacion !== 'general' && (
+                <>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2"><p className="text-[9px] font-black uppercase tracking-wider text-slate-500">Monto del pago</p><p className="mt-1 text-sm font-black text-slate-900">{formatearDinero(resumenAplicacionPagoProveedor.montoPago)}</p></div>
+                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2"><p className="text-[9px] font-black uppercase tracking-wider text-slate-500">Pendiente seleccionado</p><p className="mt-1 text-sm font-black text-slate-900">{formatearDinero(resumenAplicacionPagoProveedor.totalPendienteSeleccionado)}</p></div>
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2"><p className="text-[9px] font-black uppercase tracking-wider text-emerald-700">Importe aplicado</p><p className="mt-1 text-sm font-black text-emerald-800">{formatearDinero(resumenAplicacionPagoProveedor.totalAplicado)}</p></div>
+                    <div className={`rounded-xl border px-3 py-2 ${resumenAplicacionPagoProveedor.restantePago > 0.009 ? 'border-amber-300 bg-amber-50' : 'border-emerald-300 bg-emerald-50'}`}><p className={`text-[9px] font-black uppercase tracking-wider ${resumenAplicacionPagoProveedor.restantePago > 0.009 ? 'text-amber-700' : 'text-emerald-700'}`}>Resta del pago</p><p className={`mt-1 text-sm font-black ${resumenAplicacionPagoProveedor.restantePago > 0.009 ? 'text-amber-900' : 'text-emerald-800'}`}>{formatearDinero(resumenAplicacionPagoProveedor.restantePago)}</p></div>
+                  </div>
+                  <div className="overflow-hidden rounded-xl border border-emerald-100 bg-white">
+                    <div className="flex items-center justify-between gap-3 border-b border-emerald-100 px-3 py-2"><p className="text-[10px] font-black uppercase tracking-wider text-slate-600">Comprobantes pendientes</p><div className="flex items-center gap-3"><button type="button" onClick={() => { setSobrantePagoProveedorDetectado(0); setConfirmarSaldoFavorPagoProveedor(false); setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: cargosPendientesPagoProveedor.map((cargo) => cargo.pedidoId) })); }} className="text-[10px] font-black uppercase text-emerald-700">Seleccionar todos</button><button type="button" onClick={() => { setSobrantePagoProveedorDetectado(0); setConfirmarSaldoFavorPagoProveedor(false); setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: [] })); }} className="text-[10px] font-black uppercase text-slate-500">Limpiar</button></div></div>
+                    <div className="max-h-60 overflow-y-auto divide-y divide-emerald-100">
+                      {cargosPendientesPagoProveedor.map((cargo) => {
+                        const seleccionado = (formPagoProveedor.pedidoCompraIds || []).includes(cargo.pedidoId);
+                        const aplicacion = resumenAplicacionPagoProveedor.aplicacionesPorId.get(cargo.pedidoId);
+                        const comprobante = [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(' ') || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || '000000'}`);
+                        return <label key={`pago-prov-remito-multi-${cargo.pedidoId}`} className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer ${seleccionado ? 'bg-emerald-50' : 'hover:bg-slate-50'}`}><input type="checkbox" checked={seleccionado} onChange={(e) => { setSobrantePagoProveedorDetectado(0); setConfirmarSaldoFavorPagoProveedor(false); setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: e.target.checked ? Array.from(new Set([...(prev.pedidoCompraIds || []), cargo.pedidoId])) : (prev.pedidoCompraIds || []).filter((id) => id !== cargo.pedidoId) })); }} className="mt-0.5 w-4 h-4 text-emerald-600 rounded border-emerald-300" /><span className="min-w-0 flex-1"><span className="block text-xs font-black text-slate-800">{comprobante} · {formatearFecha(cargo.fecha)}</span><span className="block text-[10px] font-bold text-slate-500">Saldo pendiente: {formatearDinero(cargo.pendiente)}</span>{seleccionado && aplicacion && <span className="mt-1 block text-[10px] font-black text-emerald-700">Aplicará {formatearDinero(aplicacion.aplicado)} · saldo del comprobante {formatearDinero(aplicacion.saldoComprobanteDespues)} · queda del pago {formatearDinero(aplicacion.restantePagoDespues)}</span>}</span></label>;
+                      })}
+                    </div>
+                  </div>
+                  {!(formPagoProveedor.pedidoCompraIds || []).length && <p className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[10px] font-black text-blue-800">Marcá el remito o factura al que querés aplicar el pago.</p>}
+                  {(formPagoProveedor.pedidoCompraIds || []).length > 0 && resumenAplicacionPagoProveedor.restantePago > 0.009 && <div className={`rounded-xl border p-3 ${confirmarSaldoFavorPagoProveedor ? 'border-emerald-300 bg-emerald-50' : 'border-amber-300 bg-amber-50'}`}><p className={`text-xs font-black ${confirmarSaldoFavorPagoProveedor ? 'text-emerald-900' : 'text-amber-900'}`}>Quedan {formatearDinero(resumenAplicacionPagoProveedor.restantePago)} del pago.</p><p className={`mt-1 text-[10px] font-bold ${confirmarSaldoFavorPagoProveedor ? 'text-emerald-800' : 'text-amber-800'}`}>{confirmarSaldoFavorPagoProveedor ? 'Ese importe se registrará como saldo a favor del proveedor.' : 'Marcá otro comprobante para seguir descontando este importe, o dejalo como saldo a favor.'}</p>{!confirmarSaldoFavorPagoProveedor && <button type="button" onClick={() => setConfirmarSaldoFavorPagoProveedor(true)} className="mt-2 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-[10px] font-black uppercase text-amber-800 hover:bg-amber-100">Dejar resto como saldo a favor</button>}</div>}
+                  <p className="text-[10px] font-bold text-emerald-700">Los comprobantes se pagan en el mismo orden en que los vas marcando.</p>
+                </>
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] font-black text-gray-600 uppercase tracking-wider mb-1">Proveedor</label>
                 <select
                   value={formPagoProveedor.proveedor || ''}
-                  onChange={(e) => setFormPagoProveedor((prev) => ({ ...prev, proveedor: e.target.value }))}
+                  onChange={(e) => { setSobrantePagoProveedorDetectado(0); setConfirmarSaldoFavorPagoProveedor(false); setFormPagoProveedor((prev) => ({ ...prev, proveedor: e.target.value, pedidoCompraIds: [] })); }}
                   className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500"
                   required
                 >
@@ -27207,13 +30700,13 @@ function obtenerCategoriaProducto(producto) {
               <div>
                 <label className="block text-[10px] font-black text-gray-600 uppercase tracking-wider mb-1">Monto</label>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
                   value={formPagoProveedor.monto || ''}
-                  onChange={(e) => setFormPagoProveedor((prev) => ({ ...prev, monto: e.target.value }))}
+                  onChange={(e) => { setSobrantePagoProveedorDetectado(0); setConfirmarSaldoFavorPagoProveedor(false); setFormPagoProveedor((prev) => ({ ...prev, monto: e.target.value.replace(/[^0-9.,]/g, '') })); }}
                   className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white font-black text-sm text-right outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="0.00"
+                  placeholder="3.305.054,50"
                   required
                 />
               </div>
@@ -27242,8 +30735,8 @@ function obtenerCategoriaProducto(producto) {
             </div>
 
             <label className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-3 cursor-pointer">
-              <input type="checkbox" checked={formPagoProveedor.impactaCaja !== false} onChange={(e) => setFormPagoProveedor((prev) => ({ ...prev, impactaCaja: e.target.checked }))} className="mt-0.5 w-4 h-4 text-blue-600 rounded border-blue-300" />
-              <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">Impacta en caja <AyudaCampo texto="Desmarcá si el pago salió de otro fondo. Se registra al proveedor, pero no modifica la caja diaria." /></span>
+              <input type="checkbox" checked={formPagoProveedor.impactaCaja !== false} onChange={(e) => setFormPagoProveedor((prev) => ({ ...prev, impactaCaja: e.target.checked, impactaReportes: true }))} className="mt-0.5 w-4 h-4 text-blue-600 rounded border-blue-300" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">Impacta en caja <AyudaCampo texto="Desmarcá si el pago salió de otro fondo. El pago queda registrado en la cuenta del proveedor y siempre se incluye en los reportes, pero no modifica la caja diaria." /></span>
             </label>
 
             {['cheque', 'echeq'].includes(formPagoProveedor.metodoPago || '') && (
@@ -27291,7 +30784,11 @@ function obtenerCategoriaProducto(producto) {
                       <input
                         type="date"
                         value={formPagoProveedor.fechaEmision || ''}
-                        onChange={(e) => setFormPagoProveedor((prev) => ({ ...prev, fechaEmision: e.target.value }))}
+                        onChange={(e) => setFormPagoProveedor((prev) => ({
+                          ...prev,
+                          fechaEmision: e.target.value,
+                          plazoDias: calcularPlazoEntreFechas(e.target.value, prev.fechaCobro)
+                        }))}
                         className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                     </div>
@@ -27300,22 +30797,24 @@ function obtenerCategoriaProducto(producto) {
                       <input
                         type="date"
                         value={formPagoProveedor.fechaCobro || ''}
-                        onChange={(e) => setFormPagoProveedor((prev) => ({ ...prev, fechaCobro: e.target.value }))}
+                        onChange={(e) => setFormPagoProveedor((prev) => ({
+                          ...prev,
+                          fechaCobro: e.target.value,
+                          plazoDias: calcularPlazoEntreFechas(prev.fechaEmision, e.target.value)
+                        }))}
                         className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="block text-[10px] font-black text-gray-600 uppercase tracking-wider mb-1">Plazo (días)</label>
-                      <select
+                      <label className="block text-[10px] font-black text-gray-600 uppercase tracking-wider mb-1">Plazo calculado (días)</label>
+                      <input
+                        type="text"
                         value={formPagoProveedor.plazoDias || ''}
-                        onChange={(e) => setFormPagoProveedor((prev) => ({ ...prev, plazoDias: e.target.value }))}
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                      >
-                        <option value="">Seleccionar plazo</option>
-                        {[15, 30, 45, 60, 90, 120].map((dias) => (
-                          <option key={`pago-prov-plazo-${dias}`} value={dias}>{dias} días</option>
-                        ))}
-                      </select>
+                        readOnly
+                        tabIndex={-1}
+                        placeholder="Se calcula con las fechas"
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-100 text-gray-600 font-bold text-sm outline-none"
+                      />
                     </div>
                   </>
                 )}
@@ -27358,16 +30857,19 @@ function obtenerCategoriaProducto(producto) {
             <div className="flex flex-col sm:flex-row gap-2 pt-1">
               <button
                 type="button"
+                disabled={guardandoPagoProveedor}
                 onClick={() => {
                   setPagoProveedorAEditar(null);
+                  setSobrantePagoProveedorDetectado(0);
+                  setConfirmarSaldoFavorPagoProveedor(false);
                   setModalActivo(null);
                 }}
-                className="sm:w-44 px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-700 text-xs font-black uppercase tracking-wider hover:bg-gray-50"
+                className="sm:w-44 px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-700 text-xs font-black uppercase tracking-wider hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancelar
               </button>
-              <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm">
-                {pagoProveedorAEditar ? 'Guardar cambios' : 'Guardar pago'}
+              <button type="submit" disabled={guardandoPagoProveedor} className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-wait text-white py-3 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm">
+                {guardandoPagoProveedor ? 'Guardando pago...' : (pagoProveedorAEditar ? 'Guardar cambios' : 'Guardar pago')}
               </button>
             </div>
           </form>
@@ -27385,7 +30887,9 @@ function obtenerCategoriaProducto(producto) {
           const ids = marcado ? Array.from(new Set([...(prev.chequesRecibidosIds || []), cheque.id])) : (prev.chequesRecibidosIds || []).filter((id) => id !== cheque.id);
           const total = chequesDisponiblesParaPagoProveedor.filter((item) => ids.includes(item.id)).reduce((suma, item) => suma + Number(item.monto || 0), 0);
           const chequeBase = marcado ? cheque : (ids.length ? chequesDisponiblesParaPagoProveedor.find((item) => item.id === ids[ids.length - 1]) : null);
-          return { ...prev, chequesRecibidosIds: ids, monto: total > 0 ? total.toFixed(2) : prev.monto, numeroComprobante: chequeBase ? (chequeBase.numeroCheque || prev.numeroComprobante || '') : '', banco: chequeBase ? (chequeBase.banco || '') : '', emisor: chequeBase ? (chequeBase.titular || chequeBase.emisor || '') : '', fechaEmision: chequeBase ? (chequeBase.fechaEmision || '') : '', fechaCobro: chequeBase ? (chequeBase.fechaCobro || '') : '' };
+          const fechaEmision = chequeBase ? (chequeBase.fechaEmision || '') : '';
+          const fechaCobro = chequeBase ? (chequeBase.fechaCobro || '') : '';
+          return { ...prev, chequesRecibidosIds: ids, monto: total > 0 ? total.toFixed(2) : prev.monto, numeroComprobante: chequeBase ? (chequeBase.numeroCheque || prev.numeroComprobante || '') : '', banco: chequeBase ? (chequeBase.banco || '') : '', emisor: chequeBase ? (chequeBase.titular || chequeBase.emisor || '') : '', fechaEmision, fechaCobro, plazoDias: calcularPlazoEntreFechas(fechaEmision, fechaCobro) };
         })}
       />
 
@@ -29089,12 +32593,12 @@ function obtenerCategoriaProducto(producto) {
         <Modal
           titulo={compraDirectaActiva ? 'Cargar compra directa' : (pedidoCompraEditandoId ? 'Editar pedido' : 'Nuevo pedido de compra')}
           onClose={() => { setCompraDirectaActiva(false); setSelectorInventarioPedidoCompraAbierto(false); setModalActivo(null); }}
-          customWidth="max-w-[1280px]"
+          customWidth="max-w-7xl"
         >
-          <div className="space-y-4 h-[84vh] overflow-hidden flex flex-col">
+          <div className="space-y-4 h-[84dvh] max-h-[calc(100dvh-6rem)] overflow-hidden flex flex-col min-w-0">
             <div className="space-y-2">
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2 space-y-2">
-                <div className="grid grid-cols-[1fr_minmax(220px,1.2fr)_auto] gap-2 items-center">
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(220px,1.2fr)_auto] gap-2 items-center min-w-0">
                   <div className="bg-white border border-emerald-200 rounded-lg px-2.5 py-1.5">
                     <p className="text-[9px] font-black text-emerald-700 uppercase tracking-wider">Compra</p>
                     <p className="text-sm font-black text-emerald-900">PC-{pedidoCompraEditandoId ? textoSeguroTrim((pedidosCompra || []).find((p) => p.id === pedidoCompraEditandoId)?.numero, '000000') : generarNumeroPedidoCompra()}</p>
@@ -29107,6 +32611,7 @@ function obtenerCategoriaProducto(producto) {
                     <select value={pedidoCompraEstado} onChange={(e) => setPedidoCompraEstado(e.target.value)} className="w-full px-2 py-1.5 rounded-lg border border-emerald-200 bg-white text-[11px] font-black text-emerald-800">
                       <option value="guardado">Guardado (sin terminar)</option>
                       <option value="enviado">Enviado</option>
+                      {pedidoCompraEditandoId && <option value="recibido">Recibido</option>}
                     </select>
                   )}
                 </div>
@@ -29120,16 +32625,9 @@ function obtenerCategoriaProducto(producto) {
                       className="w-full px-2 py-1.5 rounded-lg border border-emerald-200 bg-white text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
-                  {compraDirectaActiva && (<div>
-                    <label className="block text-[9px] font-black text-emerald-700 uppercase tracking-wider mb-0.5">Ajuste $</label>
-                    <input
-                      value={pedidoCompraAjusteMonto}
-                      inputMode="decimal"
-                      onChange={(e) => setPedidoCompraAjusteMonto(e.target.value)}
-                      placeholder="0"
-                      className="w-full px-2 py-1.5 rounded-lg border border-emerald-200 bg-white text-[11px] font-bold text-right text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
-                  </div>)}
+                  {compraDirectaActiva && <>
+                    {[['IVA 21%', calcularIvaAutomaticoPedidoCompra(itemsPedidoCompra, '21'), null], ['IVA 10,5%', calcularIvaAutomaticoPedidoCompra(itemsPedidoCompra, '10.5'), null], ['Ingresos Brutos', pedidoCompraIngresosBrutos, setPedidoCompraIngresosBrutos], ['Flete', pedidoCompraFlete, setPedidoCompraFlete]].map(([label, value, setter]) => { const esIvaAutomatico = label.startsWith('IVA'); return <div key={label}><label className="block text-[9px] font-black text-emerald-700 uppercase tracking-wider mb-0.5">{label}</label><input value={esIvaAutomatico ? Number(value || 0).toFixed(2) : value} readOnly={esIvaAutomatico} inputMode="decimal" onChange={setter ? (e) => setter(e.target.value) : undefined} placeholder="0" className={`w-full px-2 py-1.5 rounded-lg border border-emerald-200 text-[11px] font-bold text-right outline-none focus:ring-2 focus:ring-emerald-500 ${esIvaAutomatico ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white text-slate-700'}`} /></div>; })}
+                  </>}
                   <div>
                     <label className="block text-[9px] font-black text-emerald-700 uppercase tracking-wider mb-0.5">Transporte / envio</label>
                     <input
@@ -29146,9 +32644,9 @@ function obtenerCategoriaProducto(producto) {
                     </datalist>
                   </div>
                 </div>
-                {compraDirectaActiva && (
+                {(compraDirectaActiva || Boolean(pedidoCompraEditandoId)) && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 bg-emerald-100/60 border border-emerald-200 rounded-lg p-1.5">
-                    <div>
+                    {compraDirectaActiva && <div>
                       <label className="block text-[9px] font-black text-emerald-800 uppercase tracking-wider mb-0.5">Forma de pago</label>
                       <select
                         value={compraDirectaMetodoPago}
@@ -29162,7 +32660,7 @@ function obtenerCategoriaProducto(producto) {
                         <option value="cheque">Cheque</option>
                         <option value="echeq">E-Cheq</option>
                       </select>
-                    </div>
+                    </div>}
                     <div>
                       <label className="block text-[9px] font-black text-emerald-800 uppercase tracking-wider mb-0.5">Tipo de comprobante</label>
                       <select
@@ -29174,6 +32672,8 @@ function obtenerCategoriaProducto(producto) {
                         <option value="Factura A">Factura A</option>
                         <option value="Factura B">Factura B</option>
                         <option value="Factura C">Factura C</option>
+                        <option value="Nota de crédito A">Nota de crédito A</option>
+                        <option value="Nota de crédito B">Nota de crédito B</option>
                         <option value="Remito X">Remito X</option>
                       </select>
                     </div>
@@ -29184,6 +32684,24 @@ function obtenerCategoriaProducto(producto) {
                         onChange={(e) => setCompraDirectaNumeroComprobante(e.target.value)}
                         className="w-full px-2 py-1.5 rounded-lg border border-emerald-200 bg-white text-[11px] font-bold outline-none focus:ring-2 focus:ring-emerald-500"
                         placeholder="Ej.: 0001-00001234"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-black text-emerald-800 uppercase tracking-wider mb-0.5">Número de remito</label>
+                      <input
+                        value={pedidoCompraRemitoProveedor}
+                        onChange={(e) => setPedidoCompraRemitoProveedor(e.target.value)}
+                        className="w-full px-2 py-1.5 rounded-lg border border-emerald-200 bg-white text-[11px] font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                        placeholder="Ej.: 00005672"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-black text-emerald-800 uppercase tracking-wider mb-0.5">Fecha recepción / remito</label>
+                      <input
+                        type="date"
+                        value={pedidoCompraFechaRecepcion}
+                        onChange={(e) => setPedidoCompraFechaRecepcion(e.target.value)}
+                        className="w-full px-2 py-1.5 rounded-lg border border-emerald-200 bg-white text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                     </div>
                   </div>
@@ -29202,38 +32720,71 @@ function obtenerCategoriaProducto(producto) {
                     {compraImpactaInventario ? 'Sí, actualizar' : 'Compra histórica'}
                   </span>
                 </label>}
-                <div className="flex flex-wrap items-center justify-end gap-2 bg-white border border-emerald-200 rounded-lg px-2 py-1.5">
-                  {(() => {
-                    const base = construirFilasPedidoCompra(itemsPedidoCompra || []).reduce((acc, item) => acc + Number(item.subtotalBase || item.subtotal || 0), 0);
-                    const ajuste = compraDirectaActiva ? parseNumeroConSigno(pedidoCompraAjusteMonto) : 0;
-                    const total = Math.max(0, base + ajuste);
-                    return (
-                      <p className="text-[10px] font-black text-emerald-900 uppercase tracking-wide">
-                        {compraDirectaActiva ? `Base neta ${formatearDinero(base)} · Ajuste ${formatearDinero(ajuste)} · Total ${formatearDinero(total)}` : `Total estimado ${formatearDinero(total)}`}
-                      </p>
-                    );
-                  })()}
-                </div>
-                <div className="flex justify-end">
+                {!compraDirectaActiva && (
+                  <div className="rounded-lg border border-sky-200 bg-sky-50/70 p-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-sky-900">Pedido para enviar</p>
+                        <p className="text-[10px] font-bold text-sky-700">Configurá el PDF antes de descargarlo.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setMostrarConfigPdfPedidoCompra((visible) => !visible)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 bg-white px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-sky-800 hover:bg-sky-100"
+                      >
+                        <Download size={14} /> PDF
+                      </button>
+                    </div>
+                    {mostrarConfigPdfPedidoCompra && (
+                      <div className="mt-2 grid grid-cols-1 gap-2 border-t border-sky-200 pt-2 sm:grid-cols-2 lg:grid-cols-4">
+                        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-sky-100 bg-white px-2.5 py-2 text-[10px] font-black text-slate-700">
+                          <input type="checkbox" checked={incluirImagenPedidoCompraPdf} onChange={(e) => setIncluirImagenPedidoCompraPdf(e.target.checked)} className="h-4 w-4 rounded border-sky-300 text-sky-600" />
+                          Incluir imágenes
+                        </label>
+                        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-sky-100 bg-white px-2.5 py-2 text-[10px] font-black text-slate-700">
+                          <input type="checkbox" checked={mostrarPrecioUnitarioPedidoCompraPdf} onChange={(e) => setMostrarPrecioUnitarioPedidoCompraPdf(e.target.checked)} className="h-4 w-4 rounded border-sky-300 text-sky-600" />
+                          Precio unitario
+                        </label>
+                        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-sky-100 bg-white px-2.5 py-2 text-[10px] font-black text-slate-700">
+                          <input type="checkbox" checked={mostrarSubtotalPedidoCompraPdf} onChange={(e) => setMostrarSubtotalPedidoCompraPdf(e.target.checked)} className="h-4 w-4 rounded border-sky-300 text-sky-600" />
+                          Subtotales
+                        </label>
+                        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-sky-100 bg-white px-2.5 py-2 text-[10px] font-black text-slate-700">
+                          <input type="checkbox" checked={mostrarTotalPedidoCompraPdf} onChange={(e) => setMostrarTotalPedidoCompraPdf(e.target.checked)} className="h-4 w-4 rounded border-sky-300 text-sky-600" />
+                          Total final
+                        </label>
+                        <div className="sm:col-span-2 lg:col-span-4 flex flex-wrap justify-end gap-2">
+                          <button type="button" onClick={descargarPedidoCompraActual} disabled={!itemsPedidoCompra.length} className="rounded-lg bg-sky-700 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-40">
+                            Descargar pedido
+                          </button>
+                          <button type="button" onClick={descargarPedidoCompraPorProveedor} disabled={!itemsPedidoCompra.length} className="rounded-lg border border-sky-300 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-wider text-sky-800 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-40">
+                            Por proveedor
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!compraDirectaActiva && <div className="flex justify-end">
                   <button type="button" onClick={guardarPedidoCompra} disabled={!itemsPedidoCompra.length} className="w-full sm:w-auto sm:min-w-[260px] bg-slate-800 hover:bg-black disabled:bg-slate-300 text-white font-black py-2 rounded-lg text-[10px] uppercase tracking-wider">
-                    {compraDirectaActiva ? 'Registrar compra' : 'Guardar pedido'}
+                    Guardar pedido
                   </button>
-                </div>
+                </div>}
               </div>
             </div>
 
             <div className="flex flex-col gap-3 min-h-0 flex-1">
               <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden min-h-0 flex-1 flex flex-col">
-                <div className="px-3 py-2 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-2">
-                  <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">{compraDirectaActiva ? 'Items de la compra' : 'Items del pedido'} ({itemsPedidoCompra.length})</p>
-                  <div className="flex items-center gap-1.5">
-                    <button type="button" onClick={() => { setBusquedaSelectorInventarioPedidoCompra(''); setSelectorInventarioPedidoCompraAbierto(true); }} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase tracking-wider" title="Abrir inventario">
-                      <Search size={13} /> Agregar
+                <div className="sf-purchase-item-header px-3 py-1.5 border-b border-slate-100 bg-slate-50">
+                  <p className="sf-purchase-item-title text-[11px] font-black text-slate-700 uppercase tracking-wider" style={{ minWidth: 0, margin: 0 }}>{compraDirectaActiva ? 'Items de la compra' : 'Items del pedido'} ({itemsPedidoCompra.length})</p>
+                  <div className="sf-purchase-actions-grid">
+                    <button type="button" onClick={() => { setBusquedaSelectorInventarioPedidoCompra(''); setSelectorInventarioPedidoCompraAbierto(true); }} className="sf-purchase-action sf-purchase-action-add" aria-label="Agregar producto del inventario">
+                      <Search size={13} /><span>Agregar</span>
                     </button>
-                    <button type="button" onClick={agregarItemManualPedidoCompra} className="px-2.5 py-1 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase tracking-wider">
+                    <button type="button" onClick={agregarItemManualPedidoCompra} className="sf-purchase-action sf-purchase-action-manual">
                       + Manual
                     </button>
-                    <button type="button" onClick={() => setItemsPedidoCompra([])} disabled={!itemsPedidoCompra.length} className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-40 text-[10px] font-black uppercase tracking-wider">
+                    <button type="button" onClick={() => setItemsPedidoCompra([])} disabled={!itemsPedidoCompra.length} className="sf-purchase-action sf-purchase-action-clear">
                       Limpiar
                     </button>
                   </div>
@@ -29242,7 +32793,7 @@ function obtenerCategoriaProducto(producto) {
                   <p className="p-6 text-sm font-bold text-slate-400 text-center">{compraDirectaActiva ? 'Agrega productos para registrar la compra.' : 'Agrega productos para crear el pedido.'}</p>
                 ) : (
                   <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-slate-50/70">
-                    <div className="hidden xl:grid sticky top-0 z-10 grid-cols-[74px_minmax(230px,1.4fr)_96px_62px_84px_92px_64px_minmax(124px,0.65fr)_32px_32px] gap-1.5 items-center px-2.5 py-1.5 bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider">
+                    <div className="hidden lg:grid sticky top-0 z-10 grid-cols-[70px_minmax(170px,1.4fr)_86px_58px_68px_88px_60px_86px_108px_32px_32px] gap-1 items-center px-2 py-1.5 bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider">
                       <span>Código</span>
                       <span>Detalle</span>
                       <span>Cod. prov.</span>
@@ -29250,6 +32801,7 @@ function obtenerCategoriaProducto(producto) {
                       <span>Unidad</span>
                       <span className="text-right">Costo</span>
                       <span className="text-right">Desc. %</span>
+                      <span className="text-center">IVA</span>
                       <span className="text-right">Subtotal</span>
                       <span></span>
                       <span></span>
@@ -29263,9 +32815,9 @@ function obtenerCategoriaProducto(producto) {
                         const subtotal = cantidad * costo * (1 - (descuento / 100));
                         return (
                           <div key={`pedido-item-${item.id}`} className="px-2.5 py-2 hover:bg-emerald-50/40 transition-colors">
-                            <div className="grid grid-cols-1 xl:grid-cols-[74px_minmax(230px,1.4fr)_96px_62px_84px_92px_64px_minmax(124px,0.65fr)_32px_32px] gap-1.5 items-center">
+                            <div className="grid grid-cols-1 lg:grid-cols-[70px_minmax(170px,1.4fr)_86px_58px_68px_88px_60px_86px_108px_32px_32px] gap-1 items-center">
                               <div>
-                                <label className="xl:hidden block text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Código</label>
+                                <label className="lg:hidden block text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Código</label>
                                 <input
                                   value={item.codigo || ''}
                                   onChange={(e) => actualizarCampoItemPedidoCompra(item.id, 'codigo', e.target.value)}
@@ -29274,7 +32826,7 @@ function obtenerCategoriaProducto(producto) {
                                 />
                               </div>
                               <div className="min-w-0">
-                                <label className="xl:hidden block text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Detalle</label>
+                                <label className="lg:hidden block text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Detalle</label>
                                 <input
                                   value={item.descripcion || ''}
                                   onChange={(e) => actualizarCampoItemPedidoCompra(item.id, 'descripcion', e.target.value)}
@@ -29284,7 +32836,7 @@ function obtenerCategoriaProducto(producto) {
                                 />
                               </div>
                               <div>
-                                <label className="xl:hidden block text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Cod. prov.</label>
+                                <label className="lg:hidden block text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Cod. prov.</label>
                                 <input
                                   value={item.codigoProveedor || ''}
                                   onChange={(e) => actualizarCampoItemPedidoCompra(item.id, 'codigoProveedor', e.target.value)}
@@ -29293,7 +32845,7 @@ function obtenerCategoriaProducto(producto) {
                                 />
                               </div>
                               <div>
-                                <label className="xl:hidden block text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Cant.</label>
+                                <label className="lg:hidden block text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Cant.</label>
                                 <input
                                   value={item.cantidad ?? ''}
                                   inputMode="decimal"
@@ -29302,7 +32854,7 @@ function obtenerCategoriaProducto(producto) {
                                 />
                               </div>
                               <div>
-                                <label className="xl:hidden block text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Unidad</label>
+                                <label className="lg:hidden block text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Unidad</label>
                                 <select
                                   value={item.unidad || 'unid'}
                                   onChange={(e) => actualizarCampoItemPedidoCompra(item.id, 'unidad', e.target.value)}
@@ -29314,7 +32866,7 @@ function obtenerCategoriaProducto(producto) {
                                 </select>
                               </div>
                               <div>
-                                <label className="xl:hidden block text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Costo</label>
+                                <label className="lg:hidden block text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Costo</label>
                                 <input
                                   value={item.costoPesos ?? ''}
                                   inputMode="decimal"
@@ -29325,7 +32877,7 @@ function obtenerCategoriaProducto(producto) {
                                 />
                               </div>
                               <div>
-                                <label className="xl:hidden block text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Desc. %</label>
+                                <label className="lg:hidden block text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Desc. %</label>
                                 <input
                                   value={item.descuento ?? ''}
                                   inputMode="decimal"
@@ -29335,6 +32887,7 @@ function obtenerCategoriaProducto(producto) {
                                   placeholder="0"
                                 />
                               </div>
+                              <div className="flex items-center gap-1"><label className="text-[8px] font-black text-slate-500 uppercase">IVA</label><select value={item.iva || ''} disabled={Boolean(item.productoId)} onChange={(e) => actualizarCampoItemPedidoCompra(item.id, 'iva', e.target.value)} title={item.productoId ? 'IVA tomado del producto' : 'IVA manual para ítem sin producto'} className="h-8 min-w-0 flex-1 px-1 border border-slate-200 rounded-lg bg-white disabled:bg-slate-100 disabled:text-slate-500 text-[10px] font-bold"><option value="">Exento</option><option value="21">21%</option><option value="10.5">10,5%</option></select></div>
                               <div className="h-8 bg-white border border-emerald-100 rounded-lg px-2 flex items-center justify-end">
                                 <span className="text-xs font-black text-emerald-800 whitespace-nowrap">{formatearDinero(subtotal)}</span>
                               </div>
@@ -29353,16 +32906,19 @@ function obtenerCategoriaProducto(producto) {
                 )}
               </div>
               {compraDirectaActiva && (
-                <div className="shrink-0 grid grid-cols-1 sm:grid-cols-[1fr_260px] gap-2 items-end rounded-xl border border-emerald-200 bg-emerald-50 p-2.5">
+                <div className="shrink-0 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_260px_auto] gap-2 items-end rounded-xl border border-emerald-200 bg-emerald-50 p-2.5">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-wider text-emerald-800">Monto total de la compra</p>
                     <p className="text-[10px] font-bold text-emerald-700">Se calcula automáticamente con los ítems cargados.</p>
                   </div>
                   <input
-                    value={formatearDinero(construirFilasPedidoCompra(itemsPedidoCompra || []).reduce((acc, item) => acc + Number(item.subtotal || 0), 0) + parseNumeroConSigno(pedidoCompraAjusteMonto))}
+                    value={formatearDinero(construirFilasPedidoCompra(itemsPedidoCompra || []).reduce((acc, item) => acc + Number(item.subtotal || 0), 0) + calcularIvaAutomaticoPedidoCompra(itemsPedidoCompra, '21') + calcularIvaAutomaticoPedidoCompra(itemsPedidoCompra, '10.5') + parseNumeroConSigno(pedidoCompraIngresosBrutos) + parseNumeroConSigno(pedidoCompraFlete) + parseNumeroConSigno(pedidoCompraAjusteMonto))}
                     readOnly
-                    className="w-full px-3 py-2 rounded-lg border border-emerald-300 bg-white text-sm font-black text-right text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full h-10 min-h-10 px-3 py-0 rounded-lg border border-emerald-300 bg-white text-sm font-black text-right text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-500"
                   />
+                  <button type="button" onClick={guardarPedidoCompra} disabled={!itemsPedidoCompra.length} className="w-full sm:w-auto sm:min-w-[140px] h-10 min-h-10 px-4 py-0 bg-slate-800 hover:bg-black disabled:bg-slate-300 text-white font-black rounded-lg text-[10px] uppercase tracking-wider">
+                    Registrar
+                  </button>
                 </div>
               )}
             </div>
@@ -29472,9 +33028,10 @@ function obtenerCategoriaProducto(producto) {
           titulo={productoAEditar ? 'Editar Producto' : 'Nuevo Producto'}
           onClose={() => { setModalActivo(null); setProductoAEditar(null); setSelectorTaxonomiaProducto(null); setBusquedaSelectorTaxonomiaProducto(''); limpiarEdicionTaxonomias(); }}
           customWidth="max-w-[1480px]"
+          fullScreen
         >
-          <form onSubmit={guardarProducto} noValidate className="mx-auto w-full max-w-[1240px] space-y-6">
-            <div>
+          <form onSubmit={guardarProducto} noValidate className="sf-product-workspace w-full max-w-none space-y-6">
+            <div className="sf-product-images">
               <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-2">IMÁGENES</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -29727,7 +33284,7 @@ function obtenerCategoriaProducto(producto) {
               </div>
             )}
 
-            <div>
+            <div className="sf-product-stock">
               <h3 className="text-sm font-bold text-gray-600 mb-4 tracking-wider">CÓDIGOS Y STOCK</h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-start">
               <div className="sm:col-span-2 space-y-2">
@@ -29788,7 +33345,7 @@ function obtenerCategoriaProducto(producto) {
               </div>
             </div>
             
-            <div>
+            <div className="sf-product-general">
               <h3 className="text-sm font-bold text-gray-600 mb-4 tracking-wider">INFORMACIÓN GENERAL</h3>
               <div><label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Descripción del Producto</label><input type="text" required value={formProducto.descripcion} onChange={(e) => setFormProducto({...formProducto, descripcion: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm font-bold" /></div>
               <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Detalles (solo para ofertas)</label>
@@ -29942,7 +33499,7 @@ function obtenerCategoriaProducto(producto) {
               </div>
             )}
 
-            <div className={formProducto.esProductoCompuesto ? 'hidden' : ''}>
+            <div className={`sf-product-pricing ${formProducto.esProductoCompuesto ? 'hidden' : ''}`}>
               <h3 className="text-sm font-bold text-gray-600 mb-4 tracking-wider">PRECIO Y COSTO</h3>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
               {!usaPromedioCostosFormulario && (
@@ -30014,7 +33571,7 @@ function obtenerCategoriaProducto(producto) {
               )}
             </div>
 
-            <div className={`border border-emerald-100 bg-emerald-50/40 rounded-xl overflow-hidden ${formProducto.esProductoCompuesto ? 'hidden' : ''}`}>
+            <div className={`sf-product-providers border border-emerald-100 bg-emerald-50/40 rounded-xl overflow-hidden ${formProducto.esProductoCompuesto ? 'hidden' : ''}`}>
               <div className="px-3 py-2 border-b border-emerald-100 flex items-center justify-between gap-2">
                 <div>
                   <p className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">Costos por proveedor</p>
@@ -30168,13 +33725,14 @@ function obtenerCategoriaProducto(producto) {
               );
             })()}
 
-            <div className={`mt-1.5 ${formProducto.esProductoCompuesto ? 'hidden' : ''}`}>
+            <div className={`sf-product-final-price mt-1.5 ${formProducto.esProductoCompuesto ? 'hidden' : ''}`}>
                <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Precio Final de Venta</label>
                <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xl">$</span><input type="text" inputMode="decimal" required value={formProducto.precio} disabled={Boolean(formProducto.esProductoCompuesto)} onChange={(e) => { const val = e.target.value.replace(',', '.'); setCampoPrecioProductoPreferido('precio'); setFormProducto((prev) => recalcularFormularioProducto({ ...prev, precio: val }, 'precio')); }} className="w-full pl-8 pr-4 py-2.5 bg-indigo-50/50 border-2 border-indigo-200 rounded-xl focus:border-indigo-600 outline-none text-2xl font-black text-indigo-800 disabled:bg-fuchsia-50 disabled:text-fuchsia-900" placeholder="0.00"/></div>
+               <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50/60 px-2.5 py-2"><label className="text-[10px] font-black uppercase tracking-wider text-indigo-700">Redondear precio</label><select value={formProducto.redondeoPrecio || 'ninguno'} onChange={(e) => { const modo = e.target.value; setCampoPrecioProductoPreferido('precio'); setFormProducto((prev) => { const precioBase = prev.precioSinRedondear ?? prev.precio; return { ...prev, redondeoPrecio: modo, precioSinRedondear: precioBase, precio: precioBase === '' ? '' : String(redondearPrecioProducto(precioBase, modo)) }; }); }} className="w-full sm:w-auto min-w-[150px] px-2 py-1.5 rounded-md border border-indigo-200 bg-white text-xs font-black text-indigo-800"><option value="ninguno">Sin redondear</option><option value="cien">A la centena</option><option value="mil">Al millar</option></select><span className="text-[10px] font-bold text-indigo-600">Se aplica al guardar el producto.</span></div>
                <div className="text-[9px] text-indigo-700 font-bold mt-1 uppercase tracking-wider h-3">{formProducto.precio ? numeroALetras(parseFloat(formProducto.precio) || 0) : ''}</div>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:justify-end gap-3 pt-6 border-t border-gray-200">
+            <div className="sf-product-actions flex flex-col sm:flex-row sm:justify-end gap-3 pt-6 border-t border-gray-200">
               <button
                 type="button"
                 onClick={() => { setModalActivo(null); setProductoAEditar(null); limpiarEdicionTaxonomias(); }}
@@ -30230,13 +33788,14 @@ function obtenerCategoriaProducto(producto) {
             }
           }}
           customWidth="max-w-7xl"
+          fullScreen
         >
-          <div className="space-y-4">
+          <div className="sf-inventory-selector h-full min-h-0 flex flex-col gap-3">
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><Search size={18} /></span>
               <input type="text" placeholder="Buscar por nombre o código..." autoFocus value={busquedaStockModal || ''} onChange={(e) => setBusquedaStockModal(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white border border-gray-300 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
-            <div className="max-h-[65vh] overflow-y-auto divide-y divide-gray-100 border border-gray-200 rounded-xl">
+            <div className="sf-inventory-selector-list flex-1 min-h-0 overflow-y-auto divide-y divide-gray-100 border border-gray-200 rounded-xl">
               {productosFiltrados.length === 0 ? (
                 <p className="text-center text-gray-500 py-4 text-sm font-bold">No se encontraron productos.</p>
               ) : (
@@ -30246,7 +33805,7 @@ function obtenerCategoriaProducto(producto) {
                   <div
                     key={p.id}
                     onClick={() => (seleccionMultipleActiva ? toggleProductoSeleccionStock(p.id) : seleccionarProductoParaStock(p))}
-                    className={`p-3 hover:bg-indigo-50 cursor-pointer flex justify-between items-center transition-colors gap-3 ${seleccionMultipleActiva && productosStockSeleccionados.includes(p.id) ? 'bg-indigo-50' : ''}`}
+                    className={`sf-inventory-selector-row p-3 hover:bg-indigo-50 cursor-pointer flex justify-between items-center transition-colors gap-3 ${seleccionMultipleActiva && productosStockSeleccionados.includes(p.id) ? 'bg-indigo-50' : ''}`}
                   >
                     {seleccionMultipleActiva && (
                       <input
@@ -30269,7 +33828,9 @@ function obtenerCategoriaProducto(producto) {
               )}
             </div>
             {seleccionMultipleActiva ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="sf-inventory-selector-actions flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <p className="text-xs font-bold text-slate-500">{productosStockSeleccionados.length} producto(s) seleccionado(s)</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => {
@@ -30297,6 +33858,7 @@ function obtenerCategoriaProducto(producto) {
                 >
                   Agregar seleccionados ({productosStockSeleccionados.length})
                 </button>
+                </div>
               </div>
             ) : (
               <button onClick={() => {
@@ -30953,6 +34515,19 @@ function obtenerCategoriaProducto(producto) {
                 </>
               )}
             </div>
+            {modalActivo === 'gasto' && (
+              <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.impactaCajaReportes !== false}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, impactaCajaReportes: e.target.checked }))}
+                  className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600"
+                />
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">
+                  Impacta en caja <AyudaCampo texto="Desmarcá si el gasto se pagó desde otro fondo. Siempre quedará incluido en los reportes, pero no modificará la caja diaria." />
+                </span>
+              </label>
+            )}
             {formData.detallesPago?.origen === 'presupuesto' && (
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
                 <p className="text-[10px] font-black uppercase tracking-wider text-emerald-800">
@@ -31645,25 +35220,33 @@ function obtenerCategoriaProducto(producto) {
                 </div>
               ) : (
                 <div className="sf-client-account-history max-h-[46vh] overflow-y-auto divide-y divide-gray-100">
-                  {movimientosClienteSeleccionadoVisibles.map((mov) => {
+                  {movimientosClienteSeleccionadoPaginados.items.map((mov) => {
                     const esCobro = mov.tipo === 'cobro';
                     const esCargo = esMovimientoCargoCuentaCorriente(mov);
                     const esNotaCredito = esMovimientoDescuentoCuentaCorriente(mov);
                     const esCargaHistorica = mov.tipo === 'saldo_inicial_cc';
                     const esRecargo = esRecargoMoraMovimiento(mov);
-                    const itemsComprobanteCuenta = Array.isArray(mov?.detallesPago?.items)
-                      ? mov.detallesPago.items.filter((item) => textoSeguroTrim(item?.descripcion, '') || textoSeguroTrim(item?.codigo, ''))
-                      : [];
+                    const itemsComprobanteCuenta = obtenerItemsDocumentoVenta(mov)
+                      .filter((item) => textoSeguroTrim(item?.descripcion, '') || textoSeguroTrim(item?.codigo, ''));
+                    const tipoComprobanteLegacy = textoSeguroTrim(
+                      mov?.detallesPago?.tipoComprobante || mov?.tipoComprobante || mov?.comprobanteTipo || mov?.comprobante || '',
+                      ''
+                    ).toLowerCase();
+                    const descripcionMovimientoLegacy = textoSeguroTrim(mov?.descripcion || mov?.detalle || '', '').toLowerCase();
+                    const esRemitoLegacy = /remito\s*[xr]/.test(`${tipoComprobanteLegacy} ${descripcionMovimientoLegacy}`);
                     const esComprobanteVentaCuenta = esCargo && !esRecargo && (
                       ['punto_venta', 'remito_r'].includes(mov?.detallesPago?.origen)
                       || itemsComprobanteCuenta.length > 0
+                      || esRemitoLegacy
                     );
                     const esRemitoRCuenta = esComprobanteVentaCuenta && (
                       mov?.detallesPago?.origen === 'remito_r'
                       || mov?.detallesPago?.tipoComprobante === 'remito_r'
+                      || /remito\s*r/.test(`${tipoComprobanteLegacy} ${descripcionMovimientoLegacy}`)
                     );
                     const esRemitoXCuenta = esComprobanteVentaCuenta && (
                       mov?.detallesPago?.tipoComprobante === 'remito_x'
+                      || /remito\s*x/.test(`${tipoComprobanteLegacy} ${descripcionMovimientoLegacy}`)
                     );
                     const tipoComprobanteCuenta = esComprobanteVentaCuenta
                       ? (OPCIONES_COMPROBANTE_VENTA.find((op) => op.value === mov?.detallesPago?.tipoComprobante)?.label || (mov?.detallesPago?.tipoComprobante === 'remito_r' ? 'Remito R' : 'Comprobante'))
@@ -31706,9 +35289,10 @@ function obtenerCategoriaProducto(producto) {
                     }, 0);
                     const detallesCuentaAbiertos = Boolean(detallesCuentaCorrienteAbiertos[mov.id]);
                     return (
-                      <div key={mov.id} className="sf-client-account-row px-4 py-3 flex flex-col lg:flex-row lg:items-start justify-between gap-3">
+                      <div key={mov.id} className={`sf-client-account-row ${detallesCuentaAbiertos ? 'is-expanded' : ''} px-4 py-3 flex flex-col lg:flex-row lg:items-start justify-between gap-3`}>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
+                              <button type="button" onClick={() => toggleDetalleCuentaCorriente(mov.id)} className="sf-account-expand" title={detallesCuentaAbiertos ? 'Contraer movimiento' : 'Expandir movimiento'} aria-label={detallesCuentaAbiertos ? 'Contraer movimiento' : 'Expandir movimiento'}>{detallesCuentaAbiertos ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</button>
                               <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${esCobro ? 'bg-purple-50 text-purple-700 border-purple-200' : (esNotaCredito ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : (esRecargo ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-amber-50 text-amber-700 border-amber-200'))}`}>
                                 {esCobro ? 'Pago recibido' : (esNotaCredito ? 'Nota de crédito' : (esRecargo ? 'Recargo de mora' : (esCargaHistorica ? 'Carga histórica' : (esComprobanteVentaCuenta ? tipoComprobanteCuenta : (esCargo ? 'Cargo en cuenta corriente' : mov.tipo)))))}
                               </span>
@@ -31957,46 +35541,59 @@ function obtenerCategoriaProducto(producto) {
                             </div>
                           )}
                           {esCargo && !esCobro && !esCargaHistorica && (
-                            <div className="mt-2 flex items-center justify-start sm:justify-end gap-1.5 flex-wrap">
+                            <div className="sf-account-action-icons mt-2 flex items-center justify-start sm:justify-end gap-1.5 flex-wrap">
                               {esComprobanteVentaCuenta && (
                                 <>
                                   {esRemitoXCuenta && (
                                     <button
                                       type="button"
                                       onClick={() => abrirRemitoRDesdeComprobanteVenta(mov)}
-                                      className="px-2 py-1 rounded-md border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors text-[10px] font-black uppercase tracking-wider flex items-center gap-1"
+                                      className="inline-flex items-center justify-center"
                                       title="Abrir Remito R"
                                     >
-                                      <Printer size={11} /> Remito R
+                                      <FileText size={18} />
                                     </button>
+                                  )}
+                                  {esRemitoXCuenta && !esNotaCredito && (
+                                    <button type="button" onClick={() => abrirDevolucionDesdeComprobanteVenta(mov)} className="inline-flex items-center justify-center text-orange-600 hover:text-orange-700" title="Registrar devolución"><Undo2 size={18} /></button>
                                   )}
                                   {esRemitoRCuenta && (
                                     <button
                                       type="button"
                                       onClick={() => descargarPdfVentaDocumentoDesdePreview(mov)}
                                       disabled={descargandoPdfMovimientoId === mov.id}
-                                      className="px-2 py-1 rounded-md border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors text-[10px] font-black uppercase tracking-wider flex items-center gap-1"
+                                      className="inline-flex items-center justify-center"
                                       title="Descargar Remito R en PDF"
                                     >
-                                      <Download size={11} /> Remito R
+                                      {descargandoPdfMovimientoId === mov.id ? <Loader2 size={18} className="animate-spin" /> : <FileText size={18} />}
                                     </button>
                                   )}
                                   <button
                                     type="button"
                                     onClick={() => abrirPreviewVentaDocumento(mov, { clienteIdRetorno: clienteSeleccionado?.id || mov?.detallesPago?.clienteId || '' })}
-                                    className="p-1.5 rounded-md border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100 transition-colors"
+                                    className="inline-flex items-center justify-center"
                                     title="Ver comprobante"
                                   >
-                                    <Eye size={12} />
+                                    <Eye size={18} />
                                   </button>
+                                  {puedeVerVendedores && !esNotaCredito && (
+                                    <button
+                                      type="button"
+                                      onClick={() => abrirAsignacionVendedorVenta(mov)}
+                                      className="inline-flex items-center justify-center text-teal-700 hover:text-teal-900"
+                                      title={mov?.detallesPago?.vendedorId ? 'Editar vendedor y comisión' : 'Asignar vendedor y comisión'}
+                                    >
+                                      <UserCog size={18} />
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() => descargarPdfVentaDocumentoDesdePreview(mov)}
                                     disabled={descargandoPdfMovimientoId === mov.id}
-                                    className="p-1.5 rounded-md border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                                    className="inline-flex items-center justify-center"
                                     title="Descargar comprobante PDF"
                                   >
-                                    {descargandoPdfMovimientoId === mov.id ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                                    {descargandoPdfMovimientoId === mov.id ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
                                   </button>
                                 </>
                               )}
@@ -32005,18 +35602,18 @@ function obtenerCategoriaProducto(producto) {
                               <button
                                 type="button"
                                 onClick={() => esComprobanteVentaCuenta ? editarComprobantePuntoVenta(mov) : iniciarEdicionMovimiento(mov)}
-                                className="p-1.5 rounded-md border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
+                                className="inline-flex items-center justify-center"
                                 title={etiquetaEdicionCargo}
                               >
-                                <Edit2 size={12} />
+                                <Edit2 size={18} />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => esComprobanteVentaCuenta ? eliminarComprobantePuntoVenta(mov) : confirmarEliminacion(mov.id)}
-                                className="p-1.5 rounded-md border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
+                                className="inline-flex items-center justify-center"
                                 title={etiquetaEliminacionCargo}
                               >
-                                <Trash2 size={12} />
+                                <Trash2 size={18} />
                               </button>
                                 </>
                               )}
@@ -32077,6 +35674,14 @@ function obtenerCategoriaProducto(producto) {
                   })}
                 </div>
               )}
+              {movimientosClienteSeleccionadoVisibles.length > 0 && <SFPagination
+                pagina={movimientosClienteSeleccionadoPaginados.pagina}
+                porPagina={paginacionCuentaCliente.porPagina}
+                total={movimientosClienteSeleccionadoPaginados.total}
+                entidad="movimientos"
+                onPaginaChange={(pagina) => setPaginacionCuentaCliente((prev) => ({ ...prev, pagina }))}
+                onPorPaginaChange={(porPagina) => setPaginacionCuentaCliente({ pagina: 1, porPagina })}
+              />}
             </div>
           </div>
         </Modal>
@@ -32580,7 +36185,7 @@ function obtenerCategoriaProducto(producto) {
               const key = normalizarMetodoPago(resumen.metodoPago);
               if (key === 'transferencia') return ArrowRight;
               if (key === 'cheque') return ClipboardList;
-              if (key === 'tarjeta') return CreditCard;
+              if (['tarjeta', 'tarjeta_credito', 'tarjeta_debito'].includes(key)) return CreditCard;
               if (key === 'cuenta_corriente') return History;
               return Wallet;
             })();
@@ -33193,11 +36798,11 @@ function obtenerCategoriaProducto(producto) {
           customWidth="max-w-7xl"
           fullScreen
         >
-          <form onSubmit={guardarPuntoVenta} className="h-full min-h-0 flex flex-col gap-3 max-w-7xl mx-auto w-full p-2 sm:p-3">
+          <form onSubmit={guardarPuntoVenta} className="sf-pv-workspace h-full min-h-0 flex flex-col gap-3 max-w-7xl mx-auto w-full p-2 sm:p-3">
             <div className="shrink-0">
               <div>
                 <h1 className="sr-only">Punto de Venta</h1>
-                <div className="flex flex-col lg:flex-row lg:items-center gap-2 bg-slate-900 text-white px-3 py-2 rounded-2xl w-full xl:w-fit">
+                <div className="sf-pv-display-toolbar flex flex-col lg:flex-row lg:items-center gap-2 bg-slate-900 text-white px-3 py-2 rounded-2xl w-full xl:w-fit">
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="bg-emerald-500 p-1.5 rounded-lg shrink-0">
                       <Monitor size={16} className="text-white" />
@@ -33206,7 +36811,7 @@ function obtenerCategoriaProducto(producto) {
                       <p className="text-xs font-black uppercase tracking-wider">Pantalla cliente</p>
                       <p className="text-[11px] text-emerald-300 truncate">
                         {pantallaClientePuntoVentaActiva
-                          ? `En vivo · ${itemsPantallaClientePuntoVenta.length} líneas · ${formatearDinero(totalFormularioPuntoVenta)}`
+                          ? `En vivo · ${itemsPantallaClientePuntoVenta.length} líneas · ${formatearDinero(totalCobroPuntoVentaVisible)}`
                           : 'Lista para abrir en segundo monitor'}
                       </p>
                     </div>
@@ -33256,7 +36861,7 @@ function obtenerCategoriaProducto(producto) {
 
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 shrink-0">
+            <div className="sf-pv-context grid grid-cols-1 lg:grid-cols-12 gap-4 shrink-0">
               <div className="lg:col-span-8 card p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <label className="text-xs font-black text-gray-700 uppercase tracking-wider">Cliente</label>
@@ -33347,6 +36952,77 @@ function obtenerCategoriaProducto(producto) {
                     />
                   </div>
                 )}
+                {esTarjetaPuntoVenta && (
+                  <div className="rounded-lg border border-indigo-200 bg-indigo-50/80 px-3 py-2">
+	                      <div className="grid h-full grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[150px_minmax(220px,1fr)_70px_132px_150px_166px] gap-2 items-end">
+		                        <div className="relative min-w-0">
+		                          <label className="block text-[8px] font-black text-indigo-700 uppercase tracking-wider mb-0.5 whitespace-nowrap">{tipoTarjetaPuntoVenta === 'debito' ? 'Tarjeta débito' : 'Tarjeta crédito'}</label>
+		                          <button type="button" onClick={() => setSelectorTarjetaPuntoVentaAbierto((actual) => actual === 'tarjeta' ? '' : 'tarjeta')} className="w-full h-9 px-2 bg-white border border-indigo-200 rounded-md text-[10px] font-black text-slate-900 outline-none focus:ring-1 focus:ring-indigo-500 flex items-center justify-between gap-2">
+		                            <span className="truncate">{planTarjetaPuntoVenta?.tarjeta || 'Seleccionar'}</span>
+		                            <span className="text-indigo-700">⌄</span>
+		                          </button>
+		                          {selectorTarjetaPuntoVentaAbierto === 'tarjeta' && (
+		                            <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-44 overflow-y-auto rounded-lg border border-indigo-100 bg-white p-1 shadow-xl">
+		                              {tarjetasDisponiblesPuntoVenta.length ? tarjetasDisponiblesPuntoVenta.map((tarjeta) => (
+		                                <button key={`pv-card-menu-${tarjeta.clave}`} type="button" onClick={() => { const primerPlan = planesTarjetaActivos.find((plan) => normalizarTextoBusqueda(plan?.tarjeta || '') === tarjeta.clave); setFormPuntoVenta((prev) => ({ ...prev, tarjetaPlanId: primerPlan?.id || '' })); setSelectorTarjetaPuntoVentaAbierto(''); refrescarPantallaClientePuntoVentaPronto(); }} className={`w-full rounded-md px-2 py-1.5 text-left text-[10px] font-black transition-colors ${tarjeta.clave === tarjetaSeleccionadaPuntoVenta ? 'bg-indigo-600 text-white' : 'text-slate-800 hover:bg-indigo-50'}`}>
+		                                  {tarjeta.nombre}
+		                                </button>
+		                              )) : (
+		                                <div className="px-2 py-2 text-[10px] font-bold text-slate-500">Sin tarjetas cargadas</div>
+		                              )}
+		                            </div>
+		                          )}
+		                        </div>
+		                        <div className="relative min-w-0">
+		                          <label className="block text-[8px] font-black text-indigo-700 uppercase tracking-wider mb-0.5 whitespace-nowrap">Plan e interés</label>
+		                          <button type="button" onClick={() => setSelectorTarjetaPuntoVentaAbierto((actual) => actual === 'plan' ? '' : 'plan')} className={`w-full h-9 px-2 border rounded-md text-[10px] font-black outline-none focus:ring-1 flex items-center justify-between gap-2 ${esPlanTarjetaPromoVigente(planTarjetaPuntoVenta) ? 'bg-emerald-50 border-emerald-200 text-emerald-800 focus:ring-emerald-500' : 'bg-white border-indigo-200 text-slate-900 focus:ring-indigo-500'}`}>
+		                            <span className="truncate">{planTarjetaPuntoVenta ? `${planTarjetaPuntoVenta.plan} · ${formatearCantidad(calcularFinanciacionTarjeta(100000, planTarjetaPuntoVenta).porcentajeRecuperacion)}%` : 'Seleccionar plan'}</span>
+		                            {esPlanTarjetaPromoVigente(planTarjetaPuntoVenta) && <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[8px] text-white">Vigente</span>}
+		                            <span className="text-indigo-700">⌄</span>
+		                          </button>
+		                          {selectorTarjetaPuntoVentaAbierto === 'plan' && (
+		                            <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-44 overflow-y-auto rounded-lg border border-indigo-100 bg-white p-1 shadow-xl">
+		                              {planesTarjetaPorTarjetaPuntoVenta.length ? planesTarjetaPorTarjetaPuntoVenta.map((plan) => {
+		                                const simulacionPlan = calcularFinanciacionTarjeta(100000, plan);
+		                                const promoVigentePlan = esPlanTarjetaPromoVigente(plan);
+		                                return (
+		                                  <button key={`pv-plan-menu-${plan.id}`} type="button" onClick={() => { setFormPuntoVenta((prev) => ({ ...prev, tarjetaPlanId: plan.id })); setSelectorTarjetaPuntoVentaAbierto(''); refrescarPantallaClientePuntoVentaPronto(); }} className={`w-full rounded-md px-2 py-1.5 text-left text-[10px] font-black transition-colors ${formPuntoVenta.tarjetaPlanId === plan.id ? (promoVigentePlan ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white') : (promoVigentePlan ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100' : 'text-slate-800 hover:bg-indigo-50')}`}>
+		                                    <span className="inline-flex w-full items-center justify-between gap-2"><span>{plan.plan} · {formatearCantidad(simulacionPlan.porcentajeRecuperacion)}%</span>{promoVigentePlan && <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[8px] text-white">Vigente</span>}</span>
+		                                  </button>
+		                                );
+		                              }) : (
+		                                <div className="px-2 py-2 text-[10px] font-bold text-slate-500">Sin planes para esta tarjeta</div>
+		                              )}
+		                            </div>
+		                          )}
+		                        </div>
+		                        <div className="min-w-0">
+		                          <label className="block text-[8px] font-black text-indigo-700 uppercase tracking-wider mb-0.5 whitespace-nowrap">Cuotas</label>
+		                          <div className="h-9 rounded-md border border-indigo-100 bg-white px-2 flex items-center min-w-0">
+		                            <strong className="text-[11px] leading-none text-slate-900 whitespace-nowrap tabular-nums">{planTarjetaPuntoVenta ? planTarjetaPuntoVenta.cuotas : '-'}</strong>
+		                          </div>
+		                        </div>
+		                        <div className="min-w-0">
+		                          <label className="block text-[8px] font-black text-indigo-700 uppercase tracking-wider mb-0.5 whitespace-nowrap">Original</label>
+		                          <div className="h-9 rounded-md border border-indigo-100 bg-white px-2 flex items-center min-w-0">
+		                            <strong className="text-[11px] leading-none text-slate-800 whitespace-nowrap tabular-nums">{formatearDinero(totalFormularioPuntoVenta)}</strong>
+		                          </div>
+		                        </div>
+		                        <div className="min-w-0">
+		                          <label className="block text-[8px] font-black text-indigo-700 uppercase tracking-wider mb-0.5 whitespace-nowrap">Con tarjeta</label>
+		                          <div className="h-9 rounded-md border border-indigo-100 bg-white px-2 flex items-center min-w-0">
+		                            <strong className="text-[11px] leading-none text-indigo-800 whitespace-nowrap tabular-nums">{mostrarResumenTarjetaPuntoVenta ? formatearDinero(financiacionTarjetaPuntoVenta.totalPosnet) : '-'}</strong>
+		                          </div>
+		                        </div>
+		                        <div className="min-w-0">
+		                          <label className="block text-[8px] font-black text-indigo-700 uppercase tracking-wider mb-0.5 whitespace-nowrap">Valor cuota</label>
+		                          <div className="h-9 rounded-md border border-indigo-100 bg-white px-2 flex items-center min-w-0">
+		                            <strong className="text-[11px] leading-none text-slate-900 whitespace-nowrap tabular-nums">{mostrarResumenTarjetaPuntoVenta ? `${financiacionTarjetaPuntoVenta.cuotas} x ${formatearDinero(financiacionTarjetaPuntoVenta.cuota)}` : '-'}</strong>
+		                          </div>
+		                        </div>
+                      </div>
+                  </div>
+                )}
               </div>
 
               <div className="lg:col-span-4 card p-4 space-y-3">
@@ -33368,14 +37044,15 @@ function obtenerCategoriaProducto(producto) {
                       const metodoPagoSeleccionado = normalizarMetodoPago(e.target.value);
                       setCierrePantallaClientePuntoVenta(null);
                       setPagoPendientePuntoVenta(null);
-                      setFormPuntoVenta((prev) => ({ ...prev, metodoPago: metodoPagoSeleccionado }));
+                      setFormPuntoVenta((prev) => ({ ...prev, metodoPago: metodoPagoSeleccionado, tarjetaPlanId: '' }));
                       refrescarPantallaClientePuntoVentaPronto();
                     }}
                     className="w-full px-3 py-1.5 bg-white border border-emerald-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="efectivo">Efectivo</option>
                     <option value="transferencia">Transferencia</option>
-                    <option value="tarjeta">Tarjeta</option>
+                    <option value="tarjeta_credito">Tarjeta de crédito</option>
+                    <option value="tarjeta_debito">Tarjeta de débito</option>
                     <option value="cheque">Cheque</option>
                     <option value="cuenta_corriente">Cuenta Corriente</option>
                   </select>
@@ -33403,11 +37080,12 @@ function obtenerCategoriaProducto(producto) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 shrink-0">
+            <div className="sf-pv-document grid grid-cols-1 sm:grid-cols-2 gap-2 shrink-0">
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1 uppercase">Tipo de comprobante</label>
                 <select
                   value={formPuntoVenta.tipoComprobante}
+                  disabled={Boolean(formPuntoVenta.devolucionOrigenId)}
                   onChange={(e) => setFormPuntoVenta((prev) => {
                     const nuevoTipo = e.target.value;
                     if (prev.numeroComprobanteManual) {
@@ -33450,22 +37128,31 @@ function obtenerCategoriaProducto(producto) {
               </div>
             </div>
 
-            <div className="card sf-punto-venta-items p-3 overflow-hidden flex-none min-h-0 flex flex-col">
-              <div className="flex items-center justify-between gap-3 mb-1.5 shrink-0">
-                <h3 className="font-bold text-lg text-gray-900">Ítems de la venta</h3>
+            <div className="card sf-punto-venta-items sf-pv-items p-3 overflow-hidden flex-1 min-h-0 flex flex-col">
+              <div className="sf-pv-item-header">
+                <div>
+                  <h3 className="font-bold text-lg text-gray-900">{formPuntoVenta.devolucionOrigenId ? 'Ítems a devolver' : 'Ítems de la venta'}</h3>
+                  {formPuntoVenta.devolucionOrigenId && <p className="mt-0.5 text-[10px] font-black uppercase tracking-wider text-orange-700">Indicá únicamente las cantidades devueltas · origen N° {formPuntoVenta.devolucionOrigenNumero || '-'}</p>}
+                </div>
+                <div className="sf-pv-item-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <button type="button" disabled={Boolean(formPuntoVenta.devolucionOrigenId)} onClick={abrirSelectorProductoPuntoVenta} className="sf-pv-add-product disabled:opacity-40" aria-label="Agregar ítem desde inventario" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: 104, minWidth: 104, height: 34, padding: '0 14px', flexShrink: 0, border: '1px solid #16a34a', borderRadius: 6, background: '#16a34a', color: '#fff', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}><Plus size={18} strokeWidth={2} /> Ítem</button>
+                  <button type="button" disabled={Boolean(formPuntoVenta.devolucionOrigenId)} onClick={() => setModalItemServicioPuntoVentaAbierto(true)} className="sf-pv-add-service disabled:opacity-40" aria-label="Agregar servicio" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: 120, minWidth: 120, height: 34, padding: '0 14px', flexShrink: 0, border: '1px solid #2563eb', borderRadius: 6, background: '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}><Plus size={18} strokeWidth={2} /> Servicio</button>
+                  <button type="button" disabled={Boolean(formPuntoVenta.devolucionOrigenId)} onClick={agregarItemManualPuntoVenta} className="sf-pv-add-manual disabled:opacity-40" aria-label="Agregar ítem manual" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: 138, minWidth: 138, height: 34, padding: '0 14px', flexShrink: 0, border: '1px solid #64748b', borderRadius: 6, background: '#475569', color: '#fff', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}><Plus size={18} strokeWidth={2} /> Ítem manual</button>
+                </div>
               </div>
               <div
-                className="flex-1 min-h-0 overflow-auto rounded-xl border border-gray-100 bg-white"
+                className="sf-pv-items-scroll flex-1 min-h-0 overflow-auto rounded-xl border border-gray-100 bg-white"
                 onScroll={sincronizarScrollItemsPuntoVentaConPantallaCliente}
               >
                 <table className="w-full table-fixed text-sm border-collapse">
                   <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 font-black border-b border-gray-100 sticky top-0 z-10">
                     <tr>
-                      <th className="px-2 py-1.5 text-left w-36">Código</th>
+                      <th className="px-2 py-1.5 text-left w-52">Código</th>
                       <th className="px-1.5 py-1 text-left">Detalle</th>
                       <th className="px-1.5 py-1.5 text-center w-[62px]">Cant.</th>
                       <th className="px-1.5 py-1.5 text-center w-[68px]">Unidad</th>
                       <th className="px-1.5 py-1.5 text-right w-24">Precio U.</th>
+                      <th className="px-1.5 py-1.5 text-center w-[62px]">IVA</th>
                       <th className="px-1.5 py-1.5 text-center w-[54px]">Desc.</th>
                       <th className="px-1.5 py-1.5 text-right w-28">Subtotal</th>
                       <th className="px-1.5 py-1.5 w-9"></th>
@@ -33473,16 +37160,20 @@ function obtenerCategoriaProducto(producto) {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {(formPuntoVenta.items || []).map((item) => {
+                      const esItemDevolucionVinculada = Boolean(formPuntoVenta.devolucionOrigenId && item?.claveDevolucion);
                       const cantidad = Math.max(0, parseNumeroBasico(item?.cantidad) || 0);
-                      const precio = Math.max(0, parseNumeroBasico(item?.precio) || 0);
+                      const precioBase = Math.max(0, parseNumeroBasico(item?.precio) || 0);
+                      const precio = redondeoVentasHaciaArribaActivo ? redondearImporteVentaHaciaArriba(precioBase) : precioBase;
                       const descuento = Math.min(100, Math.max(0, parseNumeroBasico(item?.descuento) || 0));
-                      const subtotal = Math.max(0, (cantidad * precio) - ((cantidad * precio) * descuento / 100));
+                      const subtotalBase = Math.max(0, (cantidad * precio) - ((cantidad * precio) * descuento / 100));
+                      const subtotal = redondeoVentasHaciaArribaActivo ? redondearImporteVentaHaciaArriba(subtotalBase) : subtotalBase;
                       return (
                         <tr key={item.id} className="group hover:bg-gray-50/80">
                           <td className="px-2 py-[2px]">
                             <div className="flex items-center gap-1">
                               <button
                                 type="button"
+                                disabled={esItemDevolucionVinculada}
                                 onClick={() => {
                                   setItemIdPuntoVentaParaStock(item.id);
                                   setItemIndexParaStock(null);
@@ -33498,6 +37189,7 @@ function obtenerCategoriaProducto(producto) {
                               <input
                                 type="text"
                                 value={item.codigo || ''}
+                                readOnly={esItemDevolucionVinculada}
                                 onChange={(e) => actualizarCodigoItemPuntoVenta(item.id, e.target.value)}
                                 onBlur={(e) => aplicarProductoInventarioPorCodigoExactoEnItemPuntoVenta(item.id, e.target.value)}
                                 onKeyDown={(e) => {
@@ -33516,8 +37208,8 @@ function obtenerCategoriaProducto(producto) {
                               autoComplete="off"
                               required
                               value={item.descripcion}
+                              readOnly={esItemDevolucionVinculada}
                               onChange={(e) => actualizarItemPuntoVenta(item.id, 'descripcion', e.target.value)}
-                              onBlur={(e) => aplicarProductoInventarioEnItemPuntoVenta(item.id, e.target.value)}
                               className="w-full h-6 px-1.5 bg-transparent border border-transparent rounded-md text-[11px] font-bold outline-none hover:bg-white focus:bg-white focus:border-emerald-300 focus:ring-1 focus:ring-emerald-500"
                               placeholder="Producto / Servicio"
                             />
@@ -33528,6 +37220,7 @@ function obtenerCategoriaProducto(producto) {
                               inputMode="decimal"
                               required
                               value={item.cantidad}
+                              max={esItemDevolucionVinculada ? item.cantidadMaximaDevolucion : undefined}
                               onChange={(e) => actualizarItemPuntoVenta(item.id, 'cantidad', e.target.value)}
                               className="w-full h-6 px-1 bg-transparent border border-transparent rounded-md text-[11px] font-black text-center outline-none hover:bg-white focus:bg-white focus:border-emerald-300 focus:ring-1 focus:ring-emerald-500"
                             />
@@ -33535,6 +37228,7 @@ function obtenerCategoriaProducto(producto) {
                           <td className="px-1 py-[2px]">
                             <select
                               value={item.unidad}
+                              disabled={esItemDevolucionVinculada}
                               onChange={(e) => actualizarItemPuntoVenta(item.id, 'unidad', e.target.value)}
                               className="w-full h-6 px-1 bg-transparent border border-transparent rounded-md text-[11px] font-black uppercase outline-none hover:bg-white focus:bg-white focus:border-emerald-300 focus:ring-1 focus:ring-emerald-500"
                             >
@@ -33551,16 +37245,19 @@ function obtenerCategoriaProducto(producto) {
                               inputMode="decimal"
                               required
                               value={item.precio}
+                              readOnly={esItemDevolucionVinculada}
                               onChange={(e) => actualizarItemPuntoVenta(item.id, 'precio', e.target.value)}
                               className="w-full h-6 px-1 bg-transparent border border-transparent rounded-md text-[11px] font-black text-right outline-none hover:bg-white focus:bg-white focus:border-emerald-300 focus:ring-1 focus:ring-emerald-500"
                               placeholder="0.00"
                             />
                           </td>
+                          <td className="px-1 py-[2px]"><select value={item.iva || 'sin_iva'} disabled={esItemDevolucionVinculada} onChange={(e) => actualizarItemPuntoVenta(item.id, 'iva', e.target.value)} className="w-full h-6 px-1 bg-transparent border border-transparent rounded-md text-[10px] font-black text-center outline-none hover:bg-white focus:bg-white focus:border-emerald-300 focus:ring-1 focus:ring-emerald-500"><option value="sin_iva">Exento</option><option value="10.5">10,5%</option><option value="21">21%</option></select></td>
                           <td className="px-1 py-[2px]">
                             <input
                               type="text"
                               inputMode="decimal"
                               value={item.descuento ?? '0'}
+                              readOnly={esItemDevolucionVinculada}
                               onChange={(e) => actualizarItemPuntoVenta(item.id, 'descuento', e.target.value)}
                               className="w-full h-6 px-1 bg-transparent border border-transparent rounded-md text-[11px] font-black text-center outline-none hover:bg-white focus:bg-white focus:border-emerald-300 focus:ring-1 focus:ring-emerald-500"
                               placeholder="0"
@@ -33568,7 +37265,7 @@ function obtenerCategoriaProducto(producto) {
                           </td>
                           <td className="px-1.5 py-[2px] text-right font-black text-emerald-700 whitespace-nowrap text-xs">{formatearDinero(subtotal)}</td>
                           <td className="px-1 py-[2px] text-center">
-                            <button type="button" onClick={() => eliminarItemPuntoVenta(item.id)} className="w-5 h-5 inline-flex items-center justify-center rounded-md text-gray-300 hover:text-red-600 hover:bg-red-50 transition-colors opacity-70 group-hover:opacity-100 focus:opacity-100" title="Eliminar ítem" aria-label="Eliminar ítem">
+                            <button type="button" disabled={esItemDevolucionVinculada} onClick={() => eliminarItemPuntoVenta(item.id)} className="w-5 h-5 inline-flex items-center justify-center rounded-md text-gray-300 hover:text-red-600 hover:bg-red-50 disabled:opacity-30 transition-colors opacity-70 group-hover:opacity-100 focus:opacity-100" title="Eliminar ítem" aria-label="Eliminar ítem">
                               <Trash2 size={13} strokeWidth={2.4} />
                             </button>
                           </td>
@@ -33577,23 +37274,10 @@ function obtenerCategoriaProducto(producto) {
                     })}
                   </tbody>
                 </table>
-                <div className="px-2 py-1 bg-gray-50 border-t border-gray-100 sticky bottom-0 space-y-1">
-                  <button
-                    type="button"
-                    onClick={agregarItemPuntoVenta}
-                    className="w-full h-6 rounded-lg border border-dashed border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors"
-                    title="Agregar ítem"
-                  >
-                    <Plus size={15} /> Agregar ítem
-                  </button>
-                  <button type="button" onClick={() => setModalItemServicioPuntoVentaAbierto(true)} className="w-full h-7 rounded-lg border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors" title="Agregar servicio">
-                    <Plus size={14} /> Agregar servicio
-                  </button>
-                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px] gap-3 shrink-0">
+            <div className="sf-pv-summary grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px] gap-3 shrink-0">
               <div className="card p-3 flex-1">
                 <label className="label">Notas / observaciones</label>
                 <textarea
@@ -33614,17 +37298,18 @@ function obtenerCategoriaProducto(producto) {
               </div>
 
               <div className="card p-3 text-right flex flex-col justify-center min-w-0 overflow-hidden">
-                <p className="text-xs text-gray-500 font-black uppercase tracking-wider">Total</p>
+                <p className="text-xs text-gray-500 font-black uppercase tracking-wider">{mostrarResumenTarjetaPuntoVenta ? 'Cobrar POSNET' : 'Total'}</p>
                 <p
                   className="w-full font-extrabold tracking-tight text-gray-900 leading-none whitespace-nowrap tabular-nums"
                   style={{ fontSize: `${totalFormularioPuntoVentaFontSizeRem}rem` }}
                 >
-                  {totalFormularioPuntoVentaTexto}
+                  {formatearDinero(totalCobroPuntoVentaVisible)}
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:justify-end gap-3 pt-3 border-t border-gray-200 shrink-0">
+            <div className="sf-pv-actions flex flex-col sm:flex-row sm:justify-end gap-3 pt-3 border-t border-gray-200 shrink-0">
+              <button type="button" onClick={abrirAsignacionVendedorPuntoVenta} className="btn btn-primary !w-12 !min-w-12 !px-0" title={formPuntoVenta.vendedorId ? `${textoSeguroTrim(formPuntoVenta.vendedorNombre, 'Vendedor')} · ${formatearCantidad(formPuntoVenta.comisionPorcentaje)}%` : 'Asignar vendedor'} aria-label="Asignar vendedor"><UserCog size={19} /></button>
               <button
                 type="button"
                 onClick={() => {
@@ -33665,8 +37350,7 @@ function obtenerCategoriaProducto(producto) {
                   <button
                     type="button"
                     onClick={() => {
-                      setPagoPendientePuntoVenta(null);
-                      refrescarPantallaClientePuntoVentaPronto();
+                      cancelarPagoPendientePuntoVenta();
                     }}
                     className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10"
                     title="Cerrar"
@@ -33736,8 +37420,7 @@ function obtenerCategoriaProducto(producto) {
                   <button
                     type="button"
                     onClick={() => {
-                      setPagoPendientePuntoVenta(null);
-                      refrescarPantallaClientePuntoVentaPronto();
+                      cancelarPagoPendientePuntoVenta();
                     }}
                     className="min-w-0 w-full min-h-11 px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-black uppercase tracking-wider text-center leading-tight whitespace-normal hover:bg-slate-100"
                   >
@@ -33755,6 +37438,17 @@ function obtenerCategoriaProducto(producto) {
               </div>
             </div>
           )}
+        </Modal>
+      )}
+
+      {modalActivo === 'punto_venta' && asignacionVendedorPuntoVentaAbierta && (
+        <Modal titulo="Asignar vendedor a esta venta" onClose={() => setAsignacionVendedorPuntoVentaAbierta(false)} customWidth="max-w-lg" extraClases="z-[75]">
+          <form onSubmit={confirmarAsignacionVendedorPuntoVenta} className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Venta actual</p><p className="font-black text-slate-900">{formPuntoVenta.tipoComprobante === 'remito_x' ? 'Remito X' : (OPCIONES_COMPROBANTE_VENTA.find((opcion) => opcion.value === formPuntoVenta.tipoComprobante)?.label || 'Comprobante')} {formPuntoVenta.numeroComprobante || 'sin número'}</p></div><p className="text-2xl font-black text-emerald-700">{formatearDinero(totalFormularioPuntoVenta)}</p></div>
+            <div className="grid sm:grid-cols-2 gap-3"><div><label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1">Vendedor</label><select value={formAsignacionVendedorPuntoVenta.vendedorId} onChange={(event) => setFormAsignacionVendedorPuntoVenta((prev) => ({ ...prev, vendedorId: event.target.value }))} required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-bold outline-none focus:ring-2 focus:ring-teal-500"><option value="">Seleccionar vendedor</option>{vendedores.filter((vendedor) => vendedor.activo !== false || vendedor.id === formPuntoVenta.vendedorId).map((vendedor) => <option key={`pv-vendedor-${vendedor.id}`} value={vendedor.id}>{vendedor.nombre}{vendedor.activo === false ? ' (inactivo)' : ''}</option>)}</select></div><div><label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1">Porcentaje sobre la venta</label><div className="relative"><input inputMode="decimal" value={formAsignacionVendedorPuntoVenta.porcentaje} onChange={(event) => setFormAsignacionVendedorPuntoVenta((prev) => ({ ...prev, porcentaje: event.target.value.replace(/[^0-9.,]/g, '') }))} placeholder="Ej.: 10" required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pr-10 text-right text-lg font-black outline-none focus:ring-2 focus:ring-teal-500" /><span className="absolute right-3 top-1/2 -translate-y-1/2 font-black text-slate-500">%</span></div></div></div>
+            <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-3"><div><p className="text-[10px] font-black uppercase tracking-wider text-teal-700">Comisión incorporada a los ítems</p><p className="mt-1 text-2xl font-black text-teal-900">{formatearDinero(comisionPuntoVentaVista)}</p></div><div className="sm:text-right"><p className="text-[10px] font-black uppercase tracking-wider text-teal-700">Nuevo total de venta</p><p className="mt-1 text-2xl font-black text-teal-900">{formatearDinero(totalConComisionPuntoVentaVista)}</p></div><p className="sm:col-span-2 text-xs font-bold text-teal-700">El porcentaje se suma proporcionalmente al precio original de cada ítem.</p></div>
+            <div className="flex flex-col sm:flex-row gap-2 pt-1">{formPuntoVenta.vendedorId && <button type="button" onClick={quitarAsignacionVendedorPuntoVenta} className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-black text-red-700">Quitar vendedor</button>}<button type="button" onClick={() => setAsignacionVendedorPuntoVentaAbierta(false)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-700">Cancelar</button><button type="submit" className="flex-1 rounded-xl bg-teal-600 px-4 py-3 text-xs font-black text-white">Aplicar vendedor y comisión</button></div>
+          </form>
         </Modal>
       )}
 
@@ -34334,9 +38028,8 @@ function obtenerCategoriaProducto(producto) {
                 }}
                 className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-purple-600"
               >
-                <option value="general">Abono General (a la deuda total)</option>
-                <option value="ticket" disabled={ticketsPendientesParaCobroClienteSeleccionado.length === 0}>Abonar Ticket Impago</option>
-                <option value="ticket_multi" disabled={ticketsPendientesParaCobroClienteSeleccionado.length === 0}>Aplicar a remitos seleccionados</option>
+	                <option value="general">Abono General (a la deuda total)</option>
+	                <option value="ticket_multi" disabled={ticketsPendientesParaCobroClienteSeleccionado.length === 0}>Aplicar a remitos seleccionados</option>
               </select>
               {(formData.detallesPago?.tipoAbono || 'general') === 'ticket' && (
                 <div className="mt-2">
@@ -34495,10 +38188,17 @@ function obtenerCategoriaProducto(producto) {
                   <label className="block text-[10px] font-black text-gray-600 mb-1 uppercase">Tipo</label>
                   <select
                     value={formData.detallesPago?.facturaExternaTipo || ''}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      detallesPago: { ...formData.detallesPago, facturaExternaTipo: e.target.value }
-                    })}
+	                    onChange={(e) => {
+	                      const tipoFactura = e.target.value;
+	                      setFormData({
+	                        ...formData,
+	                        detallesPago: {
+	                          ...formData.detallesPago,
+	                          facturaExternaTipo: tipoFactura,
+	                          facturaExternaNumero: tipoFactura ? (formData.detallesPago?.facturaExternaNumero || '') : ''
+	                        }
+	                      });
+	                    }}
                     className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-purple-600"
                   >
                     <option value="">Sin factura</option>
@@ -34507,19 +38207,21 @@ function obtenerCategoriaProducto(producto) {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-black text-gray-600 mb-1 uppercase">Número de factura</label>
-                  <input
-                    type="text"
-                    value={formData.detallesPago?.facturaExternaNumero || ''}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      detallesPago: { ...formData.detallesPago, facturaExternaNumero: e.target.value }
-                    })}
-                    placeholder="Ej: 0005-00001234"
-                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-purple-600"
-                  />
-                </div>
+	                {formData.detallesPago?.facturaExternaTipo && (
+	                  <div>
+	                    <label className="block text-[10px] font-black text-gray-600 mb-1 uppercase">Número de factura</label>
+	                    <input
+	                      type="text"
+	                      value={formData.detallesPago?.facturaExternaNumero || ''}
+	                      onChange={(e) => setFormData({
+	                        ...formData,
+	                        detallesPago: { ...formData.detallesPago, facturaExternaNumero: e.target.value }
+	                      })}
+	                      placeholder="Ej: 0005-00001234"
+	                      className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-purple-600"
+	                    />
+	                  </div>
+	                )}
               </div>
               <p className="mt-2 text-[10px] font-bold text-slate-500">
                 Solo se muestra en el detalle y resumen de cuenta; no modifica saldos ni genera factura en SeniorFlow.
@@ -34537,12 +38239,27 @@ function obtenerCategoriaProducto(producto) {
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-800 mb-1 uppercase">Forma de Pago del Cliente</label>
-              <select value={formData.metodoPago} onChange={(e) => setFormData({...formData, metodoPago: e.target.value, detallesPago: { ...formData.detallesPago }})} className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-purple-600">
-                <option value="efectivo">💵 Efectivo Físico</option><option value="transferencia">🏦 Transferencia</option><option value="tarjeta">💳 Tarjeta</option><option value="cheque">📝 Cheque</option>
-              </select>
-            </div>
-            
-            {formData.metodoPago === 'tarjeta' && renderBloqueTarjeta()}
+	              <select value={formData.metodoPago} onChange={(e) => setFormData({...formData, metodoPago: e.target.value, detallesPago: { ...formData.detallesPago }})} className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-purple-600">
+	                <option value="efectivo">💵 Efectivo Físico</option><option value="transferencia">🏦 Transferencia</option><option value="tarjeta">💳 Tarjeta</option><option value="cheque">📝 Cheque</option>
+	              </select>
+	            </div>
+	            
+	            {formData.metodoPago === 'transferencia' && (
+	              <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
+	                <label className="block text-[10px] font-black text-blue-800 mb-1 uppercase tracking-wider">Número de comprobante / transferencia</label>
+	                <input
+	                  type="text"
+	                  value={formData.detallesPago?.numeroComprobante || ''}
+	                  onChange={(e) => setFormData({
+	                    ...formData,
+	                    detallesPago: { ...formData.detallesPago, numeroComprobante: e.target.value, referencia: e.target.value }
+	                  })}
+	                  placeholder="Ej: N° operación, comprobante o referencia bancaria"
+	                  className="w-full px-3 py-2.5 bg-white border border-blue-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500"
+	                />
+	              </div>
+	            )}
+	            {formData.metodoPago === 'tarjeta' && renderBloqueTarjeta()}
             {formData.metodoPago === 'cheque' && renderBloqueCheque()}
             
             <button
@@ -34561,6 +38278,14 @@ function obtenerCategoriaProducto(producto) {
           titulo={dialogoSistema.titulo || (dialogoSistema.confirmar ? 'Confirmación' : 'Notificación')}
           onClose={() => resolverDialogoSistema(dialogoSistema.prompt ? null : !dialogoSistema.confirmar)}
           customWidth="max-w-md"
+          modalVariant={`sf-system-dialog sf-system-dialog-${dialogoSistema.tipo === 'danger' ? 'error' : (dialogoSistema.tipo || 'info')}`}
+          headerIcon={(() => {
+            const tipo = dialogoSistema.tipo === 'danger' ? 'error' : (dialogoSistema.tipo || 'info');
+            if (tipo === 'success') return <CheckCircle size={22} />;
+            if (tipo === 'warning') return <AlertCircle size={22} />;
+            if (tipo === 'error') return <XCircle size={22} />;
+            return <FileText size={22} />;
+          })()}
         >
           {(() => {
             const tipo = dialogoSistema.tipo || 'info';
@@ -34598,18 +38323,15 @@ function obtenerCategoriaProducto(producto) {
             const visual = mapa[tipoVisual] || mapa.info;
             return (
               <div className="space-y-4">
-                <div className={`border rounded-2xl p-4 flex items-start gap-3 ${visual.caja}`}>
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${visual.iconoCaja}`}>
-                    {visual.icono}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-bold leading-relaxed whitespace-pre-line ${visual.texto}`}>
+                <div className="sf-system-dialog-content">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium leading-relaxed whitespace-pre-line text-slate-700">
                       {dialogoSistema.mensaje || ''}
                     </p>
                     {dialogoSistema.prompt && (
                       <div className="mt-3 space-y-1.5">
                         {dialogoSistema.inputLabel && (
-                          <label className={`block text-[10px] font-black uppercase tracking-wider ${visual.texto}`}>
+                          <label className="block text-[10px] font-black uppercase tracking-wider text-slate-600">
                             {dialogoSistema.inputLabel}
                           </label>
                         )}
@@ -34624,18 +38346,18 @@ function obtenerCategoriaProducto(producto) {
                             if (e.key === 'Enter') resolverDialogoSistema(dialogoSistema.inputValue || '');
                           }}
                           placeholder={dialogoSistema.inputPlaceholder || ''}
-                          className="w-full px-3 py-2.5 rounded-xl border border-white/70 bg-white text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-amber-500"
+                          className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-sm font-bold text-gray-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
                         />
                       </div>
                     )}
                   </div>
                 </div>
-                <div className="flex justify-end gap-2">
+                <div className="sf-system-dialog-actions flex justify-end gap-2">
                   {(dialogoSistema.confirmar || dialogoSistema.prompt) && (
                     <button
                       type="button"
                       onClick={() => resolverDialogoSistema(dialogoSistema.prompt ? null : false)}
-                      className="px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-100 font-bold text-sm transition-colors"
+                      className="sf-system-dialog-cancel px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 font-bold text-sm transition-colors"
                     >
                       {dialogoSistema.textoCancelar || 'Cancelar'}
                     </button>
@@ -34643,7 +38365,7 @@ function obtenerCategoriaProducto(producto) {
                   <button
                     type="button"
                     onClick={() => resolverDialogoSistema(dialogoSistema.prompt ? (dialogoSistema.inputValue || '') : true)}
-                    className={`px-4 py-2 rounded-xl text-white font-bold text-sm transition-colors ${visual.aceptar}`}
+                    className="sf-system-dialog-accept px-5 py-2 rounded-lg text-white font-bold text-sm transition-colors"
                   >
                     {dialogoSistema.textoAceptar || 'Aceptar'}
                   </button>
@@ -34651,6 +38373,30 @@ function obtenerCategoriaProducto(producto) {
               </div>
             );
           })()}
+        </Modal>
+      )}
+
+      {operacionPreciosEnCurso.activo && (
+        <Modal titulo={operacionPreciosEnCurso.titulo || 'Procesando precios'} onClose={() => {}} customWidth="max-w-lg" extraClases="z-[120]">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full border-4 border-fuchsia-100 border-t-fuchsia-600 animate-spin" />
+              <div>
+                <p className="text-sm font-black text-slate-900">{operacionPreciosEnCurso.fase || 'Procesando...'}</p>
+                <p className="text-xs font-bold text-slate-500">{operacionPreciosEnCurso.detalle || 'La operación continúa en segundo plano dentro del sistema.'}</p>
+              </div>
+            </div>
+            <div className="rounded-xl border border-fuchsia-100 bg-fuchsia-50 p-3 space-y-2">
+              <div className="flex items-center justify-between text-xs font-black text-fuchsia-900">
+                <span>Progreso</span>
+                <span>{operacionPreciosEnCurso.procesadas} / {operacionPreciosEnCurso.total}</span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-fuchsia-100">
+                <div className="h-full rounded-full bg-fuchsia-600 transition-all duration-300" style={{ width: `${operacionPreciosEnCurso.total ? Math.min(100, (operacionPreciosEnCurso.procesadas / operacionPreciosEnCurso.total) * 100) : 8}%` }} />
+              </div>
+            </div>
+            <p className="text-[11px] font-bold text-slate-500">No cierres esta ventana hasta que indique “Completado”.</p>
+          </div>
         </Modal>
       )}
 
