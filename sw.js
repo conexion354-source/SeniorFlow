@@ -1,11 +1,11 @@
-const CACHE_NAME = 'seniorflow-offline-firestore-20260817-01';
+const CACHE_NAME = 'seniorflow-local-first-20260817-02';
 const ASSETS = [
   './',
   './index.html',
   './stock-app.html',
   './stock-app.js?v=seniorflow-stock-mobile-20260807-08',
-  './app.js?v=seniorflow-offline-firestore-20260817-01',
-  './firebase-config.js?v=seniorflow-offline-firestore-20260817-01',
+  './app.js?v=seniorflow-local-first-20260817-02',
+  './firebase-config.js?v=seniorflow-local-first-20260817-02',
   './manifest.json',
   './manifest-stock-app.json?v=seniorflow-stock-mobile-20260807-08',
   './sw-stock-app.js?v=seniorflow-stock-mobile-20260807-08',
@@ -89,12 +89,12 @@ self.addEventListener('fetch', (event) => {
       } catch {
       return (await caches.match(event.request))
         || (await caches.match(url.pathname.endsWith('/firebase-config.js')
-          ? './firebase-config.js?v=seniorflow-offline-firestore-20260817-01'
+          ? './firebase-config.js?v=seniorflow-local-first-20260817-02'
           : url.pathname.endsWith('/stock-app.js')
             ? './stock-app.js?v=seniorflow-stock-mobile-20260807-08'
             : url.pathname.endsWith('/ofertas.html')
               ? './ofertas.html?v=seniorflow-react-20260715-pdf-pagination-06'
-              : './app.js?v=seniorflow-offline-firestore-20260817-01'));
+              : './app.js?v=seniorflow-local-first-20260817-02'));
       }
     })());
     return;
