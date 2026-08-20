@@ -14,10 +14,10 @@ import autoTable from 'jspdf-autotable';
 import { COMPANY_RUNTIME_CONFIG } from './company-runtime-config.js';
 
 // --- INTEGRACIÓN FIREBASE ---
-import { auth, db, storage } from './firebase-config.js?v=seniorflow-react-20260622-flyer-studio-55';
-import { signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js';
-import { collection as firestoreCollection, doc as firestoreDoc, setDoc, onSnapshot, deleteDoc, updateDoc, addDoc, increment, getDocs, arrayUnion } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js';
-import { ref as storageRef, uploadString, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js';
+import { auth, db, storage } from './firebase-config.js?v=seniorflow-offline-firestore-20260817-01';
+import { signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { collection as firestoreCollection, doc as firestoreDoc, setDoc, onSnapshot, deleteDoc, updateDoc, addDoc, increment, getDocs, arrayUnion } from 'firebase/firestore';
+import { ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
 
 // Compatibilidad con los datos existentes. La separación por empresa requiere
 // una migración explícita; no se cambia la ruta hasta copiar/verificar los datos.
@@ -27,7 +27,7 @@ const doc = (database, ...path) => firestoreDoc(database, ...path);
 const COLECCIONES_BACKUP = [
   'usuarios', 'historial_caja', 'movimientos', 'clientes', 'presupuestos', 'ofertas', 'combos',
   'productos', 'variaciones_precios', 'proveedores', 'pagos_proveedores', 'facturas_emitidas',
-  'marcas', 'pedidos_compra', 'respaldos_precios', 'vendedores', 'retiros_vendedores'
+  'marcas', 'pedidos_compra', 'respaldos_precios', 'vendedores', 'retiros_vendedores', 'listas_proveedores_web', 'listas_proveedores_items', 'listas_proveedores_prelista'
 ];
 
 // --- FUNCIONES UTILITARIAS ---
@@ -950,13 +950,13 @@ const CONFIG_DEFAULT = {
   web: CONTACTO_NEGOCIO_FALLBACK.web,
   whatsapp: CONTACTO_NEGOCIO_FALLBACK.whatsapp,
   correo: CONTACTO_NEGOCIO_FALLBACK.correo,
-  // Los medios de pago son datos persistentes de esta instalación. No se
-  // cargan desde el código para que una actualización nunca los reemplace.
-  pagoAlias: '',
-  pagoCbu: '',
-  pagoTitular: '',
-  pagoBanco: '',
-  pagoDetalle: '',
+  // Valores de recuperación de esta instalación. Firestore sigue siendo la
+  // fuente principal; estos datos solo se usan si faltan campos en la base.
+  pagoAlias: COMPANY_DEFAULTS.pagoAlias || '',
+  pagoCbu: COMPANY_DEFAULTS.pagoCbu || '',
+  pagoTitular: COMPANY_DEFAULTS.pagoTitular || '',
+  pagoBanco: COMPANY_DEFAULTS.pagoBanco || '',
+  pagoDetalle: COMPANY_DEFAULTS.pagoDetalle || '',
   tarjetasPlanes: [],
   redondearVentasHaciaArriba: false,
   recargoMoraPorcentaje: 0,
@@ -975,6 +975,7 @@ const CONFIG_DEFAULT = {
 const normalizarPlanTarjeta = (plan = {}, index = 0) => ({
   id: textoSeguroTrim(plan?.id, `plan-${index + 1}`),
   tarjeta: textoSeguroTrim(plan?.tarjeta, 'Tarjeta'),
+  color: /^#[0-9a-f]{6}$/i.test(textoSeguroTrim(plan?.color, '')) ? textoSeguroTrim(plan.color, '') : '#6366f1',
   tipo: ['debito', 'credito'].includes(normalizarMetodoPago(plan?.tipo)) ? normalizarMetodoPago(plan.tipo) : 'credito',
   plan: textoSeguroTrim(plan?.plan, `${Math.max(1, Math.floor(Number(plan?.cuotas || 1)))} cuota(s)`),
   cuotas: Math.max(1, Math.floor(Number(plan?.cuotas || 1))),
@@ -2451,6 +2452,8 @@ function AppInterna() {
   });
   const [seccionConfiguracionActiva, setSeccionConfiguracionActiva] = useState('negocio');
   const [busquedaPlanesTarjetaConfiguracion, setBusquedaPlanesTarjetaConfiguracion] = useState('');
+  const [tarjetasConfiguracionAbiertas, setTarjetasConfiguracionAbiertas] = useState({});
+  const [colorTarjetaBorrador, setColorTarjetaBorrador] = useState({});
   const [configuracionBackup, setConfiguracionBackup] = useState(() => {
     try { return { habilitado: false, hora: '23:00', ultimoBackup: '', ...JSON.parse(localStorage.getItem('seniorflow_backup_config') || '{}') }; }
     catch (error) { return { habilitado: false, hora: '23:00', ultimoBackup: '' }; }
@@ -2490,6 +2493,23 @@ function AppInterna() {
   const [presupuestos, setPresupuestos] = useState([]); 
   const [productos, setProductos] = useState([]); 
   const [proveedores, setProveedores] = useState([]);
+  const [listasProveedoresWeb, setListasProveedoresWeb] = useState([]);
+  const [listasProveedoresItems, setListasProveedoresItems] = useState([]);
+  const [listasProveedoresPrelista, setListasProveedoresPrelista] = useState([]);
+  const [busquedaListasProv, setBusquedaListasProv] = useState('');
+  const [fuenteListasProv, setFuenteListasProv] = useState('inventario');
+  const [resultadosWebListasProv, setResultadosWebListasProv] = useState([]);
+  const [buscandoWebListasProv, setBuscandoWebListasProv] = useState(false);
+  const [subvistaListasProv, setSubvistaListasProv] = useState('comparar');
+  const [formListaProvWeb, setFormListaProvWeb] = useState({ proveedor: '', url: '', usuario: '', notas: '' });
+  const [archivoListaProv, setArchivoListaProv] = useState(null);
+  const [filasListaProv, setFilasListaProv] = useState([]);
+  const [configListaProv, setConfigListaProv] = useState({ proveedor: '', nombreLista: '' });
+  const resultadosExcelListasProv = useMemo(() => {
+    const termino = normalizarTextoBusqueda(busquedaListasProv);
+    if (!termino) return [];
+    return listasProveedoresItems.filter((item) => normalizarTextoBusqueda([item.proveedor, item.descripcion, item.codigo, item.lista].join(' ')).includes(termino));
+  }, [busquedaListasProv, listasProveedoresItems]);
   const [pagosProveedores, setPagosProveedores] = useState([]);
   const [facturasEmitidas, setFacturasEmitidas] = useState([]);
   const [vendedores, setVendedores] = useState([]);
@@ -3075,6 +3095,39 @@ function AppInterna() {
     return sugerencias.slice(0, 8);
   }, [pedidosCompra]);
 
+  useEffect(() => {
+    let desmontado = false;
+    const verificarInternetReal = async () => {
+      if (typeof navigator === 'undefined' || !navigator.onLine) {
+        setEstadoConexion('sin_internet');
+        return;
+      }
+      setEstadoConexion('conectando');
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3500);
+      try {
+        await fetch(`https://www.gstatic.com/generate_204?seniorflow=${Date.now()}`, { cache: 'no-store', mode: 'no-cors', signal: controller.signal });
+        if (!desmontado) setEstadoConexion('conectado');
+      } catch (error) {
+        if (!desmontado) setEstadoConexion('sin_internet');
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+    const alVolverOnline = () => { void verificarInternetReal(); };
+    const alQuedarOffline = () => setEstadoConexion('sin_internet');
+    void verificarInternetReal();
+    const intervalo = setInterval(() => { void verificarInternetReal(); }, 15000);
+    window.addEventListener('online', alVolverOnline);
+    window.addEventListener('offline', alQuedarOffline);
+    return () => {
+      desmontado = true;
+      clearInterval(intervalo);
+      window.removeEventListener('online', alVolverOnline);
+      window.removeEventListener('offline', alQuedarOffline);
+    };
+  }, []);
+
   const transportesPedidoSugeridos = useMemo(() => {
     const vistos = new Set();
     const sugerencias = [];
@@ -3149,9 +3202,22 @@ function AppInterna() {
 
     const unsubConfig = onSnapshot(doc(db, 'sistema', 'configuracion'), (d) => {
         if (d.exists()) {
-          const configDB = { ...CONFIG_DEFAULT, ...d.data() };
+          const datosConfig = d.data();
+          const configDB = { ...CONFIG_DEFAULT, ...datosConfig };
           setConfiguracion(configDB);
           setConfiguracionPersistida(configDB);
+          // Recupera únicamente datos de cobro faltantes. No reemplaza ni
+          // toca tarjetas/planes existentes.
+          const recuperacionCobro = {};
+          ['pagoAlias', 'pagoCbu', 'pagoTitular', 'pagoBanco', 'pagoDetalle'].forEach((campo) => {
+            if (!textoSeguroTrim(datosConfig?.[campo], '') && textoSeguroTrim(COMPANY_DEFAULTS?.[campo], '')) {
+              recuperacionCobro[campo] = COMPANY_DEFAULTS[campo];
+            }
+          });
+          if (Object.keys(recuperacionCobro).length) {
+            setDoc(d.ref, recuperacionCobro, { merge: true })
+              .catch((error) => console.error('No se pudo recuperar la configuración de cobro.', error));
+          }
         } else {
           setDoc(d.ref, CONFIG_DEFAULT, { merge: true });
           setConfiguracion(CONFIG_DEFAULT);
@@ -3280,6 +3346,27 @@ function AppInterna() {
         setProveedores(loaded);
     }, (err) => console.error(err));
 
+    const unsubListasProveedoresWeb = onSnapshot(collection(db, 'listas_proveedores_web'), (snapshot) => {
+      const loaded = [];
+      snapshot.forEach((item) => loaded.push({ id: item.id, ...item.data() }));
+      loaded.sort((a, b) => new Date(b?.fechaActualizacion || b?.fechaCreacion || 0) - new Date(a?.fechaActualizacion || a?.fechaCreacion || 0));
+      setListasProveedoresWeb(loaded);
+    }, (err) => console.error('No se pudieron cargar las listas web de proveedores.', err));
+
+    const unsubListasProveedoresItems = onSnapshot(collection(db, 'listas_proveedores_items'), (snapshot) => {
+      const loaded = [];
+      snapshot.forEach((item) => loaded.push({ id: item.id, ...item.data() }));
+      loaded.sort((a, b) => (a.descripcion || '').localeCompare(b.descripcion || '', 'es', { sensitivity: 'base' }));
+      setListasProveedoresItems(loaded);
+    }, (err) => console.error('No se pudieron cargar los productos de listas de proveedores.', err));
+
+    const unsubListasProveedoresPrelista = onSnapshot(collection(db, 'listas_proveedores_prelista'), (snapshot) => {
+      const loaded = [];
+      snapshot.forEach((item) => loaded.push({ id: item.id, ...item.data() }));
+      loaded.sort((a, b) => new Date(b.fechaAgregado || 0) - new Date(a.fechaAgregado || 0));
+      setListasProveedoresPrelista(loaded);
+    }, (err) => console.error('No se pudo cargar la prelista de proveedores.', err));
+
     const unsubPagosProveedores = onSnapshot(collection(db, 'pagos_proveedores'), (snapshot) => {
         const loaded = [];
         snapshot.forEach(doc => loaded.push({ id: doc.id, ...doc.data() }));
@@ -3338,7 +3425,7 @@ function AppInterna() {
         setPedidosCompra(loaded);
     }, (err) => console.error(err));
 
-    return () => { clearTimeout(dbReadyTimer); unsubConfig(); unsubCaja(); unsubHistorialCaja(); unsubUsuarios(); unsubMovs(); unsubClientes(); unsubPresupuestos(); unsubOfertas(); unsubCombos(); unsubProductos(); unsubVariacionesPrecios(); unsubProveedores(); unsubPagosProveedores(); unsubFacturasEmitidas(); unsubVendedores(); unsubRetirosVendedores(); unsubMarcas(); unsubPedidosCompra(); };
+    return () => { clearTimeout(dbReadyTimer); unsubConfig(); unsubCaja(); unsubHistorialCaja(); unsubUsuarios(); unsubMovs(); unsubClientes(); unsubPresupuestos(); unsubOfertas(); unsubCombos(); unsubProductos(); unsubVariacionesPrecios(); unsubProveedores(); unsubListasProveedoresWeb(); unsubListasProveedoresItems(); unsubListasProveedoresPrelista(); unsubPagosProveedores(); unsubFacturasEmitidas(); unsubVendedores(); unsubRetirosVendedores(); unsubMarcas(); unsubPedidosCompra(); };
   }, [firebaseUser]);
 
   useEffect(() => {
@@ -3815,7 +3902,7 @@ function AppInterna() {
   );
 
   const obtenerVistaInicialUsuario = (usuario = usuarioActual) => {
-    const vistas = ['caja', 'notificaciones', 'ventas', 'vendedores', 'clientes', 'combos', 'flyer', 'inventario', 'mod_masiva', 'variacion_precios', 'sugerencias', 'compras', 'proveedores', 'comparativa', 'presupuestos', 'reportes', 'rastreo', 'ajustes', 'ayuda'];
+    const vistas = ['caja', 'notificaciones', 'ventas', 'vendedores', 'clientes', 'combos', 'flyer', 'inventario', 'mod_masiva', 'variacion_precios', 'sugerencias', 'compras', 'proveedores', 'listas_prov', 'comparativa', 'presupuestos', 'reportes', 'rastreo', 'ajustes', 'ayuda'];
     return vistas.find((vistaItem) => usuarioPuedeVerModulo(vistaItem, usuario)) || 'caja';
   };
 
@@ -8886,7 +8973,7 @@ const abrirPuntoVenta = () => {
           items: itemsNormalizados
         },
         fecha: combinarFechaInputConHoraReferenciaISO(fechaDocInput, new Date()),
-        usuario: usuarioActual?.nombre || 'Sistema'
+        usuarioCreacion: usuarioActual?.nombre || 'Sistema'
       };
 
       const refMovimiento = formRemitoR.idMovimiento
@@ -10339,10 +10426,24 @@ const abrirPuntoVenta = () => {
     e.preventDefault();
     if (!editandoConfiguracion || !configuracionEditada) return;
     const porcentajeRecargo = obtenerPorcentajeRecargoConfigurado(configuracion);
+    const configuracionAnterior = configuracionPersistida || {};
+    const conservarTexto = (actual, anterior, fallback = '') => {
+      const valorActual = textoSeguroTrim(actual, '');
+      return valorActual || textoSeguroTrim(anterior, '') || textoSeguroTrim(fallback, '');
+    };
+    const planesActuales = Array.isArray(configuracion?.tarjetasPlanes) ? configuracion.tarjetasPlanes : [];
+    const planesAnteriores = Array.isArray(configuracionAnterior?.tarjetasPlanes) ? configuracionAnterior.tarjetasPlanes : [];
     const payloadConfiguracion = {
       ...CONFIG_DEFAULT,
       ...configuracion,
-      tarjetasPlanes: (Array.isArray(configuracion?.tarjetasPlanes) ? configuracion.tarjetasPlanes : []).map(normalizarPlanTarjeta),
+      pagoAlias: conservarTexto(configuracion?.pagoAlias, configuracionAnterior?.pagoAlias, COMPANY_DEFAULTS.pagoAlias),
+      pagoCbu: conservarTexto(configuracion?.pagoCbu, configuracionAnterior?.pagoCbu, COMPANY_DEFAULTS.pagoCbu),
+      pagoTitular: conservarTexto(configuracion?.pagoTitular, configuracionAnterior?.pagoTitular, COMPANY_DEFAULTS.pagoTitular),
+      pagoBanco: conservarTexto(configuracion?.pagoBanco, configuracionAnterior?.pagoBanco, COMPANY_DEFAULTS.pagoBanco),
+      pagoDetalle: conservarTexto(configuracion?.pagoDetalle, configuracionAnterior?.pagoDetalle, COMPANY_DEFAULTS.pagoDetalle),
+      // Una lectura incompleta o una pantalla vieja no puede borrar los
+      // planes ya guardados en Firestore.
+      tarjetasPlanes: (planesActuales.length ? planesActuales : planesAnteriores).map(normalizarPlanTarjeta),
       recargosAutomaticosActivos: Boolean(configuracion?.recargosAutomaticosActivos),
       recargoMoraPorcentajeGlobal: porcentajeRecargo,
       // Compatibilidad con versiones anteriores
@@ -10408,6 +10509,132 @@ const abrirPuntoVenta = () => {
 
   const alternarSeccionConfiguracion = (clave) => {
     setSeccionesConfiguracionAbiertas((prev) => ({ ...prev, [clave]: !prev[clave] }));
+  };
+
+  const guardarListaProveedorWeb = async (e) => {
+    e?.preventDefault?.();
+    const proveedor = textoSeguroTrim(formListaProvWeb.proveedor, '');
+    const url = textoSeguroTrim(formListaProvWeb.url, '');
+    if (!proveedor || !url) {
+      await notificarSistema('Completá proveedor y dirección web.', { tipo: 'warning', titulo: 'Datos requeridos' });
+      return;
+    }
+    try {
+      const urlNormalizada = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+      await addDoc(collection(db, 'listas_proveedores_web'), limpiarDatoFirestore({
+        proveedor,
+        url: urlNormalizada,
+        tipo: 'web',
+        usuario: textoSeguroTrim(formListaProvWeb.usuario, ''),
+        notas: textoSeguroTrim(formListaProvWeb.notas, ''),
+        fechaCreacion: new Date().toISOString(),
+        fechaActualizacion: new Date().toISOString(),
+        usuarioCreacion: usuarioActual?.nombre || 'Sistema'
+      }));
+      setFormListaProvWeb({ proveedor: '', url: '', usuario: '', notas: '' });
+      await notificarSistema('Página del proveedor guardada en Listas Prov.', { tipo: 'success', titulo: 'Proveedor agregado' });
+    } catch (error) {
+      console.error('No se pudo guardar la página del proveedor.', error);
+      await notificarSistema('No se pudo guardar la página. Revisá la conexión e intentá nuevamente.', { tipo: 'error', titulo: 'Error' });
+    }
+  };
+
+  const eliminarListaProveedorWeb = async (lista) => {
+    if (!lista?.id || !window.confirm(`¿Eliminar la página guardada de ${lista.proveedor || 'este proveedor'}?`)) return;
+    try {
+      await deleteDoc(doc(db, 'listas_proveedores_web', lista.id));
+    } catch (error) {
+      console.error('No se pudo eliminar la página del proveedor.', error);
+      await notificarSistema('No se pudo eliminar la página guardada.', { tipo: 'error', titulo: 'Error' });
+    }
+  };
+
+  const buscarEnProveedorWeb = async () => {
+    const termino = textoSeguroTrim(busquedaListasProv, '');
+    if (!termino) return;
+    const proveedoresWebConfigurados = (listasProveedoresWeb || []).filter((item) => textoSeguroTrim(item?.url, ''));
+    // No se consulta ningún proveedor por defecto. La búsqueda web solo se
+    // activa cuando el usuario registró al menos una web en Listas Prov.
+    if (!proveedoresWebConfigurados.length) {
+      setResultadosWebListasProv([]);
+      setBuscandoWebListasProv(false);
+      await notificarSistema('No hay proveedores web registrados. Podés buscar en las listas Excel cargadas o agregar una web desde la pestaña Proveedores web.', { tipo: 'info', titulo: 'Sin webs configuradas' });
+      return;
+    }
+    setBuscandoWebListasProv(true);
+    try {
+      const endpoint = (window.SENIORFLOW_PROVEEDORES_ENDPOINT || 'http://localhost:8790').replace(/\/$/, '');
+      const respuesta = await fetch(`${endpoint}/api/proveedores-web/jieli/search`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: termino, proveedores: proveedoresWebConfigurados.map((item) => ({ id: item.id, proveedor: item.proveedor, url: item.url, tipo: item.tipo || 'web' })) })
+      });
+      const payload = await respuesta.json().catch(() => ({}));
+      if (payload.requiresLogin) {
+        await notificarSistema('La sesión del proveedor no está iniciada en el conector. Iniciá sesión y volvé a buscar.', { tipo: 'warning', titulo: 'Proveedor requiere login' });
+        return;
+      }
+      if (!respuesta.ok || !payload.ok) throw new Error(payload.error || 'No se pudo consultar los proveedores web.');
+      setResultadosWebListasProv(Array.isArray(payload.resultados) ? payload.resultados : []);
+      if (!payload.resultados?.length) await notificarSistema('Los proveedores web no devolvieron productos para esa búsqueda.', { tipo: 'info', titulo: 'Sin resultados web' });
+    } catch (error) {
+      console.error('No se pudo buscar en proveedores web.', error);
+      await notificarSistema('No se pudo consultar los proveedores web. Verificá que esté levantado el servicio de proveedores.', { tipo: 'error', titulo: 'Conector no disponible' });
+    } finally {
+      setBuscandoWebListasProv(false);
+    }
+  };
+
+  const guardarProductoEnPrelista = async (item) => {
+    if (!item) return;
+    const clave = `${normalizarTextoBusqueda(item.proveedor)}|${normalizarTextoBusqueda(item.codigo || item.descripcion)}`;
+    if (listasProveedoresPrelista.some((actual) => `${normalizarTextoBusqueda(actual.proveedor)}|${normalizarTextoBusqueda(actual.codigo || actual.descripcion)}` === clave)) {
+      await notificarSistema('Ese producto ya está en la prelista.', { tipo: 'info', titulo: 'Producto repetido' });
+      return;
+    }
+    await addDoc(collection(db, 'listas_proveedores_prelista'), limpiarDatoFirestore({ ...item, fechaAgregado: new Date().toISOString(), usuario: usuarioActual?.nombre || 'Sistema' }));
+    await notificarSistema('Producto agregado a la prelista.', { tipo: 'success', titulo: 'Agregado' });
+  };
+
+  const quitarProductoDePrelista = async (item) => {
+    if (item?.id) await deleteDoc(doc(db, 'listas_proveedores_prelista', item.id));
+  };
+
+  const cargarArchivoListaProveedor = async (file) => {
+    setArchivoListaProv(file || null);
+    setFilasListaProv([]);
+    if (!file) return;
+    try {
+      const nombre = file.name.toLowerCase();
+      const filas = (nombre.endsWith('.csv') || nombre.endsWith('.txt')) ? await leerCSVInventario(file) : await leerExcelInventario(file);
+      setFilasListaProv(filas);
+      if (!filas.length) await notificarSistema('El archivo no contiene productos.', { tipo: 'warning', titulo: 'Archivo vacío' });
+    } catch (error) {
+      console.error('No se pudo leer la lista del proveedor.', error);
+      await notificarSistema('No se pudo leer el Excel o CSV.', { tipo: 'error', titulo: 'Archivo inválido' });
+    }
+  };
+
+  const guardarListaProveedorExcel = async () => {
+    const proveedor = textoSeguroTrim(configListaProv.proveedor, '');
+    if (!proveedor || !filasListaProv.length) {
+      await notificarSistema('Indicá el proveedor y cargá un archivo.', { tipo: 'warning', titulo: 'Datos requeridos' });
+      return;
+    }
+    const buscarCampo = (fila, patrones) => {
+      const clave = Object.keys(fila || {}).find((key) => patrones.some((patron) => normalizarTextoBusqueda(key).includes(patron)));
+      return clave ? fila[clave] : '';
+    };
+    const fecha = new Date().toISOString();
+    let guardados = 0;
+    for (const fila of filasListaProv) {
+      const descripcion = textoSeguroTrim(buscarCampo(fila, ['descripcion', 'detalle', 'producto', 'articulo', 'nombre']), '');
+      const codigo = textoSeguroTrim(buscarCampo(fila, ['codigo', 'cod', 'sku', 'ean', 'articulo']), '');
+      const precio = parseNumeroBasico(buscarCampo(fila, ['precio', 'costo', 'importe', 'neto']));
+      if (!descripcion && !codigo) continue;
+      await addDoc(collection(db, 'listas_proveedores_items'), limpiarDatoFirestore({ proveedor, origen: 'excel', lista: configListaProv.nombreLista || archivoListaProv?.name || 'Lista Excel', descripcion: descripcion || codigo, codigo, precio, unidad: textoSeguroTrim(buscarCampo(fila, ['unidad', 'medida']), 'C/U'), fechaActualizacion: fecha }));
+      guardados += 1;
+    }
+    setArchivoListaProv(null); setFilasListaProv([]); setConfigListaProv({ proveedor: '', nombreLista: '' }); setModalActivo(null);
+    await notificarSistema(`Se cargaron ${guardados} productos en Listas Prov.`, { tipo: 'success', titulo: 'Lista importada' });
   };
 
   const generarBackup = async ({ automatico = false } = {}) => {
@@ -11300,7 +11527,9 @@ const abrirPuntoVenta = () => {
     doc.setTextColor(100, 116, 139);
     doc.text('Lectura simple por pago: importe recibido, comprobantes afectados, días transcurridos y saldo resultante. No incluye recargos de mora.', 14, 66);
 
-    const usarResumenSimpleClientesPdf = true;
+    // El resumen debe mostrar primero los comprobantes y luego los pagos
+    // aplicados, para que se pueda seguir cada factura/remito.
+    const usarResumenSimpleClientesPdf = false;
     if (usarResumenSimpleClientesPdf) {
       const movimientosPagoPorId = new Map([...(estado?.movimientosDesc || []), ...(movimientos || [])].filter((mov) => mov?.id).map((mov) => [mov.id, mov]));
       const pagosResumenMap = new Map();
@@ -11354,7 +11583,9 @@ const abrirPuntoVenta = () => {
       }
     }
 
-    const usarDetalleAgrupadoClientesPdf = !usarResumenSimpleClientesPdf;
+    // Formato anterior solicitado: dos bloques independientes, sin flechas
+    // ni conexiones gráficas entre remitos y pagos.
+    const usarDetalleAgrupadoClientesPdf = false;
     if (usarDetalleAgrupadoClientesPdf) {
       const pageWidthClientePdf = doc.internal.pageSize.getWidth();
       const pageHeightClientePdf = doc.internal.pageSize.getHeight();
@@ -12876,15 +13107,9 @@ const abrirPuntoVenta = () => {
     try {
       const resumen = construirResumenReciboCobro(mov);
       if (!resumen) throw new Error('Recibo no disponible');
-      const { docPdf, fileName } = await generarPdfReciboCobroFile(mov);
-      const pdfBytes = docPdf.output('arraybuffer');
-      if (!pdfBytes || pdfBytes.byteLength < 512) {
-        throw new Error('El PDF del recibo se generó sin contenido.');
-      }
-      // Usar la descarga nativa de jsPDF evita el camino File/object URL que
-      // en algunos entornos produce un archivo descargado en blanco.
-      docPdf.save(fileName);
-      return fileName;
+      const archivo = await generarPdfReciboCobroFile(mov);
+      descargarArchivoTemporal(archivo);
+      return archivo;
     } catch (error) {
       console.error('No se pudo descargar el PDF del recibo', error);
       await notificarSistema('No se pudo descargar el PDF del recibo. Probá nuevamente.', {
@@ -15540,7 +15765,9 @@ const abrirPuntoVenta = () => {
     const cargosProveedorPdf = Array.isArray(estado.cargosProcesados) ? estado.cargosProcesados : [];
     const pagosPorId = new Map(pagosProveedorPdf.map((pago) => [pago?.id, pago]));
     const pagosAplicadosIds = new Set();
-    const usarResumenSimpleProveedorPdf = true;
+    // Mantener el mismo formato trazable para proveedores: comprobantes,
+    // pagos realizados y aplicación de cada pago.
+    const usarResumenSimpleProveedorPdf = false;
     if (usarResumenSimpleProveedorPdf) {
       const pagosResumenMap = new Map(pagosProveedorPdf.filter((pago) => pago?.id).map((pago) => {
         const esCheque = ['cheque', 'echeq'].includes(normalizarMetodoPago(pago?.metodoPago));
@@ -21551,7 +21778,11 @@ function obtenerCategoriaProducto(producto) {
     docPdf.text('Gracias por confiar', 150, y + 13.5, { align: 'center' });
 
     const fileName = obtenerNombreArchivoReciboCobro(resumen, true);
-    return { docPdf, fileName };
+    const blob = docPdf.output('blob');
+    if (!blob || blob.size < 512 || blob.type !== 'application/pdf') {
+      throw new Error('El PDF del recibo se generó sin contenido.');
+    }
+    return new File([blob], fileName, { type: 'application/pdf' });
   };
 
   const descargarReciboCobro = async (mov = null) => {
@@ -23774,6 +24005,7 @@ function obtenerCategoriaProducto(producto) {
 
   useEffect(() => {
     if (vista === 'tarjetas_planes') setSeccionConfiguracionActiva('tarjetas');
+    if (vista === 'ajustes') setSeccionConfiguracionActiva((actual) => actual === 'tarjetas' ? 'negocio' : actual);
   }, [vista]);
 
   // --- PANTALLAS DE CARGA Y LOGIN ---
@@ -23864,6 +24096,7 @@ function obtenerCategoriaProducto(producto) {
   const puedeVerSugerencias = usuarioPuedeVerModulo('sugerencias', usuarioActual);
   const puedeVerCompras = usuarioPuedeVerModulo('compras', usuarioActual);
   const puedeVerProveedores = usuarioPuedeVerModulo('proveedores', usuarioActual);
+  const puedeVerListasProv = puedeVerProveedores;
   const puedeVerComparativa = usuarioPuedeVerModulo('comparativa', usuarioActual);
   const puedeVerPresupuestos = usuarioPuedeVerModulo('presupuestos', usuarioActual);
   const puedeVerReportes = usuarioPuedeVerModulo('reportes', usuarioActual);
@@ -23887,6 +24120,7 @@ function obtenerCategoriaProducto(producto) {
     puedeVerSugerencias,
     puedeVerCompras,
     puedeVerProveedores,
+    puedeVerListasProv,
     puedeVerComparativa,
     puedeVerPresupuestos,
     puedeVerReportes,
@@ -23910,6 +24144,7 @@ function obtenerCategoriaProducto(producto) {
     { visible: puedeVerStockBajo, vista: 'stock_bajo', etiqueta: 'Stock bajo', Icono: AlertCircle, color: 'rose' },
     { visible: puedeVerCompras, vista: 'compras', etiqueta: 'Pedidos', Icono: FileSpreadsheet, color: 'orange' },
     { visible: puedeVerProveedores, vista: 'proveedores', etiqueta: 'Proveedores', Icono: Users, color: 'sky' },
+    { visible: puedeVerListasProv, vista: 'listas_prov', etiqueta: 'Listas Prov', Icono: Globe, color: 'emerald' },
     { visible: puedeVerModMasiva, vista: 'mod_masiva', etiqueta: 'Modificación masiva', Icono: Edit2, color: 'fuchsia' },
     { visible: puedeVerVariacionPrecios, vista: 'variacion_precios', etiqueta: 'Variación de precio', Icono: History, color: 'amber' },
     { visible: puedeVerSugerencias, vista: 'sugerencias', etiqueta: 'Sugerencias', Icono: TrendingUp, color: 'amber' },
@@ -23926,7 +24161,7 @@ function obtenerCategoriaProducto(producto) {
     { id: 'ventas', etiqueta: 'Ventas', Icono: ShoppingCart, rutas: ['ventas', 'vendedores', 'tarjetas_planes', 'caja', 'clientes', 'presupuestos', 'combos', 'flyer'] },
     { id: 'inventario', etiqueta: 'Inventario', Icono: Package, rutas: ['inventario', 'stock_bajo', 'compras', 'variacion_precios', 'mod_masiva', 'sugerencias', 'comparativa'] }
   ].map((grupo) => ({ ...grupo, hijos: grupo.rutas.map(obtenerRutaSidebar).filter(Boolean) })).filter((grupo) => grupo.hijos.length > 0);
-  const entradasSidebarGestion = ['notificaciones', 'proveedores', 'comparativa_paralela', 'rastreo'].map(obtenerRutaSidebar).filter(Boolean);
+  const entradasSidebarGestion = ['notificaciones', 'proveedores', 'listas_prov', 'comparativa_paralela', 'rastreo'].map(obtenerRutaSidebar).filter(Boolean);
   const entradasSidebarSistema = ['reportes', 'ajustes', 'ayuda'].map(obtenerRutaSidebar).filter(Boolean);
 
   const esAccionPersistente = (elemento) => {
@@ -24031,6 +24266,9 @@ function obtenerCategoriaProducto(producto) {
   // --- RENDER PRINCIPAL ---
   return (
     <div onClickCapture={protegerDobleClick} onSubmitCapture={protegerDobleEnvio} className={`sf-app-shell sf-enterprise-shell sf-screen-${perfilPantalla.tipo} sf-density-${perfilPantalla.densidad} min-h-screen bg-slate-50 font-sans pb-28 md:pb-8 print:bg-white print:pb-0`}>
+      <div className={`fixed right-3 bottom-3 z-[80] rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wide shadow-sm ${estadoConexion === 'sin_internet' ? 'bg-amber-100 text-amber-800 border border-amber-200' : estadoConexion === 'conectando' ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}`}>
+        {estadoConexion === 'sin_internet' ? `Sin internet · ${isDBReady ? 'datos locales listos' : 'sin datos locales'}` : estadoConexion === 'conectando' ? 'Cargando datos' : `Online · ${isDBReady ? 'datos locales listos' : 'cargando datos'}`}
+      </div>
       <style>{`
         .sf-app-shell table thead th {
           white-space: nowrap;
@@ -25982,7 +26220,7 @@ function obtenerCategoriaProducto(producto) {
               <WidgetCard titulo="Blue venta" monto={cotizacionDolarBlue?.venta || 0} icono={TrendingUp} colorClase="text-teal-600" subtitulo={cotizacionDolarBlueEstado || 'Cotización automática'} />
             </div>
 
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex min-h-0 max-h-[calc(100vh-18rem)] flex-col">
               <div className="p-4 border-b border-gray-100 bg-gray-50/50">
                 <h3 className="font-bold text-gray-800 text-base uppercase tracking-tight">Resultado de comparación</h3>
               </div>
@@ -25997,7 +26235,7 @@ function obtenerCategoriaProducto(producto) {
                   <p className="font-bold text-base text-gray-500">No encontramos productos similares con esa búsqueda.</p>
                 </div>
               ) : (
-                <div className="p-4 sm:p-5 bg-slate-50/70">
+                <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-50/70">
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Ordenado por costo más bajo</p>
                     <p className="text-[11px] font-bold text-slate-500">La diferencia se calcula contra el proveedor más económico del mismo producto.</p>
@@ -27652,7 +27890,82 @@ function obtenerCategoriaProducto(producto) {
 	          </div>
 	        )}
 
-	        {/* --- VISTA: PROVEEDORES --- */}
+        {/* --- VISTA: LISTAS DE PROVEEDORES --- */}
+        {puedeVerListasProv && vista === 'listas_prov' && (
+          <div className="sf-module-page h-full min-h-0 flex flex-col gap-4 overflow-hidden animate-in fade-in duration-300 print:hidden">
+            <div className="sf-screen-header shrink-0 bg-white p-4 rounded-2xl shadow-sm border border-emerald-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-emerald-600 p-2.5 rounded-xl shadow-sm"><Globe size={20} className="text-white" /></div>
+                <div><h2 className="text-lg font-bold text-gray-900 tracking-tight">Listas Prov</h2><p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Buscador independiente de listas web y Excel</p></div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => setModalActivo('importar_lista_prov')} className="px-3 py-2 rounded-xl bg-emerald-600 text-white text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5"><Upload size={15} /> Cargar Excel</button>
+                <button type="button" onClick={() => setModalActivo('importar_inventario')} className="px-3 py-2 rounded-xl border border-emerald-200 bg-white text-emerald-800 text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5"><FileSpreadsheet size={15} /> Importar inventario</button>
+              </div>
+            </div>
+
+            <div className="shrink-0 flex flex-wrap gap-2 rounded-xl border border-gray-200 bg-white p-2">
+              {[['comparar', 'Buscar productos'], ['web', 'Agregar proveedor web']].map(([clave, etiqueta]) => (
+                <button key={clave} type="button" onClick={() => setSubvistaListasProv(clave)} className={`px-3 py-2 rounded-lg text-[11px] font-black uppercase tracking-wider ${subvistaListasProv === clave ? 'bg-emerald-600 text-white' : 'text-gray-600 hover:bg-emerald-50'}`}>{etiqueta}</button>
+              ))}
+            </div>
+
+            {subvistaListasProv === 'resumen' && (
+              <div className="min-h-0 flex-1 overflow-auto space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <WidgetCard titulo="Proveedores registrados" monto={proveedores.length} icono={Users} colorClase="text-sky-600" formato="numero" subtitulo="Con listas o datos cargados" />
+                  <WidgetCard titulo="Productos con costos" monto={(productos || []).filter((p) => obtenerCostosProveedorProducto(p).length).length} icono={Package} colorClase="text-emerald-600" formato="numero" subtitulo="Comparables en el sistema" />
+                  <WidgetCard titulo="Páginas web guardadas" monto={listasProveedoresWeb.length} icono={Globe} colorClase="text-indigo-600" formato="numero" subtitulo="Acceso rápido a proveedores" />
+                </div>
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5">
+                  <h3 className="text-base font-black text-emerald-950">Centro de listas de proveedores</h3>
+                  <p className="mt-1 text-sm font-bold text-emerald-800">Cargá listas desde Excel o CSV, guardá las páginas web de tus proveedores y buscá el precio más bajo sin mezclarlo con la Comparativa general.</p>
+                  <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => setSubvistaListasProv('web')} className="px-3 py-2 rounded-xl bg-white border border-emerald-200 text-emerald-800 text-xs font-black">Administrar páginas web</button><button type="button" onClick={() => setSubvistaListasProv('comparar')} className="px-3 py-2 rounded-xl bg-emerald-700 text-white text-xs font-black">Buscar productos</button></div>
+                </div>
+              </div>
+            )}
+
+            {subvistaListasProv === 'web' && (
+              <div className="min-h-0 flex-1 overflow-auto grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] gap-4">
+                <div className="space-y-4">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><h3 className="font-black text-emerald-950">Descargar conector</h3><p className="mt-1 text-xs font-bold text-emerald-800">Descargá una sola vez el paquete para tu computadora. Incluye el servicio, el iniciador y las instrucciones para Mac y Windows.</p><a href="./conector-proveedores.zip" download className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-black uppercase text-white"><Download size={15} /> Descargar conector</a></div>
+                <form onSubmit={guardarListaProveedorWeb} className="rounded-2xl border border-emerald-100 bg-white p-5 space-y-3 h-fit">
+                  <div><h3 className="text-base font-black text-gray-900">Agregar proveedor web</h3><p className="text-xs font-bold text-gray-500 mt-1">Registrá la web para que el buscador la consulte junto con las demás.</p></div>
+                  <div><label className="block text-[10px] font-black uppercase text-gray-500 mb-1">Proveedor</label><input value={formListaProvWeb.proveedor} onChange={(e) => setFormListaProvWeb((prev) => ({ ...prev, proveedor: e.target.value }))} className="input" placeholder="Ej: Distribuidora Norte" /></div>
+                  <div><label className="block text-[10px] font-black uppercase text-gray-500 mb-1">Página web</label><input value={formListaProvWeb.url} onChange={(e) => setFormListaProvWeb((prev) => ({ ...prev, url: e.target.value }))} className="input" placeholder="https://..." /></div>
+                  <div><label className="block text-[10px] font-black uppercase text-gray-500 mb-1">Usuario (opcional)</label><input value={formListaProvWeb.usuario} onChange={(e) => setFormListaProvWeb((prev) => ({ ...prev, usuario: e.target.value }))} className="input" placeholder="Usuario de la web" /></div>
+                  <div><label className="block text-[10px] font-black uppercase text-gray-500 mb-1">Notas</label><textarea value={formListaProvWeb.notas} onChange={(e) => setFormListaProvWeb((prev) => ({ ...prev, notas: e.target.value }))} className="input min-h-24" placeholder="Usuario, sección de listas, observaciones..." /></div>
+                  <p className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-100 rounded-lg p-2">La contraseña no se guarda en Firebase. El inicio de sesión se mantiene en el conector web.</p><button type="submit" className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-white text-xs font-black uppercase tracking-wider">Guardar proveedor web</button>
+                </form>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-3"><h3 className="font-black text-slate-900">Cómo activar el conector</h3><p className="text-xs font-bold text-slate-600">La aplicación web no puede iniciar programas del equipo por seguridad. El conector se inicia una sola vez y mantiene la sesión del proveedor.</p><div className="rounded-xl border border-blue-100 bg-blue-50 p-3"><p className="text-[10px] font-black uppercase text-blue-800">Mac</p><p className="mt-1 text-xs font-bold text-blue-900">1. Descargá la carpeta del sistema. 2. Hacé doble clic en <b>iniciar-proveedores.command</b>. 3. Si macOS lo bloquea: clic derecho → Abrir. 4. Iniciá sesión en Chrome.</p></div><div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3"><p className="text-[10px] font-black uppercase text-indigo-800">Windows</p><p className="mt-1 text-xs font-bold text-indigo-900">1. Abrí PowerShell en la carpeta del sistema. 2. Ejecutá <b>pnpm run server:proveedores</b> o <b>npm run server:proveedores</b>. 3. Se abrirá Chrome para iniciar sesión.</p></div><p className="text-[11px] font-bold text-slate-500">Después volvé a “Buscar productos” y presioná “Buscar todos”. Si la sesión vence, solo hay que iniciar sesión nuevamente.</p></div>
+                </div>
+                <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100"><h3 className="font-black text-gray-900">Páginas guardadas</h3><p className="text-xs font-bold text-gray-500">Se almacenan en la cuenta de la empresa.</p></div>
+                  {!listasProveedoresWeb.length ? <div className="p-10 text-center text-sm font-bold text-gray-400">Todavía no hay páginas guardadas.</div> : <div className="divide-y divide-gray-100">{listasProveedoresWeb.map((lista) => <div key={lista.id} className="p-4 flex items-center justify-between gap-3"><div className="min-w-0"><p className="font-black text-gray-900 truncate">{lista.proveedor}</p><p className="text-xs font-bold text-gray-500 truncate">{lista.url}</p>{lista.notas && <p className="text-[11px] text-gray-400 truncate">{lista.notas}</p>}</div><div className="flex shrink-0 gap-2"><button type="button" onClick={() => window.open(lista.url, '_blank', 'noopener,noreferrer')} className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase">Abrir</button><button type="button" onClick={() => eliminarListaProveedorWeb(lista)} className="px-3 py-2 rounded-lg border border-red-200 text-red-600 text-[10px] font-black uppercase">Borrar</button></div></div>)}</div>}
+                </div>
+              </div>
+            )}
+
+            {subvistaListasProv === 'comparar' && (
+              <div className="min-h-0 flex-1 overflow-auto space-y-4">
+                <div className="rounded-2xl border border-gray-200 bg-white p-4 space-y-3">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="flex-1 min-w-[260px]"><label className="block text-[10px] font-black uppercase text-gray-500 mb-1">Buscar en todos los proveedores</label><input value={busquedaListasProv} onChange={(e) => setBusquedaListasProv(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') buscarEnProveedorWeb(); }} className="input" placeholder="Ej: panel led 18w, código o descripción..." /></div>
+                    <button type="button" onClick={buscarEnProveedorWeb} disabled={buscandoWebListasProv || !busquedaListasProv.trim()} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-white text-xs font-black uppercase disabled:opacity-50">{buscandoWebListasProv ? 'Buscando...' : 'Buscar todos'}</button>
+                  </div>
+                  <p className="text-[11px] font-bold text-gray-500">Busca en las listas Excel cargadas en este módulo y en todas las conexiones web de proveedores. No consulta el inventario.</p>
+                </div>
+                {!busquedaListasProv.trim() ? <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-10 text-center text-sm font-bold text-gray-500">Buscá un producto para consultar todas las listas web y Excel.</div> : (!resultadosWebListasProv.length && !resultadosExcelListasProv.length) ? <div className="rounded-2xl border border-dashed border-orange-200 bg-orange-50 p-10 text-center text-sm font-bold text-orange-700">No encontramos ese producto en las listas cargadas.</div> : <div className="rounded-2xl border border-gray-200 bg-white overflow-auto"><table className="w-full text-sm"><thead><tr><th className="px-4 py-3 text-left">Producto</th><th className="px-4 py-3 text-left">Proveedor</th><th className="px-4 py-3 text-right">Precio</th><th className="px-4 py-3 text-left">Origen</th><th className="px-4 py-3 text-center">Prelista</th></tr></thead><tbody className="divide-y divide-gray-100">{[...resultadosWebListasProv.map((fila) => ({ ...fila, origen: 'Web' })), ...resultadosExcelListasProv.map((fila) => ({ ...fila, origen: 'Excel' }))].sort((a, b) => Number(a.precio || 0) - Number(b.precio || 0)).map((fila, index) => <tr key={`lista-prov-resultado-${index}`}><td className="px-4 py-3 font-black text-gray-900">{fila.descripcion}</td><td className="px-4 py-3 font-bold">{fila.proveedor}</td><td className="px-4 py-3 text-right font-black text-emerald-700">{fila.precio ? formatearDinero(fila.precio) : '-'}</td><td className="px-4 py-3 text-xs font-bold text-gray-600">{fila.origen}</td><td className="px-4 py-3 text-center"><button type="button" onClick={() => guardarProductoEnPrelista(fila)} className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[10px] font-black uppercase text-white">Agregar</button></td></tr>)}</tbody></table></div>}
+                <div className="rounded-2xl border border-indigo-100 bg-indigo-50 overflow-hidden"><div className="flex items-center justify-between px-4 py-3 border-b border-indigo-100"><div><h3 className="font-black text-indigo-950">Prelista para comparar</h3><p className="text-xs font-bold text-indigo-700">{listasProveedoresPrelista.length} producto(s) agregado(s)</p></div><button type="button" disabled={!listasProveedoresPrelista.length} className="rounded-lg bg-indigo-700 px-3 py-2 text-[10px] font-black uppercase text-white disabled:opacity-40">Armar comparativa</button></div>{listasProveedoresPrelista.length ? <div className="divide-y divide-indigo-100">{listasProveedoresPrelista.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 px-4 py-2 bg-white"><div><p className="text-xs font-black text-gray-900">{item.descripcion}</p><p className="text-[10px] font-bold text-gray-500">{item.proveedor} · {item.precio ? formatearDinero(item.precio) : '-'}</p></div><button type="button" onClick={() => quitarProductoDePrelista(item)} className="rounded-lg border border-red-200 px-2 py-1 text-[10px] font-black uppercase text-red-600">Quitar</button></div>)}</div> : <p className="px-4 py-4 text-xs font-bold text-indigo-700">Usá “Agregar” en los resultados para preparar una comparativa.</p>}</div>
+              </div>
+            )}
+            <div className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-bold text-slate-600">
+              <span className="font-black text-slate-800">Ayuda rápida:</span> para buscar Excel, entrá en <b>Cargar Excel</b> y guardá la lista independiente. Para buscar webs, agregá el proveedor en <b>Proveedores web</b>, iniciá el conector con <b>iniciar-proveedores.command</b> y luego presioná <b>Buscar todos</b>. Los productos se suman a la prelista con <b>Agregar</b>.
+            </div>
+          </div>
+        )}
+
+        {/* --- VISTA: PROVEEDORES --- */}
 	        {puedeVerProveedores && vista === 'proveedores' && (
           <div className="sf-module-page sf-module-providers h-full min-h-0 flex flex-col gap-4 overflow-hidden animate-in fade-in duration-300 print:hidden">
             <div className="sf-screen-header shrink-0 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
@@ -29984,7 +30297,7 @@ function obtenerCategoriaProducto(producto) {
     <div className="bg-indigo-50 border-t border-indigo-200 p-3 sm:p-4 space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div><p className="text-xs font-black text-indigo-900 uppercase tracking-wider">Planes disponibles en el punto de ventas</p><p className="text-[11px] font-bold text-indigo-700">El precio del inventario queda como contado. El sistema calcula cuánto cobrar en el POSNET para recuperar los descuentos.</p></div>
-        <button type="button" disabled={!editandoConfiguracion} onClick={() => setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: [...(Array.isArray(prev?.tarjetasPlanes) ? prev.tarjetasPlanes : []), { id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, tipo: 'credito', tarjeta: '', plan: '', cuotas: 1, descuentoComercio: 0, otrosCargosPorcentaje: 0, cargoFijo: 0, diasAcreditacion: 0, vigenciaActiva: false, vigenciaDesde: '', vigenciaHasta: '', activo: true }] }))} className="rounded-lg bg-indigo-600 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-white disabled:cursor-not-allowed disabled:opacity-40"><Plus size={14} className="inline mr-1" /> Agregar plan</button>
+        <button type="button" disabled={!editandoConfiguracion} onClick={() => { const tarjetaNueva = `Nueva tarjeta ${(tarjetasPlanesConfiguracion.length || 0) + 1}`; setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: [...(Array.isArray(prev?.tarjetasPlanes) ? prev.tarjetasPlanes : []), { id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, tipo: 'credito', tarjeta: tarjetaNueva, color: '#6366f1', plan: 'Plan inicial', cuotas: 1, descuentoComercio: 0, otrosCargosPorcentaje: 0, cargoFijo: 0, diasAcreditacion: 0, vigenciaActiva: false, vigenciaDesde: '', vigenciaHasta: '', activo: true }] })); setTarjetasConfiguracionAbiertas((prev) => ({ ...prev, [normalizarTextoBusqueda(tarjetaNueva)]: true })); }} className="rounded-lg bg-indigo-600 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-white disabled:cursor-not-allowed disabled:opacity-40"><Plus size={14} className="inline mr-1" /> Agregar tarjeta</button>
       </div>
       {tarjetasPlanesConfiguracion.length === 0 ? <div className="rounded-xl border border-dashed border-indigo-300 bg-white p-8 text-center text-sm font-bold text-indigo-500">Todavía no hay planes. Agregá uno para habilitar las cuotas en el punto de ventas.</div> : <>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2">
@@ -29992,14 +30305,34 @@ function obtenerCategoriaProducto(producto) {
           <input type="search" value={busquedaPlanesTarjetaConfiguracion} onChange={(e) => setBusquedaPlanesTarjetaConfiguracion(e.target.value)} className="w-full lg:w-[360px] rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Buscar por tarjeta, plan, crédito, débito o cuotas" />
         </div>
         {planesTarjetaConfiguracionFiltrados.length === 0 ? <div className="rounded-xl border border-dashed border-indigo-300 bg-white p-8 text-center text-sm font-bold text-indigo-500">No hay planes que coincidan con la búsqueda.</div> : <div className="max-h-[62vh] space-y-2 overflow-y-auto pr-1">
-        {planesTarjetaConfiguracionFiltrados.map(({ plan, index }) => {
-          const actualizarPlan = (campo, valor) => setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: (prev.tarjetasPlanes || []).map((actual, posicion) => posicion === index ? { ...actual, [campo]: valor } : actual) }));
+        {planesTarjetaConfiguracionFiltrados.map(({ plan, index }, posicion, listaFiltrada) => {
+          const actualizarPlan = (campo, valor) => {
+            setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: (prev.tarjetasPlanes || []).map((actual, posicion) => posicion === index ? { ...actual, [campo]: valor } : actual) }));
+            // El nombre de la tarjeta también es la clave visual del grupo.
+            // Al escribir una letra esa clave cambia; conservamos el grupo abierto
+            // para que el input no desaparezca ni pierda el foco.
+            if (campo === 'tarjeta') {
+              const claveAnterior = normalizarTextoBusqueda(plan?.tarjeta || 'sin tarjeta');
+              const claveNueva = normalizarTextoBusqueda(valor || 'sin tarjeta');
+              setTarjetasConfiguracionAbiertas((prev) => ({ ...prev, [claveNueva]: prev[claveAnterior] === true || prev[claveNueva] === true }));
+            }
+          };
           const planNormalizado = normalizarPlanTarjeta(plan);
+          const tarjetaClave = normalizarTextoBusqueda(planNormalizado.tarjeta || 'sin tarjeta');
+          const tarjetaAnterior = posicion > 0 ? normalizarTextoBusqueda(normalizarPlanTarjeta(listaFiltrada[posicion - 1]?.plan).tarjeta || 'sin tarjeta') : '';
+          const iniciaGrupoTarjeta = tarjetaClave !== tarjetaAnterior;
+          const tarjetaAbierta = tarjetasConfiguracionAbiertas[tarjetaClave] === true;
+          const colorBorrador = colorTarjetaBorrador[tarjetaClave] || planNormalizado.color;
           const simulacion = calcularFinanciacionTarjeta(100000, plan);
           const vigenciaPromoActiva = Boolean(planNormalizado.vigenciaActiva);
           const promoVigente = esPlanTarjetaPromoVigente(planNormalizado);
           const rangoVigenciaDefault = obtenerRangoVigenciaOfertaDefault();
-          return <div key={plan.id || `plan-config-${index}`} className="rounded-xl border border-indigo-200 bg-white p-3">
+          return <React.Fragment key={plan.id || `plan-config-${index}`}>
+            {iniciaGrupoTarjeta && <div className="mt-3 first:mt-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-3 py-2" style={{ borderColor: `${planNormalizado.color}55`, backgroundColor: `${planNormalizado.color}12` }}>
+              <button type="button" onClick={() => setTarjetasConfiguracionAbiertas((prev) => ({ ...prev, [tarjetaClave]: !tarjetaAbierta }))} className="flex min-w-0 items-center gap-2 text-left"><span className="text-sm font-black" style={{ color: planNormalizado.color }}>{tarjetaAbierta ? '−' : '+'}</span><span className="h-4 w-4 shrink-0 rounded-full border border-white shadow-sm" style={{ backgroundColor: planNormalizado.color }} /><span><p className="text-xs font-black uppercase tracking-wider" style={{ color: planNormalizado.color }}>{planNormalizado.tarjeta || 'Sin tarjeta'}</p><p className="text-[10px] font-bold text-slate-500">{tarjetaAbierta ? 'Planes de esta tarjeta' : 'Listado cerrado'}</p></span></button>
+              <div className="flex items-center gap-2"><label className="flex shrink-0 items-center gap-2 text-[10px] font-black uppercase text-slate-600">Color <input type="color" disabled={!editandoConfiguracion} value={colorBorrador} onChange={(e) => setColorTarjetaBorrador((prev) => ({ ...prev, [tarjetaClave]: e.target.value }))} className="h-7 w-9 cursor-pointer rounded border border-slate-200 bg-white p-0.5 disabled:cursor-not-allowed" /></label><button type="button" disabled={!editandoConfiguracion || colorBorrador === planNormalizado.color} onClick={() => { setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: (prev.tarjetasPlanes || []).map((actual) => normalizarTextoBusqueda(actual?.tarjeta || 'sin tarjeta') === tarjetaClave ? { ...actual, color: colorBorrador } : actual) })); setColorTarjetaBorrador((prev) => ({ ...prev, [tarjetaClave]: colorBorrador })); }} className="rounded-lg bg-white px-2.5 py-1.5 text-[10px] font-black uppercase text-indigo-700 border border-indigo-200 disabled:cursor-not-allowed disabled:opacity-40">Aplicar color</button><button type="button" disabled={!editandoConfiguracion} onClick={() => { const nuevoPlan = { id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, tipo: 'credito', tarjeta: planNormalizado.tarjeta, color: planNormalizado.color, plan: '', cuotas: 1, descuentoComercio: 0, otrosCargosPorcentaje: 0, cargoFijo: 0, diasAcreditacion: 0, vigenciaActiva: false, vigenciaDesde: '', vigenciaHasta: '', activo: true }; setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: [...(prev.tarjetasPlanes || []), nuevoPlan] })); setTarjetasConfiguracionAbiertas((prev) => ({ ...prev, [tarjetaClave]: true })); }} className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[10px] font-black uppercase text-white disabled:opacity-40">Agregar plan</button></div>
+            </div>}
+            <div className={`rounded-xl border border-indigo-200 bg-white p-3 ${tarjetaAbierta ? '' : 'hidden'}`}>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2">
               <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Tipo</label><select disabled={!editandoConfiguracion} value={planNormalizado.tipo} onChange={(e) => actualizarPlan('tipo', e.target.value)} className="input !py-2 disabled:bg-slate-100"><option value="credito">Crédito</option><option value="debito">Débito</option></select></div>
               <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Tarjeta</label><input disabled={!editandoConfiguracion} value={plan.tarjeta || ''} onChange={(e) => actualizarPlan('tarjeta', e.target.value)} placeholder="Ej: Tuya" className="input !py-2 disabled:bg-slate-100" /></div>
@@ -30010,7 +30343,8 @@ function obtenerCategoriaProducto(producto) {
               <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Cargo fijo $</label><input type="number" min="0" step="0.01" disabled={!editandoConfiguracion} value={plan.cargoFijo ?? 0} onChange={(e) => actualizarPlan('cargoFijo', e.target.value)} className="input !py-2 disabled:bg-slate-100" /></div>
             </div>
             <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2"><div className="text-[11px] font-bold text-slate-600">Ejemplo sobre $100.000: <strong className="text-indigo-700">cobrar {formatearDinero(simulacion.totalPosnet)}</strong> · {simulacion.cuotas} de {formatearDinero(simulacion.cuota)} · recupero {formatearCantidad(simulacion.porcentajeRecuperacion)}%</div><div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-600">Acredita en <input type="number" min="0" step="1" disabled={!editandoConfiguracion} value={plan.diasAcreditacion ?? 0} onChange={(e) => actualizarPlan('diasAcreditacion', e.target.value)} className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-right disabled:bg-slate-100" /> días</label><label className={`flex items-center gap-2 rounded-lg border px-2 py-1 text-[10px] font-black uppercase ${promoVigente ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600'}`}><input type="checkbox" disabled={!editandoConfiguracion} checked={vigenciaPromoActiva} onChange={(e) => { const activoVigencia = e.target.checked; setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: (prev.tarjetasPlanes || []).map((actual, posicion) => posicion === index ? { ...actual, vigenciaActiva: activoVigencia, vigenciaDesde: activoVigencia ? (actual.vigenciaDesde || rangoVigenciaDefault.desde) : (actual.vigenciaDesde || ''), vigenciaHasta: activoVigencia ? (actual.vigenciaHasta || rangoVigenciaDefault.hasta) : (actual.vigenciaHasta || '') } : actual) })); }} /> Vigencia {promoVigente && <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[8px] text-white">Vigente</span>}</label>{vigenciaPromoActiva && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-2 py-1"><label className="flex items-center gap-1 text-[9px] font-black uppercase text-emerald-700">Desde <input type="date" disabled={!editandoConfiguracion} value={planNormalizado.vigenciaDesde || ''} onChange={(e) => actualizarPlan('vigenciaDesde', e.target.value)} className="rounded-md border border-emerald-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-900 disabled:bg-slate-100" /></label><label className="flex items-center gap-1 text-[9px] font-black uppercase text-emerald-700">Hasta <input type="date" disabled={!editandoConfiguracion} value={planNormalizado.vigenciaHasta || ''} onChange={(e) => actualizarPlan('vigenciaHasta', e.target.value)} className="rounded-md border border-emerald-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-900 disabled:bg-slate-100" /></label></div>}<label className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-600"><input type="checkbox" disabled={!editandoConfiguracion} checked={plan.activo !== false} onChange={(e) => actualizarPlan('activo', e.target.checked)} /> Activo</label><button type="button" disabled={!editandoConfiguracion} onClick={() => setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: (prev.tarjetasPlanes || []).filter((_, posicion) => posicion !== index) }))} className="rounded-lg border border-red-200 bg-red-50 p-2 text-red-600 disabled:opacity-30" title="Eliminar plan"><Trash2 size={14} /></button></div></div>
-          </div>;
+          </div>
+          </React.Fragment>;
         })}
         </div>}
       </>}
@@ -31789,6 +32123,20 @@ function obtenerCategoriaProducto(producto) {
                 </table>
               </div>
             )}
+          </div>
+        </Modal>
+      )}
+
+      {modalActivo === 'importar_lista_prov' && (
+        <Modal titulo="Cargar lista Excel en Listas Prov" onClose={() => setModalActivo(null)} customWidth="max-w-3xl">
+          <div className="space-y-4">
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-xs font-bold text-emerald-800">Esta carga es independiente del inventario: solo se guarda en Listas Prov para buscar y comparar precios.</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div><label className="block text-[10px] font-black uppercase text-gray-500 mb-1">Proveedor</label><input value={configListaProv.proveedor} onChange={(e) => setConfigListaProv((prev) => ({ ...prev, proveedor: e.target.value }))} className="input" placeholder="Ej: Jieli" /></div>
+              <div><label className="block text-[10px] font-black uppercase text-gray-500 mb-1">Nombre de la lista</label><input value={configListaProv.nombreLista} onChange={(e) => setConfigListaProv((prev) => ({ ...prev, nombreLista: e.target.value }))} className="input" placeholder="Lista agosto 2026" /></div>
+            </div>
+            <div><label className="block text-[10px] font-black uppercase text-gray-500 mb-1">Archivo Excel o CSV</label><input type="file" accept=".xlsx,.xls,.csv,.txt" onChange={(e) => cargarArchivoListaProveedor(e.target.files?.[0] || null)} className="input" />{archivoListaProv && <p className="mt-1 text-xs font-bold text-gray-600">{archivoListaProv.name} · {filasListaProv.length} fila(s)</p>}</div>
+            <button type="button" onClick={guardarListaProveedorExcel} disabled={!archivoListaProv || !filasListaProv.length || !configListaProv.proveedor} className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-white text-xs font-black uppercase disabled:opacity-40">Guardar lista independiente</button>
           </div>
         </Modal>
       )}
