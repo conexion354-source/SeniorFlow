@@ -2969,6 +2969,7 @@ function AppInterna() {
   const remitoRFormularioInicialRef = useRef('');
   const remitoRModalRetornoRef = useRef(null);
   const ventaPreviewIframeRef = useRef(null);
+  const flyerIframeRef = useRef(null);
 
   const resolverDialogoSistema = (resultado = false) => {
     const resolver = dialogoSistemaResolverRef.current;
@@ -24003,6 +24004,25 @@ function obtenerCategoriaProducto(producto) {
     setVista(obtenerVistaInicialUsuario(usuarioActual));
   }, [vista, usuarioActual]);
 
+  const enviarDatosAFlyer = () => {
+    const destino = flyerIframeRef.current?.contentWindow;
+    if (!destino) return;
+    destino.postMessage({
+      tipo: 'seniorflow-flyer-data',
+      payload: {
+        configuracion,
+        productos,
+        marcas
+      }
+    }, window.location.origin);
+  };
+
+  useEffect(() => {
+    if (vista !== 'flyer') return;
+    const timer = window.setTimeout(enviarDatosAFlyer, 350);
+    return () => window.clearTimeout(timer);
+  }, [vista, productos, marcas, configuracion]);
+
   useEffect(() => {
     if (vista === 'tarjetas_planes') setSeccionConfiguracionActiva('tarjetas');
     if (vista === 'ajustes') setSeccionConfiguracionActiva((actual) => actual === 'tarjetas' ? 'negocio' : actual);
@@ -24158,10 +24178,10 @@ function obtenerCategoriaProducto(producto) {
   const opcionesNavegacionVisibles = opcionesNavegacion.filter((opcion) => opcion.visible);
   const obtenerRutaSidebar = (vistaRuta) => opcionesNavegacionVisibles.find((opcion) => opcion.vista === vistaRuta);
   const gruposSidebar = [
-    { id: 'ventas', etiqueta: 'Ventas', Icono: ShoppingCart, rutas: ['ventas', 'vendedores', 'tarjetas_planes', 'caja', 'clientes', 'presupuestos', 'combos', 'flyer'] },
+    { id: 'ventas', etiqueta: 'Ventas', Icono: ShoppingCart, rutas: ['ventas', 'vendedores', 'tarjetas_planes', 'caja', 'clientes', 'presupuestos', 'combos'] },
     { id: 'inventario', etiqueta: 'Inventario', Icono: Package, rutas: ['inventario', 'stock_bajo', 'compras', 'variacion_precios', 'mod_masiva', 'sugerencias', 'comparativa'] }
   ].map((grupo) => ({ ...grupo, hijos: grupo.rutas.map(obtenerRutaSidebar).filter(Boolean) })).filter((grupo) => grupo.hijos.length > 0);
-  const entradasSidebarGestion = ['notificaciones', 'proveedores', 'listas_prov', 'comparativa_paralela', 'rastreo'].map(obtenerRutaSidebar).filter(Boolean);
+  const entradasSidebarGestion = ['notificaciones', 'proveedores', 'listas_prov', 'flyer', 'comparativa_paralela', 'rastreo'].map(obtenerRutaSidebar).filter(Boolean);
   const entradasSidebarSistema = ['reportes', 'ajustes', 'ayuda'].map(obtenerRutaSidebar).filter(Boolean);
 
   const esAccionPersistente = (elemento) => {
@@ -29032,7 +29052,7 @@ function obtenerCategoriaProducto(producto) {
                   </div>
                 </div>
                 <a
-                  href="./ofertas.html"
+                  href="./ofertas.html?v=seniorflow-flyer-gestion-20260821-03"
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-white px-4 py-2.5 text-sm font-black text-cyan-700 hover:bg-cyan-50 transition-colors"
@@ -29043,8 +29063,10 @@ function obtenerCategoriaProducto(producto) {
               </div>
               <div className="h-[calc(100vh-250px)] min-h-[760px] bg-slate-950">
                 <iframe
+                  ref={flyerIframeRef}
                   title="Flyer Studio"
-                  src="./ofertas.html?v=seniorflow-react-20260622-flyer-studio-55"
+                  src="./ofertas.html?v=seniorflow-flyer-gestion-20260821-03"
+                  onLoad={enviarDatosAFlyer}
                   className="w-full h-full border-0"
                 />
               </div>
