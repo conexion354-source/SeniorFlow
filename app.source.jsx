@@ -37718,23 +37718,12 @@ function obtenerCategoriaProducto(producto) {
 
               <div className="card p-3 text-right flex flex-col justify-center min-w-0 overflow-hidden">
                 <p className="text-xs text-gray-500 font-black uppercase tracking-wider">{mostrarResumenTarjetaPuntoVenta ? 'Cobrar POSNET' : 'Total'}</p>
-                {mostrarResumenTarjetaPuntoVenta && (
-                  <div className="mt-1 mb-1 rounded-lg border border-indigo-100 bg-indigo-50 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-indigo-800 leading-tight">
-                    Informar al cliente: {financiacionTarjetaPuntoVenta.cuotas} x {formatearDinero(financiacionTarjetaPuntoVenta.cuota)}
-                  </div>
-                )}
                 <p
                   className="w-full font-extrabold tracking-tight text-gray-900 leading-none whitespace-nowrap tabular-nums"
                   style={{ fontSize: `${totalFormularioPuntoVentaFontSizeRem}rem` }}
                 >
                   {formatearDinero(totalCobroPuntoVentaVisible)}
                 </p>
-                {mostrarResumenTarjetaPuntoVenta && (
-                  <div className="mt-2 space-y-1 text-[10px] font-black uppercase tracking-wide leading-tight">
-                    <p className="text-emerald-700">Neto estimado a recibir: {formatearDinero(financiacionTarjetaPuntoVenta.netoEstimado)}</p>
-                    <p className="text-slate-500">No subas el ítem: usá el precio contado real.</p>
-                  </div>
-                )}
               </div>
             </div>
 
