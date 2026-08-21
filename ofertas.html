@@ -1613,15 +1613,15 @@
       const financing = calculateCardFinancing(basePrice, selectedPlan);
       const priceLayout = theme.price || { left: 270, top: 790, width: 390, height: 124 };
       const top = Math.min((theme.footer?.top || 904) - 36, (priceLayout.top || 790) + Math.max(priceLayout.height || 124, 132) / 2 + 28);
-      const width = 430;
-      const height = 58;
+      const width = 452;
+      const height = 70;
       const cardColor = financing.color || '#2563eb';
 
       const bg = new fabric.Rect({
         width,
         height,
-        rx: 24,
-        ry: 24,
+        rx: 30,
+        ry: 30,
         fill: '#ffffff',
         stroke: cardColor,
         strokeWidth: 2,
@@ -1634,11 +1634,11 @@
       if (financing.logoTarjeta) {
         try {
           const logo = await loadFabricImage(financing.logoTarjeta);
-          const logoMaxW = 104;
-          const logoMaxH = 42;
+          const logoMaxW = 132;
+          const logoMaxH = 54;
           const logoScale = Math.min(logoMaxW / logo.width, logoMaxH / logo.height, 1);
           logo.set({
-            left: -168,
+            left: -166,
             top: 0,
             originX: 'center',
             originY: 'center',
@@ -1654,7 +1654,7 @@
             originY: 'center',
             fontFamily: 'Inter',
             fontWeight: '900',
-            fontSize: 11,
+            fontSize: 14,
             fill: cardColor
           }));
         }
@@ -1666,45 +1666,56 @@
           originY: 'center',
           fontFamily: 'Inter',
           fontWeight: '900',
-          fontSize: 11,
+          fontSize: 14,
           fill: cardColor
         }));
       }
 
-      const label = new fabric.Text(`${financing.cuotas} cuotas de`, {
-        left: -100,
-        top: -8,
+      const label = new fabric.Text(`${financing.cuotas} CUOTAS DE`, {
+        left: -92,
+        top: -13,
         originX: 'left',
+        originY: 'center',
+        fontFamily: 'Inter',
+        fontWeight: '900',
+        fontSize: 15,
+        fill: '#475569'
+      });
+      const installment = new fabric.Text(formatearDinero(financing.installment), {
+        left: -92,
+        top: 13,
+        originX: 'left',
+        originY: 'center',
+        fontFamily: 'Inter',
+        fontWeight: '900',
+        fontSize: 27,
+        fill: '#0f172a'
+      });
+      fitTextToWidth(installment, 190, 20);
+
+      const planBadge = new fabric.Rect({
+        left: 162,
+        top: 0,
+        width: 92,
+        height: 30,
+        rx: 15,
+        ry: 15,
+        fill: cardColor,
+        originX: 'center',
+        originY: 'center'
+      });
+      const planText = new fabric.Text(financing.plan, {
+        left: 162,
+        top: 0,
+        originX: 'center',
         originY: 'center',
         fontFamily: 'Inter',
         fontWeight: '900',
         fontSize: 12,
-        fill: '#475569'
+        fill: '#ffffff'
       });
-      const installment = new fabric.Text(formatearDinero(financing.installment), {
-        left: -100,
-        top: 10,
-        originX: 'left',
-        originY: 'center',
-        fontFamily: 'Inter',
-        fontWeight: '900',
-        fontSize: 22,
-        fill: '#0f172a'
-      });
-      fitTextToWidth(installment, 205, 16);
-
-      const planText = new fabric.Text(financing.plan, {
-        left: 168,
-        top: 0,
-        originX: 'right',
-        originY: 'center',
-        fontFamily: 'Inter',
-        fontWeight: '800',
-        fontSize: 10,
-        fill: cardColor
-      });
-      fitTextToWidth(planText, 96, 8);
-      items.push(label, installment, planText);
+      fitTextToWidth(planText, 78, 9);
+      items.push(label, installment, planBadge, planText);
 
       const group = new fabric.Group(items, {
         left: 270,
