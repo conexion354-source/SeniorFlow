@@ -1634,8 +1634,22 @@
       if (financing.logoTarjeta) {
         try {
           const logo = await loadFabricImage(financing.logoTarjeta);
-          const logoMaxW = 132;
-          const logoMaxH = 54;
+          const logoBox = new fabric.Rect({
+            left: -166,
+            top: 0,
+            width: 124,
+            height: 46,
+            rx: 14,
+            ry: 14,
+            fill: '#ffffff',
+            stroke: 'rgba(148,163,184,0.28)',
+            strokeWidth: 1,
+            originX: 'center',
+            originY: 'center',
+            shadow: new fabric.Shadow({ color: 'rgba(15,23,42,0.08)', blur: 8, offsetY: 2 })
+          });
+          const logoMaxW = 104;
+          const logoMaxH = 32;
           const logoScale = Math.min(logoMaxW / logo.width, logoMaxH / logo.height, 1);
           logo.set({
             left: -166,
@@ -1645,7 +1659,7 @@
             scaleX: logoScale,
             scaleY: logoScale
           });
-          items.push(logo);
+          items.push(logoBox, logo);
         } catch {
           items.push(new fabric.Text(financing.tarjeta.slice(0, 8).toUpperCase(), {
             left: -168,
