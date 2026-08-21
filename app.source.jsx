@@ -993,16 +993,18 @@ const calcularFinanciacionTarjeta = (importeContado = 0, plan = null) => {
   const contado = Math.max(0, Number(importeContado) || 0);
   if (!plan) return { contado, totalPosnet: contado, recargo: 0, cuota: contado, cuotas: 1, netoEstimado: contado, porcentajeRecuperacion: 0 };
   const normalizado = normalizarPlanTarjeta(plan);
-  const tasaTotal = Math.min(99.99, normalizado.descuentoComercio + normalizado.otrosCargosPorcentaje);
-  const divisor = Math.max(0.0001, 1 - (tasaTotal / 100));
-  const totalCalculado = (contado + normalizado.cargoFijo) / divisor;
+  const costoFinancieroCliente = Math.min(99.99, Math.max(0, normalizado.descuentoComercio)) / 100;
+  const comisionComercio = Math.min(99.99, Math.max(0, normalizado.otrosCargosPorcentaje)) / 100;
+  const divisorComercio = Math.max(0.0001, 1 - comisionComercio);
+  const baseVentaTarjeta = (contado + normalizado.cargoFijo) / divisorComercio;
+  const totalCalculado = baseVentaTarjeta * (1 + costoFinancieroCliente);
   const cuotas = Math.max(1, normalizado.cuotas);
   const centavosMinimos = Math.ceil((totalCalculado - Number.EPSILON) * 100);
   const centavosPorCuota = Math.ceil(centavosMinimos / cuotas);
   const totalPosnet = (centavosPorCuota * cuotas) / 100;
   const cuota = centavosPorCuota / 100;
-  const netoEstimado = Math.max(0, totalPosnet * divisor - normalizado.cargoFijo);
-  return { contado, totalPosnet, recargo: Math.max(0, totalPosnet - contado), cuota, cuotas, netoEstimado, porcentajeRecuperacion: contado > 0 ? ((totalPosnet / contado) - 1) * 100 : 0, tasaTotal };
+  const netoEstimado = Math.max(0, (totalPosnet / (1 + costoFinancieroCliente)) * divisorComercio - normalizado.cargoFijo);
+  return { contado, totalPosnet, recargo: Math.max(0, totalPosnet - contado), cuota, cuotas, netoEstimado, porcentajeRecuperacion: contado > 0 ? ((totalPosnet / contado) - 1) * 100 : 0, tasaTotal: contado > 0 ? ((totalPosnet / contado) - 1) * 100 : 0, costoFinancieroCliente: costoFinancieroCliente * 100, comisionComercio: comisionComercio * 100 };
 };
 const redondearImporteVentaHaciaArriba = (importe = 0) => {
   const importeConCentavos = Math.round((Math.max(0, Number(importe) || 0) + Number.EPSILON) * 100) / 100;
@@ -6342,7 +6344,7 @@ function AppInterna() {
   const totalCobroPuntoVenta = esTarjetaPuntoVenta && planTarjetaPuntoVenta ? financiacionTarjetaPuntoVenta.totalPosnet : totalFormularioPuntoVenta;
   const totalCobroPuntoVentaVisible = Math.abs(totalCobroPuntoVenta) < 0.005 ? 0 : Math.max(0, totalCobroPuntoVenta);
   const mostrarResumenTarjetaPuntoVenta = Boolean(esTarjetaPuntoVenta && planTarjetaPuntoVenta && totalFormularioPuntoVenta > 0.009);
-  const totalFormularioPuntoVentaTexto = formatearDinero(totalFormularioPuntoVenta);
+  const totalFormularioPuntoVentaTexto = formatearDinero(totalCobroPuntoVentaVisible);
   const totalFormularioPuntoVentaFontSizeRem = Math.max(
     1.05,
     Math.min(2.25, 20 / Math.max(10, totalFormularioPuntoVentaTexto.length))
@@ -30405,11 +30407,11 @@ function obtenerCategoriaProducto(producto) {
               <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Tarjeta</label><input disabled={!editandoConfiguracion} value={plan.tarjeta || ''} onChange={(e) => actualizarPlan('tarjeta', e.target.value)} placeholder="Ej: Tuya" className="input !py-2 disabled:bg-slate-100" /></div>
               <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Nombre del plan</label><input disabled={!editandoConfiguracion} value={plan.plan || ''} onChange={(e) => actualizarPlan('plan', e.target.value)} placeholder="Ej: 2 cuotas" className="input !py-2 disabled:bg-slate-100" /></div>
               <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Cuotas</label><input type="number" min="1" step="1" disabled={!editandoConfiguracion} value={plan.cuotas ?? 1} onChange={(e) => actualizarPlan('cuotas', e.target.value)} className="input !py-2 disabled:bg-slate-100" /></div>
-              <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Descuento tarjeta %</label><input type="number" min="0" max="99.99" step="0.000001" disabled={!editandoConfiguracion} value={plan.descuentoComercio ?? 0} onChange={(e) => actualizarPlan('descuentoComercio', e.target.value)} className="input !py-2 disabled:bg-slate-100" /></div>
-              <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Otros cargos %</label><input type="number" min="0" max="99.99" step="0.000001" disabled={!editandoConfiguracion} value={plan.otrosCargosPorcentaje ?? 0} onChange={(e) => actualizarPlan('otrosCargosPorcentaje', e.target.value)} className="input !py-2 disabled:bg-slate-100" /></div>
+              <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Costo financiero %</label><input type="number" min="0" max="99.99" step="0.000001" disabled={!editandoConfiguracion} value={plan.descuentoComercio ?? 0} onChange={(e) => actualizarPlan('descuentoComercio', e.target.value)} className="input !py-2 disabled:bg-slate-100" /></div>
+              <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Comisión comercio %</label><input type="number" min="0" max="99.99" step="0.000001" disabled={!editandoConfiguracion} value={plan.otrosCargosPorcentaje ?? 0} onChange={(e) => actualizarPlan('otrosCargosPorcentaje', e.target.value)} className="input !py-2 disabled:bg-slate-100" /></div>
               <div><label className="block text-[9px] font-black uppercase text-slate-500 mb-1">Cargo fijo $</label><input type="number" min="0" step="0.01" disabled={!editandoConfiguracion} value={plan.cargoFijo ?? 0} onChange={(e) => actualizarPlan('cargoFijo', e.target.value)} className="input !py-2 disabled:bg-slate-100" /></div>
             </div>
-            <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2"><div className="text-[11px] font-bold text-slate-600">Ejemplo sobre $100.000: <strong className="text-indigo-700">cobrar {formatearDinero(simulacion.totalPosnet)}</strong> · {simulacion.cuotas} de {formatearDinero(simulacion.cuota)} · recupero {formatearCantidad(simulacion.porcentajeRecuperacion)}%</div><div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-600">Acredita en <input type="number" min="0" step="1" disabled={!editandoConfiguracion} value={plan.diasAcreditacion ?? 0} onChange={(e) => actualizarPlan('diasAcreditacion', e.target.value)} className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-right disabled:bg-slate-100" /> días</label><label className={`flex items-center gap-2 rounded-lg border px-2 py-1 text-[10px] font-black uppercase ${promoVigente ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600'}`}><input type="checkbox" disabled={!editandoConfiguracion} checked={vigenciaPromoActiva} onChange={(e) => { const activoVigencia = e.target.checked; setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: (prev.tarjetasPlanes || []).map((actual, posicion) => posicion === index ? { ...actual, vigenciaActiva: activoVigencia, vigenciaDesde: activoVigencia ? (actual.vigenciaDesde || rangoVigenciaDefault.desde) : (actual.vigenciaDesde || ''), vigenciaHasta: activoVigencia ? (actual.vigenciaHasta || rangoVigenciaDefault.hasta) : (actual.vigenciaHasta || '') } : actual) })); }} /> Vigencia {promoVigente && <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[8px] text-white">Vigente</span>}</label>{vigenciaPromoActiva && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-2 py-1"><label className="flex items-center gap-1 text-[9px] font-black uppercase text-emerald-700">Desde <input type="date" disabled={!editandoConfiguracion} value={planNormalizado.vigenciaDesde || ''} onChange={(e) => actualizarPlan('vigenciaDesde', e.target.value)} className="rounded-md border border-emerald-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-900 disabled:bg-slate-100" /></label><label className="flex items-center gap-1 text-[9px] font-black uppercase text-emerald-700">Hasta <input type="date" disabled={!editandoConfiguracion} value={planNormalizado.vigenciaHasta || ''} onChange={(e) => actualizarPlan('vigenciaHasta', e.target.value)} className="rounded-md border border-emerald-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-900 disabled:bg-slate-100" /></label></div>}<label className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-600"><input type="checkbox" disabled={!editandoConfiguracion} checked={plan.activo !== false} onChange={(e) => actualizarPlan('activo', e.target.checked)} /> Activo</label><button type="button" disabled={!editandoConfiguracion} onClick={() => setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: (prev.tarjetasPlanes || []).filter((_, posicion) => posicion !== index) }))} className="rounded-lg border border-red-200 bg-red-50 p-2 text-red-600 disabled:opacity-30" title="Eliminar plan"><Trash2 size={14} /></button></div></div>
+            <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2"><div className="text-[11px] font-bold text-slate-600">Ejemplo sobre $100.000: <strong className="text-indigo-700">cobrar {formatearDinero(simulacion.totalPosnet)}</strong> · {simulacion.cuotas} de {formatearDinero(simulacion.cuota)} · suba total {formatearCantidad(simulacion.porcentajeRecuperacion)}%</div><div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-600">Acredita en <input type="number" min="0" step="1" disabled={!editandoConfiguracion} value={plan.diasAcreditacion ?? 0} onChange={(e) => actualizarPlan('diasAcreditacion', e.target.value)} className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-right disabled:bg-slate-100" /> días</label><label className={`flex items-center gap-2 rounded-lg border px-2 py-1 text-[10px] font-black uppercase ${promoVigente ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600'}`}><input type="checkbox" disabled={!editandoConfiguracion} checked={vigenciaPromoActiva} onChange={(e) => { const activoVigencia = e.target.checked; setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: (prev.tarjetasPlanes || []).map((actual, posicion) => posicion === index ? { ...actual, vigenciaActiva: activoVigencia, vigenciaDesde: activoVigencia ? (actual.vigenciaDesde || rangoVigenciaDefault.desde) : (actual.vigenciaDesde || ''), vigenciaHasta: activoVigencia ? (actual.vigenciaHasta || rangoVigenciaDefault.hasta) : (actual.vigenciaHasta || '') } : actual) })); }} /> Vigencia {promoVigente && <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[8px] text-white">Vigente</span>}</label>{vigenciaPromoActiva && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-2 py-1"><label className="flex items-center gap-1 text-[9px] font-black uppercase text-emerald-700">Desde <input type="date" disabled={!editandoConfiguracion} value={planNormalizado.vigenciaDesde || ''} onChange={(e) => actualizarPlan('vigenciaDesde', e.target.value)} className="rounded-md border border-emerald-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-900 disabled:bg-slate-100" /></label><label className="flex items-center gap-1 text-[9px] font-black uppercase text-emerald-700">Hasta <input type="date" disabled={!editandoConfiguracion} value={planNormalizado.vigenciaHasta || ''} onChange={(e) => actualizarPlan('vigenciaHasta', e.target.value)} className="rounded-md border border-emerald-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-900 disabled:bg-slate-100" /></label></div>}<label className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-600"><input type="checkbox" disabled={!editandoConfiguracion} checked={plan.activo !== false} onChange={(e) => actualizarPlan('activo', e.target.checked)} /> Activo</label><button type="button" disabled={!editandoConfiguracion} onClick={() => setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: (prev.tarjetasPlanes || []).filter((_, posicion) => posicion !== index) }))} className="rounded-lg border border-red-200 bg-red-50 p-2 text-red-600 disabled:opacity-30" title="Eliminar plan"><Trash2 size={14} /></button></div></div>
           </div>
           </React.Fragment>;
         })}
@@ -37716,12 +37718,23 @@ function obtenerCategoriaProducto(producto) {
 
               <div className="card p-3 text-right flex flex-col justify-center min-w-0 overflow-hidden">
                 <p className="text-xs text-gray-500 font-black uppercase tracking-wider">{mostrarResumenTarjetaPuntoVenta ? 'Cobrar POSNET' : 'Total'}</p>
+                {mostrarResumenTarjetaPuntoVenta && (
+                  <div className="mt-1 mb-1 rounded-lg border border-indigo-100 bg-indigo-50 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-indigo-800 leading-tight">
+                    Informar al cliente: {financiacionTarjetaPuntoVenta.cuotas} x {formatearDinero(financiacionTarjetaPuntoVenta.cuota)}
+                  </div>
+                )}
                 <p
                   className="w-full font-extrabold tracking-tight text-gray-900 leading-none whitespace-nowrap tabular-nums"
                   style={{ fontSize: `${totalFormularioPuntoVentaFontSizeRem}rem` }}
                 >
                   {formatearDinero(totalCobroPuntoVentaVisible)}
                 </p>
+                {mostrarResumenTarjetaPuntoVenta && (
+                  <div className="mt-2 space-y-1 text-[10px] font-black uppercase tracking-wide leading-tight">
+                    <p className="text-emerald-700">Neto estimado a recibir: {formatearDinero(financiacionTarjetaPuntoVenta.netoEstimado)}</p>
+                    <p className="text-slate-500">No subas el ítem: usá el precio contado real.</p>
+                  </div>
+                )}
               </div>
             </div>
 
