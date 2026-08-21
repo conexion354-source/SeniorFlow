@@ -976,6 +976,7 @@ const normalizarPlanTarjeta = (plan = {}, index = 0) => ({
   id: textoSeguroTrim(plan?.id, `plan-${index + 1}`),
   tarjeta: textoSeguroTrim(plan?.tarjeta, 'Tarjeta'),
   color: /^#[0-9a-f]{6}$/i.test(textoSeguroTrim(plan?.color, '')) ? textoSeguroTrim(plan.color, '') : '#6366f1',
+  logoTarjeta: textoSeguroTrim(plan?.logoTarjeta || plan?.logo, ''),
   tipo: ['debito', 'credito'].includes(normalizarMetodoPago(plan?.tipo)) ? normalizarMetodoPago(plan.tipo) : 'credito',
   plan: textoSeguroTrim(plan?.plan, `${Math.max(1, Math.floor(Number(plan?.cuotas || 1)))} cuota(s)`),
   cuotas: Math.max(1, Math.floor(Number(plan?.cuotas || 1))),
@@ -10768,6 +10769,50 @@ const abrirPuntoVenta = () => {
       img.src = event.target.result;
     };
     reader.readAsDataURL(file);
+  };
+
+  const procesarLogoTarjeta = (e, tarjetaClave) => {
+    if (!editandoConfiguracion) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== 'image/png' && !file.type.startsWith('image/')) {
+      notificarSistema('Seleccioná un logo de tarjeta en PNG o imagen válida.', {
+        tipo: 'warning',
+        titulo: 'Archivo inválido'
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxWidth = 260;
+        const maxHeight = 120;
+        const scale = Math.min(1, maxWidth / img.width, maxHeight / img.height);
+        const width = Math.max(1, Math.round(img.width * scale));
+        const height = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.clearRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/png');
+        setConfiguracion((prev) => ({
+          ...prev,
+          tarjetasPlanes: (prev.tarjetasPlanes || []).map((actual) => (
+            normalizarTextoBusqueda(actual?.tarjeta || 'sin tarjeta') === tarjetaClave
+              ? { ...actual, logoTarjeta: dataUrl }
+              : actual
+          ))
+        }));
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   const abrirModalMovimiento = (tipo = 'gasto') => {
@@ -29052,7 +29097,7 @@ function obtenerCategoriaProducto(producto) {
                   </div>
                 </div>
                 <a
-                  href="./ofertas.html?v=seniorflow-flyer-gestion-20260821-03"
+                  href="./ofertas.html?v=seniorflow-flyer-gestion-20260821-04"
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-white px-4 py-2.5 text-sm font-black text-cyan-700 hover:bg-cyan-50 transition-colors"
@@ -29065,7 +29110,7 @@ function obtenerCategoriaProducto(producto) {
                 <iframe
                   ref={flyerIframeRef}
                   title="Flyer Studio"
-                  src="./ofertas.html?v=seniorflow-flyer-gestion-20260821-03"
+                  src="./ofertas.html?v=seniorflow-flyer-gestion-20260821-04"
                   onLoad={enviarDatosAFlyer}
                   className="w-full h-full border-0"
                 />
@@ -30319,7 +30364,7 @@ function obtenerCategoriaProducto(producto) {
     <div className="bg-indigo-50 border-t border-indigo-200 p-3 sm:p-4 space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div><p className="text-xs font-black text-indigo-900 uppercase tracking-wider">Planes disponibles en el punto de ventas</p><p className="text-[11px] font-bold text-indigo-700">El precio del inventario queda como contado. El sistema calcula cuánto cobrar en el POSNET para recuperar los descuentos.</p></div>
-        <button type="button" disabled={!editandoConfiguracion} onClick={() => { const tarjetaNueva = `Nueva tarjeta ${(tarjetasPlanesConfiguracion.length || 0) + 1}`; setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: [...(Array.isArray(prev?.tarjetasPlanes) ? prev.tarjetasPlanes : []), { id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, tipo: 'credito', tarjeta: tarjetaNueva, color: '#6366f1', plan: 'Plan inicial', cuotas: 1, descuentoComercio: 0, otrosCargosPorcentaje: 0, cargoFijo: 0, diasAcreditacion: 0, vigenciaActiva: false, vigenciaDesde: '', vigenciaHasta: '', activo: true }] })); setTarjetasConfiguracionAbiertas((prev) => ({ ...prev, [normalizarTextoBusqueda(tarjetaNueva)]: true })); }} className="rounded-lg bg-indigo-600 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-white disabled:cursor-not-allowed disabled:opacity-40"><Plus size={14} className="inline mr-1" /> Agregar tarjeta</button>
+        <button type="button" disabled={!editandoConfiguracion} onClick={() => { const tarjetaNueva = `Nueva tarjeta ${(tarjetasPlanesConfiguracion.length || 0) + 1}`; setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: [...(Array.isArray(prev?.tarjetasPlanes) ? prev.tarjetasPlanes : []), { id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, tipo: 'credito', tarjeta: tarjetaNueva, color: '#6366f1', logoTarjeta: '', plan: 'Plan inicial', cuotas: 1, descuentoComercio: 0, otrosCargosPorcentaje: 0, cargoFijo: 0, diasAcreditacion: 0, vigenciaActiva: false, vigenciaDesde: '', vigenciaHasta: '', activo: true }] })); setTarjetasConfiguracionAbiertas((prev) => ({ ...prev, [normalizarTextoBusqueda(tarjetaNueva)]: true })); }} className="rounded-lg bg-indigo-600 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-white disabled:cursor-not-allowed disabled:opacity-40"><Plus size={14} className="inline mr-1" /> Agregar tarjeta</button>
       </div>
       {tarjetasPlanesConfiguracion.length === 0 ? <div className="rounded-xl border border-dashed border-indigo-300 bg-white p-8 text-center text-sm font-bold text-indigo-500">Todavía no hay planes. Agregá uno para habilitar las cuotas en el punto de ventas.</div> : <>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2">
@@ -30352,7 +30397,7 @@ function obtenerCategoriaProducto(producto) {
           return <React.Fragment key={plan.id || `plan-config-${index}`}>
             {iniciaGrupoTarjeta && <div className="mt-3 first:mt-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-3 py-2" style={{ borderColor: `${planNormalizado.color}55`, backgroundColor: `${planNormalizado.color}12` }}>
               <button type="button" onClick={() => setTarjetasConfiguracionAbiertas((prev) => ({ ...prev, [tarjetaClave]: !tarjetaAbierta }))} className="flex min-w-0 items-center gap-2 text-left"><span className="text-sm font-black" style={{ color: planNormalizado.color }}>{tarjetaAbierta ? '−' : '+'}</span><span className="h-4 w-4 shrink-0 rounded-full border border-white shadow-sm" style={{ backgroundColor: planNormalizado.color }} /><span><p className="text-xs font-black uppercase tracking-wider" style={{ color: planNormalizado.color }}>{planNormalizado.tarjeta || 'Sin tarjeta'}</p><p className="text-[10px] font-bold text-slate-500">{tarjetaAbierta ? 'Planes de esta tarjeta' : 'Listado cerrado'}</p></span></button>
-              <div className="flex items-center gap-2"><label className="flex shrink-0 items-center gap-2 text-[10px] font-black uppercase text-slate-600">Color <input type="color" disabled={!editandoConfiguracion} value={colorBorrador} onChange={(e) => setColorTarjetaBorrador((prev) => ({ ...prev, [tarjetaClave]: e.target.value }))} className="h-7 w-9 cursor-pointer rounded border border-slate-200 bg-white p-0.5 disabled:cursor-not-allowed" /></label><button type="button" disabled={!editandoConfiguracion || colorBorrador === planNormalizado.color} onClick={() => { setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: (prev.tarjetasPlanes || []).map((actual) => normalizarTextoBusqueda(actual?.tarjeta || 'sin tarjeta') === tarjetaClave ? { ...actual, color: colorBorrador } : actual) })); setColorTarjetaBorrador((prev) => ({ ...prev, [tarjetaClave]: colorBorrador })); }} className="rounded-lg bg-white px-2.5 py-1.5 text-[10px] font-black uppercase text-indigo-700 border border-indigo-200 disabled:cursor-not-allowed disabled:opacity-40">Aplicar color</button><button type="button" disabled={!editandoConfiguracion} onClick={() => { const nuevoPlan = { id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, tipo: 'credito', tarjeta: planNormalizado.tarjeta, color: planNormalizado.color, plan: '', cuotas: 1, descuentoComercio: 0, otrosCargosPorcentaje: 0, cargoFijo: 0, diasAcreditacion: 0, vigenciaActiva: false, vigenciaDesde: '', vigenciaHasta: '', activo: true }; setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: [...(prev.tarjetasPlanes || []), nuevoPlan] })); setTarjetasConfiguracionAbiertas((prev) => ({ ...prev, [tarjetaClave]: true })); }} className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[10px] font-black uppercase text-white disabled:opacity-40">Agregar plan</button></div>
+              <div className="flex items-center gap-2"><input id={`logo-tarjeta-${tarjetaClave}`} type="file" accept="image/png,image/*" className="hidden" disabled={!editandoConfiguracion} onChange={(e) => procesarLogoTarjeta(e, tarjetaClave)} />{planNormalizado.logoTarjeta && <span className="flex h-7 w-12 items-center justify-center rounded-md border border-white bg-white shadow-sm"><img src={planNormalizado.logoTarjeta} alt={`Logo ${planNormalizado.tarjeta}`} className="max-h-5 max-w-10 object-contain" /></span>}<button type="button" disabled={!editandoConfiguracion} onClick={() => document.getElementById(`logo-tarjeta-${tarjetaClave}`)?.click()} className="rounded-lg bg-white px-2.5 py-1.5 text-[10px] font-black uppercase text-indigo-700 border border-indigo-200 disabled:cursor-not-allowed disabled:opacity-40">Logo PNG</button>{planNormalizado.logoTarjeta && <button type="button" disabled={!editandoConfiguracion} onClick={() => setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: (prev.tarjetasPlanes || []).map((actual) => normalizarTextoBusqueda(actual?.tarjeta || 'sin tarjeta') === tarjetaClave ? { ...actual, logoTarjeta: '' } : actual) }))} className="rounded-lg bg-red-50 px-2 py-1.5 text-[10px] font-black uppercase text-red-600 border border-red-200 disabled:opacity-40">Quitar</button>}<label className="flex shrink-0 items-center gap-2 text-[10px] font-black uppercase text-slate-600">Color <input type="color" disabled={!editandoConfiguracion} value={colorBorrador} onChange={(e) => setColorTarjetaBorrador((prev) => ({ ...prev, [tarjetaClave]: e.target.value }))} className="h-7 w-9 cursor-pointer rounded border border-slate-200 bg-white p-0.5 disabled:cursor-not-allowed" /></label><button type="button" disabled={!editandoConfiguracion || colorBorrador === planNormalizado.color} onClick={() => { setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: (prev.tarjetasPlanes || []).map((actual) => normalizarTextoBusqueda(actual?.tarjeta || 'sin tarjeta') === tarjetaClave ? { ...actual, color: colorBorrador } : actual) })); setColorTarjetaBorrador((prev) => ({ ...prev, [tarjetaClave]: colorBorrador })); }} className="rounded-lg bg-white px-2.5 py-1.5 text-[10px] font-black uppercase text-indigo-700 border border-indigo-200 disabled:cursor-not-allowed disabled:opacity-40">Aplicar color</button><button type="button" disabled={!editandoConfiguracion} onClick={() => { const nuevoPlan = { id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, tipo: 'credito', tarjeta: planNormalizado.tarjeta, color: planNormalizado.color, logoTarjeta: planNormalizado.logoTarjeta || '', plan: '', cuotas: 1, descuentoComercio: 0, otrosCargosPorcentaje: 0, cargoFijo: 0, diasAcreditacion: 0, vigenciaActiva: false, vigenciaDesde: '', vigenciaHasta: '', activo: true }; setConfiguracion((prev) => ({ ...prev, tarjetasPlanes: [...(prev.tarjetasPlanes || []), nuevoPlan] })); setTarjetasConfiguracionAbiertas((prev) => ({ ...prev, [tarjetaClave]: true })); }} className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[10px] font-black uppercase text-white disabled:opacity-40">Agregar plan</button></div>
             </div>}
             <div className={`rounded-xl border border-indigo-200 bg-white p-3 ${tarjetaAbierta ? '' : 'hidden'}`}>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2">
