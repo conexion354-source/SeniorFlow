@@ -10801,7 +10801,43 @@ const abrirPuntoVenta = () => {
         if (!ctx) return;
         ctx.clearRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/png');
+        // Quitar fondos blancos incrustados y recortar el espacio sobrante del logo.
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const pixels = imageData.data;
+        let minX = width;
+        let minY = height;
+        let maxX = -1;
+        let maxY = -1;
+        for (let y = 0; y < height; y += 1) {{
+          for (let x = 0; x < width; x += 1) {{
+            const index = (y * width + x) * 4;
+            if (pixels[index + 3] > 0 && pixels[index] >= 242 && pixels[index + 1] >= 242 && pixels[index + 2] >= 242) {{
+              pixels[index + 3] = 0;
+            }}
+            if (pixels[index + 3] > 8) {{
+              minX = Math.min(minX, x);
+              minY = Math.min(minY, y);
+              maxX = Math.max(maxX, x);
+              maxY = Math.max(maxY, y);
+            }}
+          }}
+        }}
+        ctx.putImageData(imageData, 0, 0);
+        let dataUrl;
+        if (maxX >= minX && maxY >= minY) {{
+          const padding = 3;
+          const cropX = Math.max(0, minX - padding);
+          const cropY = Math.max(0, minY - padding);
+          const cropW = Math.min(width - cropX, maxX - minX + 1 + padding * 2);
+          const cropH = Math.min(height - cropY, maxY - minY + 1 + padding * 2);
+          const crop = document.createElement('canvas');
+          crop.width = cropW;
+          crop.height = cropH;
+          crop.getContext('2d')?.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+          dataUrl = crop.toDataURL('image/png');
+        }} else {{
+          dataUrl = canvas.toDataURL('image/png');
+        }}
         setConfiguracion((prev) => ({
           ...prev,
           tarjetasPlanes: (prev.tarjetasPlanes || []).map((actual) => (
