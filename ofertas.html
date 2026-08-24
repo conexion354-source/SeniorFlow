@@ -1634,21 +1634,30 @@
       if (financing.logoTarjeta) {
         try {
           const logo = await loadFabricImage(financing.logoTarjeta);
-          const logoMaxW = 132;
-          const logoMaxH = 50;
+          // El logo queda dentro del panel blanco, con margen interno visible.
+          const logoMaxW = 110;
+          const logoMaxH = 42;
           const logoScale = Math.min(logoMaxW / logo.width, logoMaxH / logo.height, 1);
           logo.set({
-            left: -166,
+            left: -140,
             top: 0,
             originX: 'center',
             originY: 'center',
             scaleX: logoScale,
-            scaleY: logoScale
+            scaleY: logoScale,
+            clipPath: new fabric.Rect({
+              width: logoMaxW,
+              height: logoMaxH,
+              rx: 12,
+              ry: 12,
+              originX: 'center',
+              originY: 'center'
+            })
           });
           items.push(logo);
         } catch {
           items.push(new fabric.Text(financing.tarjeta.slice(0, 8).toUpperCase(), {
-            left: -168,
+            left: -140,
             top: 0,
             originX: 'center',
             originY: 'center',
@@ -1660,7 +1669,7 @@
         }
       } else {
         items.push(new fabric.Text(financing.tarjeta.slice(0, 10).toUpperCase(), {
-          left: -168,
+          left: -140,
           top: 0,
           originX: 'center',
           originY: 'center',
@@ -1672,7 +1681,7 @@
       }
 
       const label = new fabric.Text(`${financing.cuotas} CUOTAS DE`, {
-        left: -92,
+        left: -68,
         top: -13,
         originX: 'left',
         originY: 'center',
@@ -1682,7 +1691,7 @@
         fill: '#475569'
       });
       const installment = new fabric.Text(formatearDinero(financing.installment), {
-        left: -92,
+        left: -68,
         top: 13,
         originX: 'left',
         originY: 'center',
@@ -1691,7 +1700,7 @@
         fontSize: 27,
         fill: '#0f172a'
       });
-      fitTextToWidth(installment, 190, 20);
+      fitTextToWidth(installment, 164, 20);
 
       const planBadge = new fabric.Rect({
         left: 162,
