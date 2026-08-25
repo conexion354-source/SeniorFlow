@@ -14,7 +14,7 @@ import autoTable from 'jspdf-autotable';
 import { COMPANY_RUNTIME_CONFIG } from './company-runtime-config.js';
 
 // --- INTEGRACIÓN FIREBASE ---
-import { auth, db, storage } from './firebase-config.js?v=seniorflow-online-firestore-20260825-17';
+import { auth, db, storage } from './firebase-config.js?v=seniorflow-online-firestore-20260825-21';
 import { signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { collection as firestoreCollection, doc as firestoreDoc, setDoc, onSnapshot, deleteDoc, updateDoc, addDoc, increment, getDocs, arrayUnion } from 'firebase/firestore';
 import { ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
@@ -87,10 +87,10 @@ const parseImporteCajaHistorico = (valor) => {
       : texto.replace(/,/g, '');
   } else if (tieneComa) {
     const partes = texto.split(',');
-    normalizado = partes.length > 2 || (partes[1] || '').length === 3 ? texto.replace(/,/g, '') : texto.replace(',', '.');
+    normalizado = partes.length > 2 || ((partes[1] || '').length === 3 && (partes[0] || '').replace('-', '').length <= 3) ? texto.replace(/,/g, '') : texto.replace(',', '.');
   } else if (tienePunto) {
     const partes = texto.split('.');
-    normalizado = partes.length > 2 || (partes[1] || '').length === 3 ? texto.replace(/\./g, '') : texto;
+    normalizado = partes.length > 2 || ((partes[1] || '').length === 3 && (partes[0] || '').replace('-', '').length <= 3) ? texto.replace(/\./g, '') : texto;
   }
   const numero = parseFloat(normalizado);
   return Number.isFinite(numero) ? numero * multiplicador : 0;
@@ -896,6 +896,15 @@ const textoSeguro = (valor, fallback = '') => {
 const textoSeguroTrim = (valor, fallback = '') => {
   const limpio = textoSeguro(valor, '').trim();
   return limpio || fallback;
+};
+const usuarioTieneRolAdministrador = (usuario = null) => {
+  const rol = textoSeguroTrim(
+    usuario?.rol || usuario?.role || usuario?.nivelAcceso || usuario?.nivel || usuario?.perfil,
+    ''
+  ).toLowerCase();
+  return ['admin', 'administrador', 'administrator'].includes(rol)
+    || usuario?.esAdministrador === true
+    || usuario?.esAdmin === true;
 };
 const obtenerEnlaceAppStockMovil = () => {
   try {
@@ -2576,6 +2585,7 @@ function AppInterna() {
     if (modalActivo !== 'punto_venta' && asignacionVendedorPuntoVentaAbierta) setAsignacionVendedorPuntoVentaAbierta(false);
   }, [modalActivo, asignacionVendedorPuntoVentaAbierta]);
   const [busquedaRastreoCheques, setBusquedaRastreoCheques] = useState('');
+  const [busquedaAvanzada, setBusquedaAvanzada] = useState({ tipo: 'cliente', texto: '' });
   const [rastreoChequesAbiertos, setRastreoChequesAbiertos] = useState({});
 
   const [formData, setFormData] = useState({ monto: '', efectivo: '', cheques: '', tieneCheques: false, descripcion: '', metodoPago: 'efectivo', detallesPago: {}, impactaCajaReportes: true });
@@ -6057,7 +6067,7 @@ function AppInterna() {
         normalizado = texto.replace(/,/g, '');
       } else {
         const decimales = partes[1] || '';
-        normalizado = decimales.length === 3 ? texto.replace(/,/g, '') : texto.replace(',', '.');
+      normalizado = decimales.length === 3 && (partes[0] || '').replace('-', '').length <= 3 ? texto.replace(/,/g, '') : texto.replace(',', '.');
       }
     } else if (tienePunto) {
       const partes = texto.split('.');
@@ -6065,7 +6075,7 @@ function AppInterna() {
         normalizado = texto.replace(/\./g, '');
       } else {
         const decimales = partes[1] || '';
-        normalizado = decimales.length === 3 ? texto.replace(/\./g, '') : texto;
+        normalizado = decimales.length === 3 && (partes[0] || '').replace('-', '').length <= 3 ? texto.replace(/\./g, '') : texto;
       }
     }
 
@@ -8858,6 +8868,66 @@ const abrirPuntoVenta = () => {
     return [];
   };
 
+  const resultadosBuscadorAvanzado = useMemo(() => {
+    const tipo = busquedaAvanzada.tipo || 'cliente';
+    const query = normalizarTextoBusqueda(busquedaAvanzada.texto);
+    if (!query) return { clientes: [], productos: [], remitos: [] };
+    const textoClienteMovimiento = (mov) => {
+      const detalle = mov?.detallesPago || {};
+      const clienteId = textoSeguroTrim(detalle.clienteId || detalle.idCliente || mov?.clienteId, '');
+      const cliente = clientes.find((item) => item.id === clienteId);
+      return {
+        id: clienteId,
+        nombre: textoSeguroTrim(detalle.clienteNombre || detalle.cliente || detalle.nombreCliente || mov?.clienteNombre, textoSeguroTrim(cliente?.nombre, 'Consumidor Final'))
+      };
+    };
+    const esRemito = (mov) => mov?.tipo === 'venta' || ['punto_venta', 'remito_r'].includes(mov?.detallesPago?.origen);
+    const datosRemito = (mov) => {
+      const detalle = mov?.detallesPago || {};
+      const cliente = textoClienteMovimiento(mov);
+      const numero = textoSeguroTrim(detalle.numeroComprobante || detalle.comprobanteNumero || detalle.numeroRemito || mov?.numeroComprobante, 'Sin número');
+      const tipoComprobante = OPCIONES_COMPROBANTE_VENTA.find((opcion) => opcion.value === (detalle.tipoComprobante || 'remito_x'))?.label || 'Remito';
+      return { movimiento: mov, cliente, numero, tipoComprobante, etiqueta: `${tipoComprobante} N° ${numero}`, fecha: mov?.fecha || '', monto: Math.abs(Number(mov?.monto || 0)) };
+    };
+    const remitos = movimientos.filter(esRemito).map(datosRemito);
+    if (tipo === 'cliente') {
+      return {
+        clientes: clientesVisiblesSegunAcceso
+          .filter((cliente) => normalizarTextoBusqueda([cliente.nombre, cliente.documento, cliente.telefono, cliente.whatsapp, cliente.email].join(' ')).includes(query))
+          .slice(0, 30)
+          .map((cliente) => ({ cliente, remitos: remitos.filter((item) => item.cliente.id === cliente.id || normalizarTextoBusqueda(item.cliente.nombre) === normalizarTextoBusqueda(cliente.nombre)).sort((a, b) => new Date(b.fecha) - new Date(a.fecha)) })),
+        productos: [],
+        remitos: []
+      };
+    }
+    if (tipo === 'producto') {
+      return {
+        clientes: [],
+        productos: productos
+          .filter((producto) => normalizarTextoBusqueda([producto.descripcion, producto.codigo, producto.codigoInterno, producto.codigoBarras].join(' ')).includes(query))
+          .slice(0, 30)
+          .map((producto) => {
+            const ventas = remitos
+              .filter((registro) => obtenerItemsDocumentoVenta(registro.movimiento).some((item) => (
+                item.productoId === producto.id
+                || (item.codigo && normalizarTextoBusqueda(item.codigo) === normalizarTextoBusqueda(producto.codigo || producto.codigoInterno || producto.codigoBarras))
+              )))
+              .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+            return { producto, ventas: ventas.slice(0, 20), ultimo: ventas[0] || null };
+          }),
+        remitos: []
+      };
+    }
+    return {
+      clientes: [],
+      productos: [],
+      remitos: remitos
+        .filter((registro) => normalizarTextoBusqueda([registro.etiqueta, registro.numero, registro.cliente.nombre, registro.movimiento?.descripcion, registro.movimiento?.id].join(' ')).includes(query))
+        .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+        .slice(0, 100)
+    };
+  }, [busquedaAvanzada, clientes, clientesVisiblesSegunAcceso, movimientos, productos]);
+
   const obtenerActualizacionesPrecioCuentaCliente = (cliente = null, estado = null) => {
     if (!cliente) return [];
     const estadoCuenta = estado || calcularEstadoCuentaCliente(cliente);
@@ -8937,6 +9007,15 @@ const abrirPuntoVenta = () => {
       await notificarSistema('No se pudieron actualizar los precios de esta cuenta corriente.', { tipo: 'error', titulo: 'Error de actualización' });
     }
   };
+
+  const actualizacionesPrecioPendientesCliente = useMemo(
+    () => clienteSeleccionado ? obtenerActualizacionesPrecioCuentaCliente(clienteSeleccionado, estadoCuentaClienteSeleccionado) : [],
+    [clienteSeleccionado, estadoCuentaClienteSeleccionado, movimientos, productos]
+  );
+  const actualizacionesPrecioPorCargo = useMemo(
+    () => Object.fromEntries(actualizacionesPrecioPendientesCliente.map((cambio) => [cambio.cargoOrigenId, cambio])),
+    [actualizacionesPrecioPendientesCliente]
+  );
 
   const obtenerClaveDevolucionItem = (item = {}, index = 0) => {
     const productoId = textoSeguroTrim(item?.productoId, '');
@@ -24306,6 +24385,7 @@ function obtenerCategoriaProducto(producto) {
   const puedeVerPresupuestos = usuarioPuedeVerModulo('presupuestos', usuarioActual);
   const puedeVerReportes = usuarioPuedeVerModulo('reportes', usuarioActual);
   const puedeVerRastreo = usuarioPuedeVerModulo('rastreo', usuarioActual);
+  const puedeVerBuscadorAvanzado = puedeVerClientes || puedeVerInventario || puedeVerRastreo;
   const puedeVerNotificaciones = usuarioPuedeVerModulo('notificaciones', usuarioActual);
   const puedeVerAjustes = usuarioPuedeVerModulo('ajustes', usuarioActual);
   const puedeVerAyuda = usuarioPuedeVerModulo('ayuda', usuarioActual);
@@ -24330,6 +24410,7 @@ function obtenerCategoriaProducto(producto) {
     puedeVerPresupuestos,
     puedeVerReportes,
     puedeVerRastreo,
+    puedeVerBuscadorAvanzado,
     puedeVerNotificaciones,
     puedeVerAjustes,
     puedeVerAyuda
@@ -24356,6 +24437,7 @@ function obtenerCategoriaProducto(producto) {
     { visible: puedeVerComparativa, vista: 'comparativa', etiqueta: 'Comparativa', Icono: BarChart2, color: 'cyan' },
     { visible: puedeVerComparativa, vista: 'comparativa_paralela', etiqueta: 'Logística', Icono: Truck, color: 'violet' },
     { visible: puedeVerRastreo, vista: 'rastreo', etiqueta: 'Rastreo', Icono: Search, color: 'slate' },
+    { visible: puedeVerBuscadorAvanzado, vista: 'buscador_avanzado', etiqueta: 'Buscador avanzado', Icono: Search, color: 'indigo' },
     { visible: puedeVerReportes, vista: 'reportes', etiqueta: 'Reportes', Icono: BarChart2, color: 'rose' },
     { visible: puedeVerAjustes, vista: 'ajustes', etiqueta: 'Ajustes', Icono: Settings, color: 'gray' },
     { visible: puedeVerAyuda, vista: 'ayuda', etiqueta: 'Ayuda', Icono: BookOpen, color: 'blue' }
@@ -24366,7 +24448,7 @@ function obtenerCategoriaProducto(producto) {
     { id: 'ventas', etiqueta: 'Ventas', Icono: ShoppingCart, rutas: ['ventas', 'vendedores', 'tarjetas_planes', 'caja', 'clientes', 'presupuestos', 'combos'] },
     { id: 'inventario', etiqueta: 'Inventario', Icono: Package, rutas: ['inventario', 'stock_bajo', 'compras', 'variacion_precios', 'mod_masiva', 'sugerencias', 'comparativa'] }
   ].map((grupo) => ({ ...grupo, hijos: grupo.rutas.map(obtenerRutaSidebar).filter(Boolean) })).filter((grupo) => grupo.hijos.length > 0);
-  const entradasSidebarGestion = ['notificaciones', 'proveedores', 'listas_prov', 'flyer', 'comparativa_paralela', 'rastreo'].map(obtenerRutaSidebar).filter(Boolean);
+  const entradasSidebarGestion = ['notificaciones', 'proveedores', 'listas_prov', 'flyer', 'comparativa_paralela', 'rastreo', 'buscador_avanzado'].map(obtenerRutaSidebar).filter(Boolean);
   const entradasSidebarSistema = ['reportes', 'ajustes', 'ayuda'].map(obtenerRutaSidebar).filter(Boolean);
 
   const esAccionPersistente = (elemento) => {
@@ -29923,6 +30005,39 @@ function obtenerCategoriaProducto(producto) {
                     </tbody>
                   </table>
                 </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* --- VISTA: BUSCADOR AVANZADO --- */}
+        {puedeVerBuscadorAvanzado && vista === 'buscador_avanzado' && (
+          <div className="h-full min-h-0 flex flex-col gap-4 overflow-hidden animate-in fade-in duration-300">
+            <div className="shrink-0 rounded-3xl border border-indigo-100 bg-white p-5 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-wider text-indigo-600">Gestión</p>
+              <h2 className="text-2xl font-black text-slate-900">Buscador avanzado</h2>
+              <p className="mt-1 text-sm font-bold text-slate-500">Buscá clientes, productos y remitos relacionados.</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {[
+                  { value: 'cliente', label: 'Cliente' },
+                  { value: 'producto', label: 'Producto' },
+                  { value: 'remito', label: 'Remito' }
+                ].map((opcion) => (
+                  <button key={opcion.value} type="button" onClick={() => setBusquedaAvanzada((prev) => ({ ...prev, tipo: opcion.value }))} className={`rounded-xl px-4 py-2 text-xs font-black uppercase ${busquedaAvanzada.tipo === opcion.value ? 'bg-indigo-600 text-white' : 'border border-slate-200 bg-slate-50 text-slate-600'}`}>{opcion.label}</button>
+                ))}
+              </div>
+              <div className="relative mt-3">
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input type="search" value={busquedaAvanzada.texto} onChange={(event) => setBusquedaAvanzada((prev) => ({ ...prev, texto: event.target.value }))} placeholder={busquedaAvanzada.tipo === 'cliente' ? 'Nombre, documento o teléfono' : busquedaAvanzada.tipo === 'producto' ? 'Descripción o código del producto' : 'Número de remito, cliente o descripción'} className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm font-bold outline-none focus:border-indigo-400 focus:bg-white" />
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              {!busquedaAvanzada.texto.trim() ? <div className="p-10 text-center text-sm font-bold text-slate-400"><Search size={38} className="mx-auto mb-3 text-indigo-300" />Escribí un dato para comenzar la búsqueda.</div> : (
+                <>
+                  {busquedaAvanzada.tipo === 'cliente' && (resultadosBuscadorAvanzado.clientes.length ? resultadosBuscadorAvanzado.clientes.map(({ cliente, remitos }) => <div key={`buscador-cliente-${cliente.id}`} className="mb-4 rounded-2xl border border-slate-200 overflow-hidden"><div className="flex items-center justify-between gap-3 bg-slate-50 p-4"><div><p className="font-black text-slate-900">{cliente.nombre || 'Cliente sin nombre'}</p><p className="text-xs font-bold text-slate-500">{[cliente.documento, cliente.telefono || cliente.whatsapp, cliente.email].filter(Boolean).join(' · ') || 'Sin datos de contacto'}</p></div><span className="rounded-lg bg-indigo-100 px-2 py-1 text-[10px] font-black text-indigo-700">{remitos.length} remito(s)</span></div>{remitos.length ? remitos.map((registro) => <div key={`buscador-cliente-remito-${registro.movimiento.id}`} className="flex justify-between gap-3 border-t border-slate-100 p-3"><div><p className="text-sm font-black">{registro.etiqueta}</p><p className="text-[11px] font-bold text-slate-500">{formatearFecha(registro.fecha)} · {registro.movimiento.descripcion || 'Venta registrada'}</p></div><p className="text-sm font-black text-emerald-700">{formatearDinero(registro.monto)}</p></div>) : <p className="p-4 text-xs font-bold text-slate-400">No hay remitos asociados.</p>}</div>) : <p className="p-8 text-center text-sm font-bold text-slate-400">No se encontraron clientes.</p>)}
+                  {busquedaAvanzada.tipo === 'producto' && (resultadosBuscadorAvanzado.productos.length ? resultadosBuscadorAvanzado.productos.map(({ producto, ventas, ultimo }) => <div key={`buscador-producto-${producto.id}`} className="mb-4 rounded-2xl border border-slate-200 overflow-hidden"><div className="bg-slate-50 p-4"><p className="font-black text-slate-900">{producto.descripcion || 'Producto sin descripción'}</p><p className="text-xs font-bold text-slate-500">Código: {producto.codigo || producto.codigoInterno || producto.codigoBarras || 'Sin código'}</p></div><div className="p-4">{ultimo ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-black text-emerald-800">Último cliente: {ultimo.cliente.nombre} · {formatearFecha(ultimo.fecha)} · {ultimo.etiqueta}</p> : <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800">No hay ventas asociadas.</p>}{ventas.slice(0, 10).map((registro) => <div key={`buscador-producto-venta-${registro.movimiento.id}`} className="flex justify-between gap-3 border-t border-slate-100 py-3 mt-3"><div><p className="text-sm font-black">{registro.cliente.nombre}</p><p className="text-[11px] font-bold text-slate-500">{registro.etiqueta} · {formatearFecha(registro.fecha)}</p></div><p className="text-sm font-black">{formatearDinero(registro.monto)}</p></div>)}</div></div>) : <p className="p-8 text-center text-sm font-bold text-slate-400">No se encontraron productos.</p>)}
+                  {busquedaAvanzada.tipo === 'remito' && (resultadosBuscadorAvanzado.remitos.length ? resultadosBuscadorAvanzado.remitos.map((registro) => <div key={`buscador-remito-${registro.movimiento.id}`} className="flex justify-between gap-3 border-b border-slate-100 py-3"><div><p className="font-black">{registro.etiqueta}</p><p className="text-xs font-bold text-slate-500">{registro.cliente.nombre} · {formatearFecha(registro.fecha)} · {registro.movimiento.descripcion || 'Venta registrada'}</p></div><p className="text-sm font-black text-emerald-700">{formatearDinero(registro.monto)}</p></div>) : <p className="p-8 text-center text-sm font-bold text-slate-400">No se encontraron remitos.</p>)}
+                </>
               )}
             </div>
           </div>
@@ -35665,7 +35780,7 @@ function obtenerCategoriaProducto(producto) {
                   <FilePlus2 size={14} /> Facturar Varios
                 </button>
                 {(() => {
-                  const actualizacionesPrecio = obtenerActualizacionesPrecioCuentaCliente(clienteSeleccionado, estado);
+                  const actualizacionesPrecio = actualizacionesPrecioPendientesCliente;
                   const puedeActualizarPrecios = usuarioTieneRolAdministrador(usuarioActual);
                   return (
                     <button
@@ -35674,7 +35789,7 @@ function obtenerCategoriaProducto(producto) {
                       title={actualizacionesPrecio.length ? 'Aplicar los aumentos pendientes de los productos vinculados por código' : 'No hay productos pendientes con aumento de precio'}
                       className="bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-50 disabled:bg-gray-200 disabled:text-gray-400 px-3 py-2 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all"
                     >
-                      <RefreshCw size={14} /> Actualizar precios{actualizacionesPrecio.length ? ` (${actualizacionesPrecio.length})` : ''}
+                      <RefreshCw size={14} /> Actualizar
                     </button>
                   );
                 })()}
@@ -35800,7 +35915,8 @@ function obtenerCategoriaProducto(producto) {
 	                    const cargoProcesado = esCargo ? (cargoProcesadoPorIdSeleccionado[mov.id] || null) : null;
 	                    const recargoTicket = Number(cargoProcesado?.recargoMora || 0);
 	                    const pagosAsignadosRemito = Array.isArray(cargoProcesado?.pagosAplicados) ? cargoProcesado.pagosAplicados : [];
-	                    const remitoSaldado = esCargo && !esRecargo && pendienteTicket <= 0.009;
+                    const remitoSaldado = esCargo && !esRecargo && pendienteTicket <= 0.009;
+                    const actualizacionPrecioPendiente = actualizacionesPrecioPorCargo[mov.id] || null;
                     const tipoAbonoCobro = esCobro
                       ? (mov.detallesPago?.tipoAbono === 'ticket_multi'
                         ? 'ticket_multi'
@@ -35844,6 +35960,11 @@ function obtenerCategoriaProducto(producto) {
                               {esCargo && pendienteTicket > 0.009 && diasDesdeMovimiento !== null && (
                                 <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-md ${semaforoTicket.badgeClass}`}>
                                   {semaforoTicket.texto}
+                                </span>
+                              )}
+                              {actualizacionPrecioPendiente && (
+                                <span className="inline-flex items-center gap-1 rounded-md border border-orange-300 bg-orange-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-orange-800" title={actualizacionPrecioPendiente.items.map((item) => item.descripcion || item.codigo).join(', ')}>
+                                  <AlertCircle size={12} /> Aumento pendiente
                                 </span>
                               )}
                           </div>
