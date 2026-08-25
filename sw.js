@@ -1,15 +1,15 @@
-const CACHE_NAME = 'seniorflow-flyer-gestion-20260825-29';
+const CACHE_NAME = 'seniorflow-flyer-gestion-20260825-30';
 const ASSETS = [
   './',
   './index.html',
   './stock-app.html',
   './stock-app.js?v=seniorflow-stock-mobile-20260807-08',
-  './app.js?v=seniorflow-flyer-gestion-20260825-29',
-  './firebase-config.js?v=seniorflow-online-firestore-20260825-29',
+  './app.js?v=seniorflow-flyer-gestion-20260825-30',
+  './firebase-config.js?v=seniorflow-online-firestore-20260825-30',
   './manifest.json',
   './manifest-stock-app.json?v=seniorflow-stock-mobile-20260807-08',
   './sw-stock-app.js?v=seniorflow-stock-mobile-20260807-08',
-  './ofertas.html?v=seniorflow-flyer-gestion-20260825-29',
+  './ofertas.html?v=seniorflow-flyer-gestion-20260825-30',
   './oferta-template-base.jpg',
   './logo-empresa-mundoled.png',
   './logo-ofertas-mundoled-white.png',
@@ -62,7 +62,7 @@ self.addEventListener('fetch', (event) => {
           url.pathname.endsWith('/stock-app.html')
             ? './stock-app.html'
             : url.pathname.endsWith('/ofertas.html')
-              ? './ofertas.html?v=seniorflow-flyer-gestion-20260825-29'
+              ? './ofertas.html?v=seniorflow-flyer-gestion-20260825-30'
               : './index.html',
           fresh.clone()
         );
@@ -72,7 +72,7 @@ self.addEventListener('fetch', (event) => {
           || (await caches.match(url.pathname.endsWith('/stock-app.html')
             ? './stock-app.html'
             : url.pathname.endsWith('/ofertas.html')
-              ? './ofertas.html?v=seniorflow-flyer-gestion-20260825-29'
+              ? './ofertas.html?v=seniorflow-flyer-gestion-20260825-30'
               : './index.html'));
       }
     })());
@@ -89,12 +89,12 @@ self.addEventListener('fetch', (event) => {
       } catch {
       return (await caches.match(event.request))
         || (await caches.match(url.pathname.endsWith('/firebase-config.js')
-          ? './firebase-config.js?v=seniorflow-online-firestore-20260825-29'
+          ? './firebase-config.js?v=seniorflow-online-firestore-20260825-30'
           : url.pathname.endsWith('/stock-app.js')
             ? './stock-app.js?v=seniorflow-stock-mobile-20260807-08'
             : url.pathname.endsWith('/ofertas.html')
-            ? './ofertas.html?v=seniorflow-flyer-gestion-20260825-29'
-            : './app.js?v=seniorflow-flyer-gestion-20260825-29'));
+            ? './ofertas.html?v=seniorflow-flyer-gestion-20260825-30'
+            : './app.js?v=seniorflow-flyer-gestion-20260825-30'));
       }
     })());
     return;
