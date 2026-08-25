@@ -7,14 +7,14 @@ import {
   LogOut, User, UserCog, UserPlus, ShieldCheck, Settings, Image as ImageIcon,
   Search, Loader2, ClipboardList, Send, FilePlus2, CheckCircle, XCircle, Package, Truck,
   Eye, EyeOff, Copy, Monitor, ShoppingCart, Layers, BookOpen,
-  Camera, ScanBarcode, ArrowDownCircle, Mail, MapPin, Globe, History, Download, Upload, Paperclip, ChevronDown, ChevronRight, Bell, Landmark, Undo2
+  Camera, ScanBarcode, ArrowDownCircle, Mail, MapPin, Globe, History, Download, Upload, Paperclip, ChevronDown, ChevronRight, Bell, Landmark, Undo2, RefreshCw
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { COMPANY_RUNTIME_CONFIG } from './company-runtime-config.js';
 
 // --- INTEGRACIÓN FIREBASE ---
-import { auth, db, storage } from './firebase-config.js?v=seniorflow-offline-firestore-20260817-01';
+import { auth, db, storage } from './firebase-config.js?v=seniorflow-online-firestore-20260825-17';
 import { signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { collection as firestoreCollection, doc as firestoreDoc, setDoc, onSnapshot, deleteDoc, updateDoc, addDoc, increment, getDocs, arrayUnion } from 'firebase/firestore';
 import { ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
@@ -69,6 +69,10 @@ const parseNumeroBasico = (valor) => {
 // Importes de caja: un punto o una coma seguido de tres dígitos es separador
 // de miles (por ejemplo, "35.000" debe ser 35000).
 const parseImporteCajaHistorico = (valor) => {
+  // Firestore entrega los importes numéricos como number. En ese caso el
+  // punto es decimal, aunque haya exactamente tres dígitos después (por
+  // ejemplo 90809.787), y nunca debe reinterpretarse como separador de miles.
+  if (typeof valor === 'number') return Number.isFinite(valor) ? valor : 0;
   const textoOriginal = (valor ?? '').toString().trim();
   if (!textoOriginal) return 0;
   const textoAnalisis = textoOriginal.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -512,6 +516,7 @@ const esMovimientoCargoCuentaCorriente = (mov = null) => {
   if (mov.tipo === 'saldo_inicial_cc') return true;
   if (esRecargoMoraMovimiento(mov)) return normalizarMetodoPago(mov.metodoPago) === 'cuenta_corriente';
   if (mov?.detallesPago?.tipoComprobante === 'nota_credito') return false;
+  if (mov.tipo === 'actualizacion_precio_cc') return normalizarMetodoPago(mov.metodoPago) === 'cuenta_corriente';
   return (mov.tipo === 'venta' || mov.tipo === 'ingreso_extra') && normalizarMetodoPago(mov.metodoPago) === 'cuenta_corriente';
 };
 const esMovimientoDescuentoCuentaCorriente = (mov = null) => {
@@ -3579,16 +3584,17 @@ function AppInterna() {
   const calcularTotalesMovimientosCaja = (listaMovimientos = []) => {
     let ventas = 0; let gastos = 0; let otrosIngresos = 0; let ingresosEfectivo = 0; let egresosEfectivo = 0; let retirosEfectivo = 0;
     listaMovimientos.forEach((m) => {
+      const monto = parseImporteCajaHistorico(m?.monto);
       const signoVenta = obtenerSignoPuntoVenta(m);
-      if (m.tipo === 'venta') ventas += signoVenta * m.monto;
-      if (m.tipo === 'gasto') gastos += m.monto;
-      if (m.tipo === 'ingreso_extra') otrosIngresos += m.monto;
+      if (m.tipo === 'venta') ventas += signoVenta * monto;
+      if (m.tipo === 'gasto') gastos += monto;
+      if (m.tipo === 'ingreso_extra') otrosIngresos += monto;
 
       if (m.metodoPago === 'efectivo') {
-        if (m.tipo === 'venta' && signoVenta < 0) egresosEfectivo += m.monto;
-        if ((m.tipo === 'venta' && signoVenta > 0) || m.tipo === 'cobro' || m.tipo === 'ingreso_extra') ingresosEfectivo += m.monto;
-        if (m.tipo === 'gasto') egresosEfectivo += m.monto;
-        if (m.tipo === 'retiro_caja') retirosEfectivo += m.monto;
+        if (m.tipo === 'venta' && signoVenta < 0) egresosEfectivo += monto;
+        if ((m.tipo === 'venta' && signoVenta > 0) || m.tipo === 'cobro' || m.tipo === 'ingreso_extra') ingresosEfectivo += monto;
+        if (m.tipo === 'gasto') egresosEfectivo += monto;
+        if (m.tipo === 'retiro_caja') retirosEfectivo += monto;
       }
     });
     return {
@@ -8542,13 +8548,13 @@ const abrirPuntoVenta = () => {
         clienteNombre = 'Consumidor Final';
         clienteWhatsapp = '';
       } else {
-        const ref = await addDoc(collection(db, 'clientes'), {
+        const ref = await promesaConTimeout(addDoc(collection(db, 'clientes'), {
           numero: obtenerSiguienteNumeroCliente(),
           nombre: nombreNuevo,
           whatsapp: textoSeguroTrim(formPuntoVenta.whatsapp, ''),
           saldo: 0,
           esEspecial: false
-        });
+        }), 15000, 'La creación del cliente tardó demasiado. Revisá la conexión e intentá nuevamente.');
         clienteId = ref.id;
         clienteNombre = nombreNuevo;
         clienteWhatsapp = textoSeguroTrim(formPuntoVenta.whatsapp, '');
@@ -8581,7 +8587,7 @@ const abrirPuntoVenta = () => {
         if (clienteOriginal) {
           const signoOriginal = originalDetalles?.tipoComprobante === 'nota_credito' ? 1 : -1;
           const saldoAjustado = Math.max(0, Number(clienteOriginal.saldo || 0) + (signoOriginal * Number(movimientoOriginal?.monto || 0)));
-          await updateDoc(doc(db, 'clientes', originalClienteId), { saldo: saldoAjustado });
+          await promesaConTimeout(updateDoc(doc(db, 'clientes', originalClienteId), { saldo: saldoAjustado }), 15000, 'La actualización del cliente tardó demasiado.');
           if (originalClienteId === clienteId) saldoBaseClienteDestino = saldoAjustado;
         }
       }
@@ -8618,7 +8624,7 @@ const abrirPuntoVenta = () => {
         ? Math.max(0, saldoActual - total)
         : saldoActual + total;
       try {
-        await updateDoc(doc(db, 'clientes', clienteId), { saldo: saldoActualizado });
+        await promesaConTimeout(updateDoc(doc(db, 'clientes', clienteId), { saldo: saldoActualizado }), 15000, 'La actualización de la cuenta corriente tardó demasiado.');
       } catch (error) {
         console.error('No se pudo actualizar la cuenta corriente antes de guardar la venta', error);
         liberarBloqueoVenta();
@@ -8630,6 +8636,14 @@ const abrirPuntoVenta = () => {
       }
     }
 
+    // Las imágenes en base64 no son necesarias para la venta y pueden hacer
+    // que el documento supere el límite de Firestore. Se conserva la URL
+    // normal, pero se excluyen las imágenes pesadas del comprobante guardado.
+    const itemsVentaFirestore = itemsVentaNormalizados.map((item) => ({
+      ...item,
+      imagen: esDataUrlPesada(item?.imagen) ? '' : item?.imagen,
+      logoMarca: esDataUrlPesada(item?.logoMarca) ? '' : item?.logoMarca
+    }));
     const payloadVenta = {
       tipo: 'venta',
       monto: total,
@@ -8686,7 +8700,7 @@ const abrirPuntoVenta = () => {
           tarjetaValorCuota: financiacionTarjetaVenta.cuota,
           tarjetaNetoEstimado: financiacionTarjetaVenta.netoEstimado
         } : {}),
-        items: itemsVentaNormalizados
+        items: itemsVentaFirestore
       },
       fecha: fechaMovimiento,
       usuario: usuarioActual?.nombre || usuarioActual?.username || 'Sistema'
@@ -8695,15 +8709,15 @@ const abrirPuntoVenta = () => {
 
     try {
       if (movimientoOriginal?.id) {
-        await updateDoc(doc(db, 'movimientos', movimientoOriginal.id), payloadVentaFirestore);
+        await promesaConTimeout(updateDoc(doc(db, 'movimientos', movimientoOriginal.id), payloadVentaFirestore), 20000, 'La actualización de la venta tardó demasiado. Revisá la conexión e intentá nuevamente.');
       } else {
-        await addDoc(collection(db, 'movimientos'), payloadVentaFirestore);
+        await promesaConTimeout(addDoc(collection(db, 'movimientos'), payloadVentaFirestore), 20000, 'El guardado de la venta tardó demasiado. Revisá la conexión e intentá nuevamente.');
       }
-      await aplicarImpactoStockPuntoVenta({
+      await promesaConTimeout(aplicarImpactoStockPuntoVenta({
         movimientoOriginal,
         itemsNuevos: itemsVentaNormalizados,
         tipoComprobanteNuevo: tipoComp
-      });
+      }), 20000, 'La actualización del stock tardó demasiado. La venta pudo guardarse; revisá el listado antes de repetirla.');
     } catch (error) {
       console.error('No se pudo guardar la venta', error);
       liberarBloqueoVenta();
@@ -8842,6 +8856,86 @@ const abrirPuntoVenta = () => {
       if (itemsOrigen.length) return itemsOrigen;
     }
     return [];
+  };
+
+  const obtenerActualizacionesPrecioCuentaCliente = (cliente = null, estado = null) => {
+    if (!cliente) return [];
+    const estadoCuenta = estado || calcularEstadoCuentaCliente(cliente);
+    const productosPorCodigo = new Map();
+    (productos || []).forEach((producto) => {
+      [producto?.codigo, producto?.codigoInterno, producto?.codigoBarras]
+        .map((codigo) => normalizarCodigoParaComparar(codigo || ''))
+        .filter(Boolean)
+        .forEach((codigo) => productosPorCodigo.set(codigo, producto));
+    });
+    const cambios = [];
+    (estadoCuenta.cargosProcesados || [])
+      .filter((cargo) => !esRecargoMoraMovimiento(cargo) && Number(cargo.pendiente || 0) > 0.009)
+      .forEach((cargo) => {
+        const proporcionPendiente = Math.min(1, Math.max(0, Number(cargo.pendiente || 0) / Math.max(0.01, Number(cargo.montoOriginal || cargo.monto || 0))));
+        const cambiosPorProducto = new Map();
+        obtenerItemsDocumentoVenta(cargo).forEach((item) => {
+          const producto = (item?.productoId ? (productos || []).find((p) => p.id === item.productoId) : null)
+            || productosPorCodigo.get(normalizarCodigoParaComparar(item?.codigo || ''));
+          const precioAnterior = Math.max(0, parseNumeroBasico(item?.precio || item?.precioUnitario || 0));
+          const precioNuevo = producto ? Math.max(0, obtenerPrecioVentaProductoActualizado(producto)) : 0;
+          const cantidad = Math.max(0, parseNumeroBasico(item?.cantidad) || 0);
+          if (!producto?.id || cantidad <= 0 || precioNuevo <= precioAnterior + 0.009) return;
+          const cambio = cambiosPorProducto.get(producto.id) || {
+            productoId: producto.id,
+            codigo: textoSeguroTrim(producto.codigo || item.codigo, ''),
+            descripcion: textoSeguroTrim(item.descripcion || producto.descripcion, 'Producto'),
+            cantidad: 0,
+            precioAnterior,
+            precioNuevo
+          };
+          cambio.cantidad += cantidad;
+          cambio.precioAnterior = Math.min(cambio.precioAnterior, precioAnterior);
+          cambio.precioNuevo = Math.max(cambio.precioNuevo, precioNuevo);
+          cambiosPorProducto.set(producto.id, cambio);
+        });
+        const itemsActualizados = Array.from(cambiosPorProducto.values())
+          .map((item) => ({ ...item, diferencia: Math.round(((item.precioNuevo - item.precioAnterior) * item.cantidad * proporcionPendiente) * 100) / 100 }))
+          .filter((item) => item.diferencia > 0.009);
+        if (!itemsActualizados.length) return;
+        const yaAplicado = (movimientos || []).some((mov) => (
+          mov?.tipo === 'actualizacion_precio_cc'
+          && mov?.detallesPago?.cargoOrigenId === cargo.id
+          && mov?.detallesPago?.items?.some((item) => itemsActualizados.some((actual) => (
+            item?.productoId === actual.productoId && Number(item?.precioNuevo || 0) >= Number(actual.precioNuevo || 0) - 0.009
+          )))
+        ));
+        if (!yaAplicado) cambios.push({ cargoOrigenId: cargo.id, cargoDescripcion: cargo.descripcion || 'Remito', items: itemsActualizados });
+      });
+    return cambios;
+  };
+
+  const aplicarActualizacionPreciosCuentaCliente = async () => {
+    if (!usuarioTieneRolAdministrador(usuarioActual) || !clienteSeleccionado) return;
+    const cambios = obtenerActualizacionesPrecioCuentaCliente(clienteSeleccionado, calcularEstadoCuentaCliente(clienteSeleccionado));
+    if (!cambios.length) {
+      await notificarSistema('No hay productos pendientes con un precio actualizado para esta cuenta.', { tipo: 'info', titulo: 'Sin actualización' });
+      return;
+    }
+    try {
+      let totalActualizado = 0;
+      for (const cambio of cambios) {
+        const monto = cambio.items.reduce((total, item) => total + item.diferencia, 0);
+        if (monto <= 0.009) continue;
+        totalActualizado += monto;
+        await addDoc(collection(db, 'movimientos'), limpiarDatoFirestore({
+          tipo: 'actualizacion_precio_cc', monto,
+          descripcion: `Actualización de precios • ${cambio.cargoDescripcion}`,
+          metodoPago: 'cuenta_corriente', noImpactaCaja: true, fecha: new Date().toISOString(),
+          usuario: usuarioActual?.nombre || usuarioActual?.username || 'Sistema',
+          detallesPago: { origen: 'actualizacion_precio_inventario', esActualizacionPrecioCuenta: true, clienteId: clienteSeleccionado.id, cliente: clienteSeleccionado.nombre || '', cargoOrigenId: cambio.cargoOrigenId, items: cambio.items }
+        }));
+      }
+      await notificarSistema(`Se actualizaron ${cambios.reduce((total, cambio) => total + cambio.items.length, 0)} producto(s) por ${formatearDinero(totalActualizado)}.`, { tipo: 'success', titulo: 'Precios actualizados' });
+    } catch (error) {
+      console.error('Error al actualizar precios de cuenta corriente', error);
+      await notificarSistema('No se pudieron actualizar los precios de esta cuenta corriente.', { tipo: 'error', titulo: 'Error de actualización' });
+    }
   };
 
   const obtenerClaveDevolucionItem = (item = {}, index = 0) => {
@@ -10337,15 +10431,23 @@ const abrirPuntoVenta = () => {
         await notificarSistema('La caja ya está abierta. Cerrá el turno actual antes de iniciar otro.', { tipo: 'warning', titulo: 'Caja ya abierta' });
         return;
       }
-      const ultimoCierre = obtenerUltimoCierreCaja();
+      // El fondo queda editable antes de confirmar la apertura para poder
+      // corregir cierres históricos o importes mal cargados.
+      const efectivoApertura = parseMontoCaja(formData.efectivo);
+      // Los cheques se registran como movimiento con la caja abierta.
+      const chequesApertura = 0;
+      if (!Number.isFinite(efectivoApertura) || efectivoApertura < 0) {
+        await notificarSistema('Ingresá un importe válido para abrir la caja.', { tipo: 'warning', titulo: 'Importe inválido' });
+        return;
+      }
       const docRef = doc(db, 'sistema', 'caja');
       await setDoc(docRef, {
         estado: 'abierta',
-        efectivoInicial: ultimoCierre.efectivo,
-        chequesInicial: ultimoCierre.cheques,
+        efectivoInicial: efectivoApertura,
+        chequesInicial: chequesApertura,
         fechaApertura: new Date().toISOString(),
-        aperturaEfectivo: ultimoCierre.efectivo,
-        aperturaCheques: ultimoCierre.cheques
+        aperturaEfectivo: efectivoApertura,
+        aperturaCheques: chequesApertura
       }, { merge: true });
       setFormData({ monto: '', efectivo: '', cheques: '', tieneCheques: false, descripcion: '', metodoPago: 'efectivo', detallesPago: {} });
       setModalActivo(null);
@@ -31785,51 +31887,24 @@ function obtenerCategoriaProducto(producto) {
         <Modal titulo="Abrir Caja" onClose={() => setModalActivo(null)}>
           <form onSubmit={abrirCaja} className="space-y-4">
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs font-bold text-blue-800">
-              La apertura toma automáticamente el último cierre guardado. El importe no se puede modificar manualmente.
+              Revisá y corregí el efectivo inicial antes de confirmar la apertura. Los cheques se registran con la caja abierta.
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">Fondo inicial en efectivo</label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-black text-xl">$</span>
                 <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   required
                   value={formData.efectivo}
-                  readOnly
+                  readOnly={false}
+                  onChange={(e) => setFormData({ ...formData, efectivo: e.target.value })}
                   className="w-full pl-10 pr-4 py-3 bg-white border-2 border-blue-200 rounded-xl text-2xl font-black text-blue-700 outline-none focus:border-blue-600"
-                  placeholder="0.00"
+                  placeholder="0,00"
                   autoFocus
                 />
               </div>
-            </div>
-
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={!!formData.tieneCheques}
-                  disabled
-                  onChange={(e) => setFormData({ ...formData, tieneCheques: e.target.checked, cheques: e.target.checked ? formData.cheques : '' })}
-                  className="w-4 h-4"
-                />
-                <span className="text-xs font-bold text-orange-800 uppercase tracking-wider">Incluye cheques al abrir</span>
-              </label>
-              {formData.tieneCheques && (
-                <div className="mt-3 relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-orange-400 font-black">$</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.cheques}
-                    readOnly
-                    className="w-full pl-8 pr-3 py-2.5 bg-white border border-orange-200 rounded-lg font-bold text-sm outline-none focus:border-orange-500"
-                    placeholder="Monto total en cheques"
-                  />
-                </div>
-              )}
             </div>
 
             <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl text-sm uppercase tracking-wider">
@@ -35589,6 +35664,20 @@ function obtenerCategoriaProducto(producto) {
                 >
                   <FilePlus2 size={14} /> Facturar Varios
                 </button>
+                {(() => {
+                  const actualizacionesPrecio = obtenerActualizacionesPrecioCuentaCliente(clienteSeleccionado, estado);
+                  const puedeActualizarPrecios = usuarioTieneRolAdministrador(usuarioActual);
+                  return (
+                    <button
+                      disabled={!puedeActualizarPrecios || actualizacionesPrecio.length === 0}
+                      onClick={aplicarActualizacionPreciosCuentaCliente}
+                      title={actualizacionesPrecio.length ? 'Aplicar los aumentos pendientes de los productos vinculados por código' : 'No hay productos pendientes con aumento de precio'}
+                      className="bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-50 disabled:bg-gray-200 disabled:text-gray-400 px-3 py-2 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all"
+                    >
+                      <RefreshCw size={14} /> Actualizar precios{actualizacionesPrecio.length ? ` (${actualizacionesPrecio.length})` : ''}
+                    </button>
+                  );
+                })()}
                 {(usuarioActual?.rol || '').toLowerCase() === 'admin' && (
                   <button
                     onClick={() => abrirRecargosCliente(clienteSeleccionado)}
