@@ -14,7 +14,7 @@ import autoTable from 'jspdf-autotable';
 import { COMPANY_RUNTIME_CONFIG } from './company-runtime-config.js';
 
 // --- INTEGRACIÓN FIREBASE ---
-import { auth, db, storage } from './firebase-config.js?v=seniorflow-online-firestore-20260825-21';
+import { auth, db, storage } from './firebase-config.js?v=seniorflow-online-firestore-20260825-29';
 import { signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { collection as firestoreCollection, doc as firestoreDoc, setDoc, onSnapshot, deleteDoc, updateDoc, addDoc, increment, getDocs, arrayUnion } from 'firebase/firestore';
 import { ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
@@ -137,6 +137,7 @@ const clonarEstructuraSimple = (valor) => {
 const normalizarTextoBusqueda = (valor = '') => valor.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 const normalizarMetodoPago = (valor = '') => normalizarTextoBusqueda(valor).replace(/\s+/g, '_');
 const normalizarCodigoParaComparar = (valor = '') => (valor ?? '').toString().trim().toLowerCase();
+const normalizarCodigoNumericoParaComparar = (valor = '') => normalizarCodigoParaComparar(valor).replace(/\D/g, '').replace(/^0+/, '') || '';
 const escaparHtmlPantallaCliente = (valor = '') => (valor ?? '').toString()
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
@@ -8934,7 +8935,7 @@ const abrirPuntoVenta = () => {
     const productosPorCodigo = new Map();
     (productos || []).forEach((producto) => {
       [producto?.codigo, producto?.codigoInterno, producto?.codigoBarras]
-        .map((codigo) => normalizarCodigoParaComparar(codigo || ''))
+        .flatMap((codigo) => [normalizarCodigoParaComparar(codigo || ''), normalizarCodigoNumericoParaComparar(codigo || '')])
         .filter(Boolean)
         .forEach((codigo) => productosPorCodigo.set(codigo, producto));
     });
@@ -8945,10 +8946,28 @@ const abrirPuntoVenta = () => {
         const proporcionPendiente = Math.min(1, Math.max(0, Number(cargo.pendiente || 0) / Math.max(0.01, Number(cargo.montoOriginal || cargo.monto || 0))));
         const cambiosPorProducto = new Map();
         obtenerItemsDocumentoVenta(cargo).forEach((item) => {
-          const producto = (item?.productoId ? (productos || []).find((p) => p.id === item.productoId) : null)
-            || productosPorCodigo.get(normalizarCodigoParaComparar(item?.codigo || ''));
+          const producto = (item?.productoId
+            ? (productos || []).find((p) => String(p?.id || '') === String(item.productoId))
+              || productosPorCodigo.get(normalizarCodigoParaComparar(item.productoId))
+            : null)
+            || [item?.codigo, item?.codigoProducto, item?.codigoInterno, item?.sku]
+              .flatMap((codigo) => [normalizarCodigoParaComparar(codigo || ''), normalizarCodigoNumericoParaComparar(codigo || '')])
+              .map((codigo) => productosPorCodigo.get(codigo))
+              .find(Boolean);
           const precioAnterior = Math.max(0, parseNumeroBasico(item?.precio || item?.precioUnitario || 0));
-          const precioNuevo = producto ? Math.max(0, obtenerPrecioVentaProductoActualizado(producto)) : 0;
+          // La actualización masiva de inventario guarda el precio directamente en el producto.
+          // Usarlo primero evita que una excepción en una regla secundaria de precios oculte el aumento.
+          const precioNuevoDirecto = producto
+            ? parseNumeroBasico(producto?.precio ?? producto?.precioVenta ?? producto?.precioActual ?? 0)
+            : 0;
+          let precioNuevo = Math.max(0, precioNuevoDirecto);
+          if (!(precioNuevo > 0) && producto) {
+            try {
+              precioNuevo = Math.max(0, obtenerPrecioVentaProductoActualizado(producto));
+            } catch (error) {
+              console.error('No se pudo obtener el precio actualizado del producto', producto?.codigo, error);
+            }
+          }
           const cantidad = Math.max(0, parseNumeroBasico(item?.cantidad) || 0);
           if (!producto?.id || cantidad <= 0 || precioNuevo <= precioAnterior + 0.009) return;
           const cambio = cambiosPorProducto.get(producto.id) || {
@@ -9009,13 +9028,37 @@ const abrirPuntoVenta = () => {
   };
 
   const actualizacionesPrecioPendientesCliente = useMemo(
-    () => clienteSeleccionado ? obtenerActualizacionesPrecioCuentaCliente(clienteSeleccionado, estadoCuentaClienteSeleccionado) : [],
+    () => {
+      if (!clienteSeleccionado) return [];
+      try {
+        return obtenerActualizacionesPrecioCuentaCliente(clienteSeleccionado, estadoCuentaClienteSeleccionado);
+      } catch (error) {
+        console.error('No se pudieron calcular aumentos pendientes de la cuenta corriente', error);
+        return [];
+      }
+    },
     [clienteSeleccionado, estadoCuentaClienteSeleccionado, movimientos, productos]
   );
   const actualizacionesPrecioPorCargo = useMemo(
     () => Object.fromEntries(actualizacionesPrecioPendientesCliente.map((cambio) => [cambio.cargoOrigenId, cambio])),
     [actualizacionesPrecioPendientesCliente]
   );
+  const ultimaNotificacionAumentoCuentaRef = useRef('');
+  useEffect(() => {
+    if (!clienteSeleccionado || !actualizacionesPrecioPendientesCliente.length) return;
+    const cargos = actualizacionesPrecioPendientesCliente.map((cambio) => cambio.cargoOrigenId).sort();
+    const clave = `${clienteSeleccionado.id}:${cargos.join(',')}`;
+    if (ultimaNotificacionAumentoCuentaRef.current === clave) return;
+    ultimaNotificacionAumentoCuentaRef.current = clave;
+    const nombres = actualizacionesPrecioPendientesCliente
+      .map((cambio) => cambio.cargoDescripcion || 'Remito')
+      .slice(0, 4)
+      .join(' · ');
+    notificarSistema(`Hay productos con aumento pendiente en ${actualizacionesPrecioPendientesCliente.length} remito(s): ${nombres}.`, {
+      tipo: 'error',
+      titulo: 'Actualización de precios pendiente'
+    });
+  }, [clienteSeleccionado?.id, actualizacionesPrecioPendientesCliente]);
 
   const obtenerClaveDevolucionItem = (item = {}, index = 0) => {
     const productoId = textoSeguroTrim(item?.productoId, '');
@@ -18671,8 +18714,14 @@ function obtenerCategoriaProducto(producto) {
   const normalizarCodigoNumerico = (valor) => normalizarCodigoProducto(valor).replace(/\D/g, '').replace(/^0+/, '');
   const parseNumeroImportacion = (valor) => {
     if (valor === null || valor === undefined) return null;
+    if (typeof valor === 'number') return Number.isFinite(valor) ? valor : null;
     const texto = valor.toString().trim().replace(/\s/g, '').replace(/[^0-9,.\-]/g, '');
     if (!texto) return null;
+    const textoCientifico = valor.toString().trim().replace(',', '.');
+    if (/^-?(?:\d+\.?\d*|\.\d+)e[+-]?\d+$/i.test(textoCientifico)) {
+      const cientifico = Number(textoCientifico);
+      return Number.isFinite(cientifico) ? cientifico : null;
+    }
     const ultimoPunto = texto.lastIndexOf('.');
     const ultimaComa = texto.lastIndexOf(',');
     let normalizado = texto;
@@ -19014,7 +19063,7 @@ function obtenerCategoriaProducto(producto) {
 
       for (let inicioFila = 0; inicioFila < filas.length; inicioFila += 25) {
         const loteFilas = filas.slice(inicioFila, inicioFila + 25);
-        await Promise.all(loteFilas.map(async (fila) => {
+        for (const fila of loteFilas) {
         const codigoRaw = obtenerValorColumnaImportacion(fila, colCodigoProducto);
         const codigoProveedorRaw = obtenerValorColumnaImportacion(fila, colCodigoProveedor);
         const descripcion = textoSeguroTrim(obtenerValorColumnaImportacion(fila, colDescripcion), '');
@@ -19213,7 +19262,7 @@ function obtenerCategoriaProducto(producto) {
           creados += 1;
           marcarFilaProcesada();
         }
-        }));
+        }
       }
 
       setResumenImportacionInventario({ total: filas.length, actualizados, creados, sinCoincidencia, sinCodigo, filasInvalidas, sinCambios, omitidosPorExistentes });
@@ -25724,6 +25773,9 @@ function obtenerCategoriaProducto(producto) {
         .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout > div:first-child > .mt-3.grid > div { flex:1; border:0; border-radius:0; background:transparent; padding:7px 12px; }
         .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout > div:first-child > .mt-3.grid > div + div { border-left:1px solid #e5eeed; }
         .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout > div:first-child > .mt-3.flex { margin-top:10px; }
+        .sf-enterprise-shell .sf-client-account-modal .sf-client-account-actions { display:flex !important; flex-wrap:wrap !important; align-items:center !important; column-gap:8px !important; row-gap:8px !important; }
+        .sf-enterprise-shell .sf-client-account-modal .sf-client-account-actions > button { flex:0 0 auto !important; min-width:max-content !important; width:max-content !important; display:inline-flex !important; margin:0 !important; }
+        .sf-enterprise-shell .sf-client-account-modal .sf-client-account-actions > .sf-client-update-price-action { margin-left:12px !important; position:relative !important; z-index:1 !important; }
         .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout > div:first-child > .mt-3.flex > button { min-height:31px; padding:.38rem .6rem; border-radius:5px; border-color:#d8e4e6; background:#fff; color:#52647b; box-shadow:none; }
         .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout > div:first-child > .mt-3.flex > button:nth-child(5) { border-color:#0f8d87; background:#0f8d87; color:#fff; }
         .sf-enterprise-shell .sf-client-account-history-card { border-radius:8px; border-color:#dfe8ee; }
@@ -35738,7 +35790,7 @@ function obtenerCategoriaProducto(producto) {
                   <p className="font-black">{Number(estado.cantidadRemitosVencidos || 0)}{Number(clienteSeleccionado.plazoCuentaCorrienteDias || 0) > 0 ? ` · ${clienteSeleccionado.plazoCuentaCorrienteDias} días` : ''}</p>
                 </div>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="sf-client-account-actions mt-3 flex flex-wrap gap-2">
                 <button
                   onClick={() => abrirFormularioCliente(clienteSeleccionado)}
                   className="bg-white border border-purple-200 text-purple-700 hover:bg-purple-100 px-3 py-2 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all"
@@ -35775,7 +35827,7 @@ function obtenerCategoriaProducto(producto) {
                 <button
                   disabled={remitosFacturablesClienteSeleccionado.length === 0}
                   onClick={() => abrirFacturacionVariosCliente(clienteSeleccionado)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:bg-gray-200 disabled:text-gray-400 px-3 py-2 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all"
+                  className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:bg-gray-200 disabled:text-gray-400 px-3 py-2 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0"
                 >
                   <FilePlus2 size={14} /> Facturar Varios
                 </button>
@@ -35787,7 +35839,7 @@ function obtenerCategoriaProducto(producto) {
                       disabled={!puedeActualizarPrecios || actualizacionesPrecio.length === 0}
                       onClick={aplicarActualizacionPreciosCuentaCliente}
                       title={actualizacionesPrecio.length ? 'Aplicar los aumentos pendientes de los productos vinculados por código' : 'No hay productos pendientes con aumento de precio'}
-                      className="bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-50 disabled:bg-gray-200 disabled:text-gray-400 px-3 py-2 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all"
+                      className="sf-client-update-price-action bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:bg-gray-200 disabled:text-gray-400 px-3 py-2 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all order-last whitespace-nowrap shrink-0"
                     >
                       <RefreshCw size={14} /> Actualizar
                     </button>
@@ -35963,8 +36015,9 @@ function obtenerCategoriaProducto(producto) {
                                 </span>
                               )}
                               {actualizacionPrecioPendiente && (
-                                <span className="inline-flex items-center gap-1 rounded-md border border-orange-300 bg-orange-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-orange-800" title={actualizacionPrecioPendiente.items.map((item) => item.descripcion || item.codigo).join(', ')}>
-                                  <AlertCircle size={12} /> Aumento pendiente
+                                <span className="inline-flex items-center gap-1.5 rounded-md border border-red-300 bg-red-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-red-800" title={actualizacionPrecioPendiente.items.map((item) => item.descripcion || item.codigo).join(', ')}>
+                                  <span className="h-2 w-2 shrink-0 rounded-full bg-red-600 animate-pulse" aria-hidden="true" />
+                                  <AlertCircle size={12} /> Actualización pendiente
                                 </span>
                               )}
                           </div>
