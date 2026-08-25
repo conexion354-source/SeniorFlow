@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -15,17 +15,10 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-// Firestore mantiene una copia local y encola escrituras cuando no hay red.
-// Si el navegador no soporta persistencia, conserva el comportamiento online.
-let db;
-try {
-  db = initializeFirestore(app, {
-    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-  });
-} catch (error) {
-  console.warn('Persistencia offline no disponible; se usa Firestore online.', error);
-  db = getFirestore(app);
-}
+// La caja y los movimientos deben reflejar siempre el estado compartido de
+// Firebase. No se habilita persistencia IndexedDB para evitar que una PC
+// opere con una copia local vieja de la caja.
+const db = getFirestore(app);
 const storage = getStorage(app);
 
 export { auth, db, storage, firebaseConfig };

@@ -892,8 +892,11 @@
       const merchantDiscount = normalized.descuentoComercio / 100;
       const extraCharges = normalized.otrosCargosPorcentaje / 100;
       const fixedCharge = normalized.cargoFijo;
-      const divisor = Math.max(0.0001, 1 - merchantDiscount - extraCharges);
-      const total = Math.max(0, (amount + fixedCharge) / divisor);
+      // Debe coincidir con Ventas: otros cargos afectan el divisor y el
+      // descuento financiero se aplica después sobre la base de venta.
+      const divisor = Math.max(0.0001, 1 - extraCharges);
+      const baseVenta = Math.max(0, (amount + fixedCharge) / divisor);
+      const total = baseVenta * (1 + merchantDiscount);
       const centsPerInstallment = Math.ceil((total * 100) / normalized.cuotas);
       const installment = centsPerInstallment / 100;
       return {
