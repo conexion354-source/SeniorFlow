@@ -3693,7 +3693,7 @@ function AppInterna() {
     });
     
     let ventas = 0; let ventasCobradas = 0; let otrosIngresos = 0; let cobros = 0;
-    let gastosOperativos = 0; let pagosProveedores = 0; let retirosCaja = 0;
+    let gastosOperativos = 0; let pagosProveedoresReporteTotal = 0; let retirosCaja = 0;
 
     movsFiltrados.forEach((m) => {
       const monto = Math.max(0, parseNumeroBasico(m?.monto) || 0);
@@ -3715,16 +3715,16 @@ function AppInterna() {
       if (m.tipo === 'ingreso_extra') otrosIngresos += monto;
       if (m.tipo === 'cobro') cobros += monto;
       if (m.tipo === 'gasto') {
-        if (esPagoProveedor) pagosProveedores += monto;
+        if (esPagoProveedor) pagosProveedoresReporteTotal += monto;
         else gastosOperativos += monto;
       }
       if (m.tipo === 'retiro_caja') retirosCaja += monto;
     });
     pagosProveedoresReporte.forEach((pago) => {
-      pagosProveedores += Math.max(0, parseNumeroBasico(pago?.monto) || 0);
+      pagosProveedoresReporteTotal += Math.max(0, parseNumeroBasico(pago?.monto) || 0);
     });
 
-    const egresos = gastosOperativos + pagosProveedores;
+    const egresos = gastosOperativos + pagosProveedoresReporteTotal;
     // Resultado del negocio: no suma cobros para no duplicar ventas que antes fueron a cuenta corriente.
     const neto = ventas + otrosIngresos - egresos;
     // Flujo disponible: solamente dinero efectivamente cobrado, menos egresos y retiros.
@@ -3812,7 +3812,7 @@ function AppInterna() {
       movimientos: movsFiltrados,
       pagosProveedoresDetalle: pagosProveedoresReporte,
       ventas, ventasCobradas, otrosIngresos, cobros,
-      gastosOperativos, pagosProveedores, egresos, retiros: retirosCaja,
+      gastosOperativos, pagosProveedores: pagosProveedoresReporteTotal, egresos, retiros: retirosCaja,
       neto, flujoNeto, inicio, fin, impuestos, vendedores: reporteVendedores, tarjetas: reporteTarjetas
     };
   }, [movimientos, pagosProveedores, pedidosCompra, productos, vendedores, retirosVendedores, reporteTiempo, reporteMesSeleccionado, reporteFechaDesdeReporte, reporteFechaHastaReporte]);
