@@ -14,7 +14,7 @@ import autoTable from 'jspdf-autotable';
 import { COMPANY_RUNTIME_CONFIG } from './company-runtime-config.js';
 
 // --- INTEGRACIÓN FIREBASE ---
-import { auth, db, storage } from './firebase-config.js?v=seniorflow-online-firestore-20260825-29';
+import { auth, db, storage } from './firebase-config.js?v=seniorflow-online-firestore-20260825-33';
 import { signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { collection as firestoreCollection, doc as firestoreDoc, setDoc, onSnapshot, deleteDoc, updateDoc, addDoc, increment, getDocs, arrayUnion } from 'firebase/firestore';
 import { ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
@@ -2571,10 +2571,10 @@ function AppInterna() {
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null); 
   const [modalActivo, setModalActivo] = useState(null); 
   const [ventaAsignarVendedor, setVentaAsignarVendedor] = useState(null);
-  const [formAsignacionVendedor, setFormAsignacionVendedor] = useState({ vendedorId: '', porcentaje: '' });
+  const [formAsignacionVendedor, setFormAsignacionVendedor] = useState({ vendedorId: '', porcentaje: '', aplicarAlPrecio: false });
   const [guardandoAsignacionVendedor, setGuardandoAsignacionVendedor] = useState(false);
   const [asignacionVendedorPuntoVentaAbierta, setAsignacionVendedorPuntoVentaAbierta] = useState(false);
-  const [formAsignacionVendedorPuntoVenta, setFormAsignacionVendedorPuntoVenta] = useState({ vendedorId: '', porcentaje: '' });
+  const [formAsignacionVendedorPuntoVenta, setFormAsignacionVendedorPuntoVenta] = useState({ vendedorId: '', porcentaje: '', aplicarAlPrecio: false });
   const [movimientoAEditar, setMovimientoAEditar] = useState(null); 
   const [movimientoAEliminar, setMovimientoAEliminar] = useState(null); 
   const [reciboCobroSeleccionado, setReciboCobroSeleccionado] = useState(null);
@@ -2728,6 +2728,7 @@ function AppInterna() {
     proveedor: '',
     fecha: obtenerFechaInputLocal(),
     monto: '',
+    descuentoProveedor: '',
     metodoPago: 'transferencia',
     numeroComprobante: '',
     notas: '',
@@ -3679,8 +3680,14 @@ function AppInterna() {
     }
     if (inicio > fin) [inicio, fin] = [fin, inicio];
 
+    const pagosProveedoresReporte = (pagosProveedores || []).filter((pago) => {
+      if (pago?.noImpactaReportes === true || pago?.impactaReportes === false) return false;
+      const fechaPago = new Date(pago?.fecha || pago?.fechaCreacion || 0);
+      return fechaPago >= inicio && fechaPago <= fin;
+    });
+    const pagosProveedorIdsReporte = new Set(pagosProveedoresReporte.map((pago) => pago?.id).filter(Boolean));
     const movsFiltrados = movimientos.filter(m => {
-      if (m?.noImpactaCaja || m?.noImpactaReportes) return false;
+      if (m?.noImpactaReportes) return false;
       const mDate = new Date(m.fecha);
       return mDate >= inicio && mDate <= fin;
     });
@@ -3697,6 +3704,8 @@ function AppInterna() {
         || m?.detallesPago?.origen === 'pago_proveedor'
         || normalizarTextoBusqueda(m?.categoria || '').includes('pago a proveedor')
       );
+      const pagoProveedorId = textoSeguroTrim(m?.pagoProveedorId || m?.detallesPago?.pagoProveedorId, '');
+      if (esPagoProveedor && pagoProveedorId && pagosProveedorIdsReporte.has(pagoProveedorId)) return;
 
       if (m.tipo === 'venta') {
         ventas += signoVenta * monto;
@@ -3710,6 +3719,9 @@ function AppInterna() {
         else gastosOperativos += monto;
       }
       if (m.tipo === 'retiro_caja') retirosCaja += monto;
+    });
+    pagosProveedoresReporte.forEach((pago) => {
+      pagosProveedores += Math.max(0, parseNumeroBasico(pago?.monto) || 0);
     });
 
     const egresos = gastosOperativos + pagosProveedores;
@@ -3798,11 +3810,12 @@ function AppInterna() {
 
     return {
       movimientos: movsFiltrados,
+      pagosProveedoresDetalle: pagosProveedoresReporte,
       ventas, ventasCobradas, otrosIngresos, cobros,
       gastosOperativos, pagosProveedores, egresos, retiros: retirosCaja,
       neto, flujoNeto, inicio, fin, impuestos, vendedores: reporteVendedores, tarjetas: reporteTarjetas
     };
-  }, [movimientos, pedidosCompra, productos, vendedores, retirosVendedores, reporteTiempo, reporteMesSeleccionado, reporteFechaDesdeReporte, reporteFechaHastaReporte]);
+  }, [movimientos, pagosProveedores, pedidosCompra, productos, vendedores, retirosVendedores, reporteTiempo, reporteMesSeleccionado, reporteFechaDesdeReporte, reporteFechaHastaReporte]);
 
   const mostrarDetalleIndicadorReporte = async (clave) => {
     const periodo = `Período: ${formatearFecha(datosReporte.inicio)} al ${formatearFecha(datosReporte.fin)}.`;
@@ -3825,7 +3838,7 @@ function AppInterna() {
       },
       proveedores: {
         titulo: 'Detalle de Pagos a Proveedores',
-        mensaje: `${periodo}\nIncluye únicamente los pagos reales a proveedores que impactan caja y reportes.\nTotal: ${formatearDinero(datosReporte.pagosProveedores)}`
+        mensaje: `${periodo}\nRegistros verificados: ${datosReporte.pagosProveedoresDetalle?.length || 0}. Fuente: pagos a proveedores y su movimiento espejo, sin duplicarlos.\nEl total representa el dinero efectivamente pagado; los descuentos/bonificaciones se muestran en la cuenta corriente y no se suman como salida de caja.\nTotal: ${formatearDinero(datosReporte.pagosProveedores)}`
       },
       retiros: {
         titulo: 'Detalle de Retiros de Efectivo',
@@ -5783,7 +5796,7 @@ function AppInterna() {
       .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
     const cargosProcesados = cargos.map((cargo) => ({ ...cargo, pendiente: cargo.imputableSaldo ? Number(cargo.monto || 0) : 0 }));
     const pagos = obtenerPagosProveedor(proveedorNombre)
-      .map((pago) => ({ ...pago, monto: Math.max(0, parseNumeroBasico(pago?.monto)) }))
+      .map((pago) => ({ ...pago, monto: Math.max(0, parseNumeroBasico(pago?.monto)), descuentoProveedor: Math.max(0, parseNumeroBasico(pago?.descuentoProveedor ?? pago?.bonificacionProveedor ?? pago?.descuento)) }))
       .sort((a, b) => new Date(a.fecha || a.fechaCreacion || 0) - new Date(b.fecha || b.fechaCreacion || 0));
 
     const aplicarSaldoFavorAComprasPosteriores = (pago, saldoDisponible = 0) => {
@@ -5812,7 +5825,7 @@ function AppInterna() {
     };
 
     pagos.forEach((pago) => {
-      let restante = Math.max(0, Number(pago.monto || 0));
+      let restante = Math.max(0, Number(pago.monto || 0) + Number(pago.descuentoProveedor || 0));
       const aplicacionesGuardadas = Array.isArray(pago?.aplicacionesComprobantes)
         ? pago.aplicacionesComprobantes.filter((aplicacion) => textoSeguroTrim(aplicacion?.pedidoCompraId, '') && Number(aplicacion?.montoAplicado || 0) > 0)
         : [];
@@ -5926,37 +5939,48 @@ function AppInterna() {
 
   const resumenAplicacionPagoProveedor = useMemo(() => {
     const montoPago = Math.max(0, parseNumeroBasico(formPagoProveedor?.monto));
+    const descuentoProveedor = Math.max(0, parseNumeroBasico(formPagoProveedor?.descuentoProveedor));
     const idsSeleccionados = Array.isArray(formPagoProveedor?.pedidoCompraIds)
       ? formPagoProveedor.pedidoCompraIds.filter(Boolean)
       : [];
-    let restante = montoPago;
+    let restantePago = montoPago;
+    let restanteDescuento = descuentoProveedor;
     const aplicaciones = idsSeleccionados.map((pedidoCompraId, index) => {
       const cargo = cargosPendientesPagoProveedor.find((item) => item.pedidoId === pedidoCompraId);
       if (!cargo) return null;
       const pendiente = Math.max(0, Number(cargo.pendiente || 0));
-      const aplicado = Math.min(restante, pendiente);
-      restante = Math.max(0, restante - aplicado);
+      const aplicadoPago = Math.min(restantePago, pendiente);
+      restantePago = Math.max(0, restantePago - aplicadoPago);
+      const aplicadoDescuento = Math.min(restanteDescuento, Math.max(0, pendiente - aplicadoPago));
+      restanteDescuento = Math.max(0, restanteDescuento - aplicadoDescuento);
+      const aplicado = aplicadoPago + aplicadoDescuento;
       return {
         pedidoCompraId,
         orden: index + 1,
         pendiente,
         aplicado,
+        aplicadoPago,
+        aplicadoDescuento,
         saldoComprobanteDespues: Math.max(0, pendiente - aplicado),
-        restantePagoDespues: restante
+        restantePagoDespues: restantePago,
+        restanteAplicableDespues: restantePago + restanteDescuento
       };
     }).filter(Boolean);
     const totalPendienteSeleccionado = aplicaciones.reduce((total, item) => total + item.pendiente, 0);
     const totalAplicado = aplicaciones.reduce((total, item) => total + item.aplicado, 0);
     return {
       montoPago,
+      descuentoProveedor,
       aplicaciones,
       aplicacionesPorId: new Map(aplicaciones.map((item) => [item.pedidoCompraId, item])),
       totalPendienteSeleccionado,
       totalAplicado,
-      restantePago: Math.max(0, restante),
+      restantePago: Math.max(0, restantePago),
+      restanteDescuento: Math.max(0, restanteDescuento),
+      restanteAplicable: Math.max(0, restantePago + restanteDescuento),
       saldoPendienteSeleccionado: Math.max(0, totalPendienteSeleccionado - totalAplicado)
     };
-  }, [formPagoProveedor?.monto, formPagoProveedor?.pedidoCompraIds, cargosPendientesPagoProveedor]);
+  }, [formPagoProveedor?.monto, formPagoProveedor?.descuentoProveedor, formPagoProveedor?.pedidoCompraIds, cargosPendientesPagoProveedor]);
 
   const marcasVisualizadas = useMemo(() => {
     return (marcas || []).filter((marca) => {
@@ -6372,12 +6396,12 @@ function AppInterna() {
     [formPuntoVenta.items, porcentajeComisionPuntoVentaVista]
   );
   const comisionPuntoVentaVista = simulacionComisionPuntoVentaVista.totalComision;
-  const totalConComisionPuntoVentaVista = simulacionComisionPuntoVentaVista.totalFinal;
+  const totalConComisionPuntoVentaVista = formAsignacionVendedorPuntoVenta.aplicarAlPrecio === true ? simulacionComisionPuntoVentaVista.totalFinal : simulacionComisionPuntoVentaVista.totalBase;
 
   const abrirAsignacionVendedorPuntoVenta = async () => {
     if (formPuntoVenta.tipoComprobante === 'nota_credito') { await notificarSistema('Las notas de crédito no generan una nueva comisión de vendedor.', { tipo: 'info', titulo: 'Comisión no aplicable' }); return; }
     if (!vendedores.some((vendedor) => vendedor.activo !== false)) { await notificarSistema('Primero cargá al menos un vendedor activo desde el menú Vendedores.', { tipo: 'warning', titulo: 'Sin vendedores activos' }); return; }
-    setFormAsignacionVendedorPuntoVenta({ vendedorId: textoSeguroTrim(formPuntoVenta.vendedorId, ''), porcentaje: formPuntoVenta.comisionPorcentaje ?? '' });
+    setFormAsignacionVendedorPuntoVenta({ vendedorId: textoSeguroTrim(formPuntoVenta.vendedorId, ''), porcentaje: formPuntoVenta.comisionPorcentaje ?? '', aplicarAlPrecio: formPuntoVenta.comisionPrecioIncluida === true });
     setAsignacionVendedorPuntoVentaAbierta(true);
   };
 
@@ -6385,10 +6409,11 @@ function AppInterna() {
     event.preventDefault();
     const vendedor = vendedores.find((item) => item.id === formAsignacionVendedorPuntoVenta.vendedorId && (item.activo !== false || item.id === formPuntoVenta.vendedorId));
     const porcentaje = Math.min(100, Math.max(0, parseNumeroBasico(formAsignacionVendedorPuntoVenta.porcentaje) || 0));
-    if (!vendedor || porcentaje <= 0) { await notificarSistema('Seleccioná un vendedor activo e ingresá un porcentaje mayor a cero.', { tipo: 'warning', titulo: 'Asignación incompleta' }); return; }
+    if (!vendedor || porcentaje < 0) { await notificarSistema('Seleccioná un vendedor e ingresá un porcentaje válido.', { tipo: 'warning', titulo: 'Asignación incompleta' }); return; }
     setFormPuntoVenta((prev) => {
-      const preciosConComision = calcularPreciosConComisionVendedor(prev.items || [], porcentaje);
-      return { ...prev, items: preciosConComision.items, vendedorId: vendedor.id, vendedorNombre: vendedor.nombre, comisionPorcentaje: porcentaje, comisionMonto: preciosConComision.totalComision };
+      const calculoComision = calcularPreciosConComisionVendedor(prev.items || [], porcentaje);
+      const itemsAplicados = formAsignacionVendedorPuntoVenta.aplicarAlPrecio ? calculoComision.items : calculoComision.items.map((item) => ({ ...item, precio: item.precioAntesComisionVendedor ?? item.precio, comisionPrecioIncluida: false }));
+      return { ...prev, items: itemsAplicados, vendedorId: vendedor.id, vendedorNombre: vendedor.nombre, comisionPorcentaje: porcentaje, comisionMonto: calculoComision.totalComision, comisionPrecioIncluida: Boolean(formAsignacionVendedorPuntoVenta.aplicarAlPrecio) };
     });
     setAsignacionVendedorPuntoVentaAbierta(false);
   };
@@ -8445,9 +8470,12 @@ const abrirPuntoVenta = () => {
 
     const vendedorIdPuntoVenta = textoSeguroTrim(formPuntoVenta.vendedorId, '');
     const porcentajeComisionPuntoVenta = Math.min(100, Math.max(0, parseNumeroBasico(formPuntoVenta.comisionPorcentaje) || 0));
-    const preciosComisionPuntoVenta = formPuntoVenta.tipoComprobante !== 'nota_credito' && vendedorIdPuntoVenta && porcentajeComisionPuntoVenta > 0
+    const calculoComisionPuntoVenta = formPuntoVenta.tipoComprobante !== 'nota_credito' && vendedorIdPuntoVenta && porcentajeComisionPuntoVenta > 0
       ? calcularPreciosConComisionVendedor(itemsNormalizados, porcentajeComisionPuntoVenta)
       : { items: restaurarPreciosSinComisionVendedor(itemsNormalizados), totalComision: 0 };
+    const preciosComisionPuntoVenta = formPuntoVenta.comisionPrecioIncluida === true
+      ? calculoComisionPuntoVenta
+      : { ...calculoComisionPuntoVenta, items: calculoComisionPuntoVenta.items.map((item) => ({ ...item, precio: item.precioAntesComisionVendedor ?? item.precio, comisionPrecioIncluida: false })) };
     itemsNormalizados = preciosComisionPuntoVenta.items;
 
     const totalBase = itemsNormalizados.reduce((acc, item) => {
@@ -10163,6 +10191,13 @@ const abrirPuntoVenta = () => {
     });
     if (!confirmar) return;
 
+    const reponerStock = await confirmarSistema('¿Deseás volver los productos de este comprobante al stock?\n\nSe restaurarán las cantidades originales de cada ítem.', {
+      titulo: 'Restituir productos al stock',
+      tipo: 'warning',
+      textoConfirmar: 'Aceptar',
+      textoCancelar: 'Cancelar'
+    });
+
     const detalles = mov?.detallesPago || {};
     const clienteId = detalles?.clienteId || '';
     const esCuentaCorriente = normalizarMetodoPago(mov?.metodoPago) === 'cuenta_corriente';
@@ -10175,6 +10210,9 @@ const abrirPuntoVenta = () => {
       }
     }
 
+    if (reponerStock) {
+      await aplicarImpactoStockPuntoVenta({ movimientoOriginal: mov, itemsNuevos: [], tipoComprobanteNuevo: '' });
+    }
     await deleteDoc(doc(db, 'movimientos', mov.id));
     await notificarSistema('Comprobante eliminado correctamente.', {
       tipo: 'success',
@@ -10185,7 +10223,7 @@ const abrirPuntoVenta = () => {
   const abrirAsignacionVendedorVenta = (mov = null) => {
     if (!mov) return;
     setVentaAsignarVendedor(mov);
-    setFormAsignacionVendedor({ vendedorId: textoSeguroTrim(mov?.detallesPago?.vendedorId, ''), porcentaje: mov?.detallesPago?.comisionPorcentaje ?? '' });
+    setFormAsignacionVendedor({ vendedorId: textoSeguroTrim(mov?.detallesPago?.vendedorId, ''), porcentaje: mov?.detallesPago?.comisionPorcentaje ?? '', aplicarAlPrecio: mov?.detallesPago?.comisionPrecioIncluida !== false });
   };
 
   const guardarAsignacionVendedorVenta = async (event) => {
@@ -10193,25 +10231,26 @@ const abrirPuntoVenta = () => {
     if (!ventaAsignarVendedor?.id || guardandoAsignacionVendedor) return;
     const vendedor = vendedores.find((item) => item.id === formAsignacionVendedor.vendedorId);
     const porcentaje = Math.max(0, parseNumeroBasico(formAsignacionVendedor.porcentaje));
-    if (!vendedor || porcentaje <= 0 || porcentaje > 100) { await notificarSistema('Seleccioná un vendedor e ingresá un porcentaje mayor a 0 y menor o igual a 100.', { tipo: 'warning', titulo: 'Asignación incompleta' }); return; }
+    if (!vendedor || porcentaje < 0 || porcentaje > 100) { await notificarSistema('Seleccioná un vendedor e ingresá un porcentaje entre 0 y 100.', { tipo: 'warning', titulo: 'Asignación incompleta' }); return; }
     const aplicacionesExistentes = retirosVendedores.flatMap((retiro) => (retiro?.aplicacionesVentas || []).filter((aplicacion) => aplicacion?.ventaId === ventaAsignarVendedor.id).map((aplicacion) => ({ retiro, aplicacion })));
     const vendedorAnteriorId = textoSeguroTrim(ventaAsignarVendedor?.detallesPago?.vendedorId, '');
     if (aplicacionesExistentes.length && vendedorAnteriorId && vendedorAnteriorId !== vendedor.id) { await notificarSistema('Esta venta ya tiene retiros de comisión aplicados. Eliminá primero esos retiros antes de cambiar el vendedor.', { tipo: 'warning', titulo: 'Venta con retiros' }); return; }
     const itemsVenta = Array.isArray(ventaAsignarVendedor?.detallesPago?.items) ? ventaAsignarVendedor.detallesPago.items : [];
-    const preciosConComision = calcularPreciosConComisionVendedor(itemsVenta, porcentaje);
+    const calculoComision = calcularPreciosConComisionVendedor(itemsVenta, porcentaje);
+    const preciosConComision = formAsignacionVendedor.aplicarAlPrecio ? calculoComision : { ...calculoComision, items: calculoComision.items.map((item) => ({ ...item, precio: item.precioAntesComisionVendedor ?? item.precio, comisionPrecioIncluida: false })) };
     const montoAnterior = Math.max(0, Number(ventaAsignarVendedor.monto || 0));
     const comisionAnterior = Math.max(0, Number(ventaAsignarVendedor?.detallesPago?.comisionMonto || 0));
     const montoBaseSinItems = Number.isFinite(Number(ventaAsignarVendedor?.detallesPago?.montoSinComisionVendedor))
       ? Math.max(0, Number(ventaAsignarVendedor.detallesPago.montoSinComisionVendedor))
       : (ventaAsignarVendedor?.detallesPago?.comisionPrecioIncluida ? Math.max(0, montoAnterior - comisionAnterior) : montoAnterior);
     const comisionMonto = itemsVenta.length ? preciosConComision.totalComision : Math.round((montoBaseSinItems * porcentaje / 100) * 100) / 100;
-    const montoNuevo = itemsVenta.length ? preciosConComision.totalFinal : Math.round((montoBaseSinItems + comisionMonto) * 100) / 100;
+    const montoNuevo = itemsVenta.length ? (formAsignacionVendedor.aplicarAlPrecio ? preciosConComision.totalFinal : preciosConComision.totalBase) : (formAsignacionVendedor.aplicarAlPrecio ? Math.round((montoBaseSinItems + comisionMonto) * 100) / 100 : montoBaseSinItems);
     const itemsConComision = preciosConComision.items;
     const totalRetirado = aplicacionesExistentes.reduce((total, item) => total + Number(item.aplicacion?.montoAplicado || 0), 0);
     if (comisionMonto + 0.009 < totalRetirado) { await notificarSistema(`La comisión no puede quedar por debajo de los retiros ya aplicados (${formatearDinero(totalRetirado)}).`, { tipo: 'warning', titulo: 'Comisión insuficiente' }); return; }
     setGuardandoAsignacionVendedor(true);
     try {
-      const detallesPagoActualizados = limpiarDatoFirestore({ ...(ventaAsignarVendedor.detallesPago || {}), vendedorId: vendedor.id, vendedorNombre: vendedor.nombre, comisionPorcentaje: porcentaje, comisionMonto, comisionPrecioIncluida: true, montoSinComisionVendedor: itemsVenta.length ? preciosConComision.totalBase : montoBaseSinItems, items: itemsConComision, comisionItems: itemsConComision.map((item) => ({ itemId: textoSeguroTrim(item?.id, ''), productoId: textoSeguroTrim(item?.productoId, ''), codigo: textoSeguroTrim(item?.codigo, ''), descripcion: textoSeguroTrim(item?.descripcion, ''), porcentaje, monto: Math.max(0, Number(item?.comisionMonto || 0)) })), comisionAsignadaEn: new Date().toISOString(), comisionAsignadaPor: usuarioActual?.nombre || '' });
+      const detallesPagoActualizados = limpiarDatoFirestore({ ...(ventaAsignarVendedor.detallesPago || {}), vendedorId: vendedor.id, vendedorNombre: vendedor.nombre, comisionPorcentaje: porcentaje, comisionMonto, comisionPrecioIncluida: Boolean(formAsignacionVendedor.aplicarAlPrecio), montoSinComisionVendedor: itemsVenta.length ? preciosConComision.totalBase : montoBaseSinItems, items: itemsConComision, comisionItems: itemsConComision.map((item) => ({ itemId: textoSeguroTrim(item?.id, ''), productoId: textoSeguroTrim(item?.productoId, ''), codigo: textoSeguroTrim(item?.codigo, ''), descripcion: textoSeguroTrim(item?.descripcion, ''), porcentaje, monto: Math.max(0, Number(item?.comisionMonto || 0)) })), comisionAsignadaEn: new Date().toISOString(), comisionAsignadaPor: usuarioActual?.nombre || '' });
       await updateDoc(doc(db, 'movimientos', ventaAsignarVendedor.id), { monto: montoNuevo, detallesPago: detallesPagoActualizados });
       const deltaCuentaCliente = Math.round((montoNuevo - montoAnterior) * 100) / 100;
       const clienteId = textoSeguroTrim(ventaAsignarVendedor?.detallesPago?.clienteId, '');
@@ -15285,6 +15324,7 @@ const abrirPuntoVenta = () => {
       proveedor: nombre,
       fecha: pagoBase?.fecha ? obtenerFechaInputLocal(pagoBase.fecha) : obtenerFechaInputLocal(),
       monto: pagoBase ? String(pagoBase?.monto || '') : '',
+      descuentoProveedor: pagoBase ? String(pagoBase?.descuentoProveedor ?? pagoBase?.bonificacionProveedor ?? '') : '',
       metodoPago: textoSeguroTrim(pagoBase?.metodoPago, 'transferencia'),
       numeroComprobante: textoSeguroTrim(pagoBase?.numeroComprobante, ''),
       notas: textoSeguroTrim(pagoBase?.notas, ''),
@@ -15410,13 +15450,31 @@ const abrirPuntoVenta = () => {
     docPdf.text(`Comprobante: ${textoSeguroTrim(pago?.numeroComprobante, '-')}`, 110, 67);
     docPdf.text(`Fecha de pago: ${formatearFecha(fechaPago)} ${formatearHora(fechaPago)}`, 110, 60);
 
+    const cargosPagoPdf = obtenerCargosProveedorDesdePedidos(nombreProveedor);
+    const cargoPorIdPagoPdf = new Map(cargosPagoPdf.map((cargo) => [cargo?.pedidoId, cargo]));
+    const etiquetaCargoPagoPdf = (pedidoCompraId = '', numeroFallback = '') => {
+      const cargo = cargoPorIdPagoPdf.get(pedidoCompraId);
+      if (!cargo) return numeroFallback ? `Pedido PC-${numeroFallback}` : `Pedido ${pedidoCompraId || '-'}`;
+      return [cargo.tipoComprobanteProveedor, cargo.numeroComprobanteProveedor].filter(Boolean).join(' ')
+        || (cargo.remitoProveedor ? `Remito ${cargo.remitoProveedor}` : `Pedido PC-${cargo.numero || numeroFallback || '000000'}`);
+    };
+    const aplicacionesGuardadasPdf = Array.isArray(pago?.aplicacionesComprobantes) ? pago.aplicacionesComprobantes : [];
+    const aplicacionesPagoPdf = aplicacionesGuardadasPdf.length
+      ? aplicacionesGuardadasPdf
+      : (Array.isArray(pago?.pedidoCompraIds) ? pago.pedidoCompraIds : (pago?.pedidoCompraId ? [pago.pedidoCompraId] : []))
+        .map((pedidoCompraId, index) => ({ pedidoCompraId, orden: index + 1, comprobante: etiquetaCargoPagoPdf(pedidoCompraId) }))
+        .filter((item) => item.pedidoCompraId);
+    const referenciaAplicacionPdf = aplicacionesPagoPdf.length
+      ? aplicacionesPagoPdf.map((aplicacion) => `${aplicacion.comprobante || etiquetaCargoPagoPdf(aplicacion.pedidoCompraId, aplicacion.pedidoCompraNumero)} · aplicado ${formatearDinero(Number(aplicacion.montoAplicado || 0))}`).join(' | ')
+      : (pago?.pedidoCompraNumero ? `Pedido PC-${pago.pedidoCompraNumero}` : 'Pago general a la cuenta corriente');
+
     const detallePago = [
       ['Cheque / comprobante', textoSeguroTrim(pago?.numeroComprobante, '-') || '-'],
       ['Banco / billetera', textoSeguroTrim(pago?.banco, '-') || '-'],
       ['Emisor / titular', textoSeguroTrim(pago?.emisor, '-') || '-'],
       ['Fecha emisión', pago?.fechaEmision ? formatearFecha(`${pago.fechaEmision}T12:00:00`) : '-'],
       ['Fecha cobro', pago?.fechaCobro ? formatearFecha(`${pago.fechaCobro}T12:00:00`) : '-'],
-      ['Remito / pedido', textoSeguroTrim(pago?.pedidoCompraNumero, pago?.pedidoCompraIds?.length ? pago.pedidoCompraIds.join(', ') : '-') || '-'],
+      ['Remito / aplicación', referenciaAplicacionPdf],
       ['Plazo', pago?.plazoDias ? `${parseNumeroBasico(pago.plazoDias) || 0} días` : '-'],
       ['Notas', textoSeguroTrim(pago?.notas, '-') || '-']
     ];
@@ -15432,11 +15490,12 @@ const abrirPuntoVenta = () => {
     });
 
     const adjuntos = Array.isArray(pago?.adjuntos) ? pago.adjuntos : [];
-    const adjuntosImagen = adjuntos.filter((adj) => textoSeguroTrim(adj?.tipo, '').startsWith('image/') && textoSeguroTrim(adj?.dataUrl, ''));
-    const adjuntosOtros = adjuntos.filter((adj) => !textoSeguroTrim(adj?.tipo, '').startsWith('image/'));
+    const tipoAdjunto = (adj) => textoSeguroTrim(adj?.tipo, '') || textoSeguroTrim(adj?.dataUrl, '').match(/^data:([^;,]+)/i)?.[1] || '';
+    const esImagenAdjunto = (adj) => /^image\//i.test(tipoAdjunto(adj)) || /\.(png|jpe?g|gif|webp)$/i.test(textoSeguroTrim(adj?.nombre, ''));
+    const adjuntosImagen = adjuntos.filter((adj) => esImagenAdjunto(adj) && textoSeguroTrim(adj?.dataUrl, ''));
+    const adjuntosOtros = adjuntos.filter((adj) => !esImagenAdjunto(adj));
     let y = (docPdf.lastAutoTable?.finalY || 82) + 8;
 
-    const aplicacionesPagoPdf = Array.isArray(pago?.aplicacionesComprobantes) ? pago.aplicacionesComprobantes : [];
     if (aplicacionesPagoPdf.length) {
       docPdf.setFont('helvetica', 'bold');
       docPdf.setFontSize(10);
@@ -15448,7 +15507,7 @@ const abrirPuntoVenta = () => {
         head: [['Orden', 'Remito / factura', 'Saldo anterior', 'Aplicado', 'Saldo posterior']],
         body: aplicacionesPagoPdf.map((aplicacion, index) => [
           String(aplicacion?.orden || index + 1),
-          textoSeguroTrim(aplicacion?.comprobante, `PC-${textoSeguroTrim(aplicacion?.pedidoCompraNumero, '000000')}`),
+          textoSeguroTrim(aplicacion?.comprobante, etiquetaCargoPagoPdf(aplicacion?.pedidoCompraId, aplicacion?.pedidoCompraNumero)),
           formatearDinero(Number(aplicacion?.saldoAntes || 0)),
           formatearDinero(Number(aplicacion?.montoAplicado || 0)),
           formatearDinero(Number(aplicacion?.saldoDespues || 0))
@@ -15475,12 +15534,21 @@ const abrirPuntoVenta = () => {
       autoTable(docPdf, {
         startY: y,
         head: [['Archivo', 'Tipo']],
-        body: adjuntosOtros.map((adj) => [textoSeguroTrim(adj?.nombre, 'Adjunto'), textoSeguroTrim(adj?.tipo, 'archivo')]),
+        body: adjuntosOtros.map((adj) => [textoSeguroTrim(adj?.nombre, 'Adjunto'), tipoAdjunto(adj) || 'archivo']),
         styles: { fontSize: 8, cellPadding: 2 },
         headStyles: { fillColor: [226, 232, 240], textColor: 15 },
         margin: { left: 14, right: 14 }
       });
       y = (docPdf.lastAutoTable?.finalY || y) + 6;
+      adjuntosOtros.filter((adj) => /pdf/i.test(tipoAdjunto(adj)) && textoSeguroTrim(adj?.dataUrl, '')).forEach((adj) => {
+        try {
+          if (typeof docPdf.attach === 'function') {
+            docPdf.attach(adj.dataUrl, textoSeguroTrim(adj?.nombre, 'comprobante.pdf'), { mimeType: 'application/pdf', description: 'Comprobante adjunto del pago' });
+          }
+        } catch (error) {
+          console.warn('No se pudo incrustar PDF adjunto en el recibo de pago proveedor', error);
+        }
+      });
     }
 
     if (adjuntosImagen.length) {
@@ -15592,8 +15660,9 @@ const abrirPuntoVenta = () => {
     if (guardandoPagoProveedor) return;
     const proveedor = textoSeguroTrim(formPagoProveedor?.proveedor, '');
     const monto = parseNumeroBasico(formPagoProveedor?.monto);
-    if (!proveedor || monto <= 0) {
-      await notificarSistema('Seleccioná un proveedor e ingresá un monto válido.', {
+    const descuentoProveedor = Math.max(0, parseNumeroBasico(formPagoProveedor?.descuentoProveedor));
+    if (!proveedor || monto + descuentoProveedor <= 0) {
+      await notificarSistema('Seleccioná un proveedor e ingresá un pago o descuento válido.', {
         tipo: 'warning',
         titulo: 'Pago incompleto'
       });
@@ -15611,7 +15680,7 @@ const abrirPuntoVenta = () => {
       await notificarSistema('Seleccioná al menos un remito pendiente para aplicar el pago.', { tipo: 'warning', titulo: 'Remitos requeridos' });
       return;
     }
-    const restanteAplicacion = tipoAplicacion === 'general' ? 0 : resumenAplicacionPagoProveedor.restantePago;
+    const restanteAplicacion = tipoAplicacion === 'general' ? 0 : resumenAplicacionPagoProveedor.restanteAplicable;
     const aplicacionesComprobantes = tipoAplicacion === 'general' ? [] : resumenAplicacionPagoProveedor.aplicaciones.map((resumenAplicacion) => {
       const cargo = cargosPendientesPagoProveedor.find((item) => item.pedidoId === resumenAplicacion.pedidoCompraId);
       if (!cargo) return null;
@@ -15625,6 +15694,8 @@ const abrirPuntoVenta = () => {
         fechaComprobante: cargo.fechaPedido || cargo.fecha || '',
         saldoAntes: resumenAplicacion.pendiente,
         montoAplicado: resumenAplicacion.aplicado,
+        montoPagoAplicado: resumenAplicacion.aplicadoPago,
+        descuentoAplicado: resumenAplicacion.aplicadoDescuento,
         saldoDespues: resumenAplicacion.saldoComprobanteDespues
       };
     }).filter((aplicacion) => aplicacion && aplicacion.montoAplicado > 0);
@@ -15661,6 +15732,8 @@ const abrirPuntoVenta = () => {
       pedidoCompraIds,
       aplicacionesComprobantes,
       montoAplicadoComprobantes: aplicacionesComprobantes.reduce((total, aplicacion) => total + Number(aplicacion.montoAplicado || 0), 0),
+      descuentoProveedor,
+      importeAplicadoTotal: aplicacionesComprobantes.reduce((total, aplicacion) => total + Number(aplicacion.montoAplicado || 0), 0),
       saldoFavorRegistrado: tipoAplicacion === 'general' ? 0 : Math.max(0, restanteAplicacion)
       ,impactaCaja: formPagoProveedor?.impactaCaja !== false,
       impactaReportes: true,
@@ -20204,6 +20277,9 @@ function obtenerCategoriaProducto(producto) {
     moneda: ['ARS', 'USD_BNA', 'USD_BLUE'].includes(item?.moneda) ? item.moneda : 'ARS',
     // Keep the raw value while editing so decimal cents are not lost between keystrokes.
     costoPesos: item?.costoPesos ?? '',
+    // Only populated while the operator types the price from the supplier remito.
+    // It lets the row total apply the supplier discount exactly once.
+    costoBaseCompraPesos: item?.costoBaseCompraPesos ?? '',
     iva: item?.iva ?? ((productos || []).find((producto) => producto?.id === item?.productoId)?.iva ?? ''),
     descuento: item?.descuento ?? '',
     imagen: textoSeguroTrim(item?.imagen, ''),
@@ -20285,14 +20361,34 @@ function obtenerCategoriaProducto(producto) {
     return '';
   };
 
-  // En compras el costo de cada producto se trabaja siempre como neto.
-  // Si el costo del proveedor fue guardado con IVA incluido, lo llevamos a
-  // neto antes de mostrarlo; el IVA se suma al total cuando se selecciona.
+  // En compras el costo del remito se toma como base: sólo se aplica el
+  // descuento general del proveedor. IVA y flete se reservan para la etapa
+  // posterior de precio/costo del inventario y nunca se agregan aquí.
+  const convertirCostoProveedorBrutoParaPedidoCompra = (costo = {}, producto = {}) => {
+    const moneda = ['ARS', 'USD_BNA', 'USD_BLUE'].includes(costo?.moneda) ? costo.moneda : 'ARS';
+    const valorBase = costo?.costo !== undefined && costo?.costo !== null && String(costo.costo).trim() !== ''
+      ? costo.costo
+      : costo?.costoPesos;
+    const costoBase = Math.max(0, parseNumeroBasico(valorBase));
+    if (moneda === 'ARS') return costoBase;
+    return costoBase * obtenerCotizacionParaMoneda(moneda, producto);
+  };
+
+  const obtenerDescuentoProveedorParaPedidoCompra = (proveedor = '') => {
+    const proveedorMaestro = obtenerProveedorMaestroPorNombre(proveedor);
+    const condiciones = obtenerCondicionesMaestrasProveedor(proveedorMaestro);
+    return Math.min(100, Math.max(0, parseNumeroBasico(condiciones.descuento || 0)));
+  };
+
   const convertirCostoProveedorNetoParaPedidoCompra = (costo = {}, producto = {}) => {
-    const costoPesos = Math.max(0, convertirCostoProveedorAPesos(costo, producto));
-    if (!Boolean(costo?.ivaIncluido)) return costoPesos;
-    const factorIva = obtenerFactorIvaProducto(producto?.iva);
-    return factorIva > 0 ? costoPesos / (1 + factorIva) : costoPesos;
+    const costoBasePesos = convertirCostoProveedorBrutoParaPedidoCompra(costo, producto);
+    const descuentoProveedor = obtenerDescuentoProveedorParaPedidoCompra(costo?.proveedor || '');
+    return Math.max(0, costoBasePesos * (1 - (descuentoProveedor / 100)));
+  };
+
+  const compraEsFacturaA = (tipo = '') => {
+    const normalizado = normalizarTextoBusqueda(tipo);
+    return normalizado === 'factura_a' || normalizado === 'factura a' || normalizado.includes('factura a');
   };
 
   const obtenerCostoBaseProductoParaPedidoCompra = (producto = {}, proveedor = '') => {
@@ -20730,6 +20826,7 @@ function obtenerCategoriaProducto(producto) {
       if (campo === 'costoPesos') {
         const costoPesos = String(valor ?? '').replace(',', '.');
         actualizado.costoPesos = costoPesos;
+        actualizado.costoBaseCompraPesos = costoPesos;
         actualizado.costo = costoPesos;
         actualizado.moneda = 'ARS';
       }
@@ -20786,15 +20883,17 @@ function obtenerCategoriaProducto(producto) {
     const descuentoPorcentaje = 0;
     const descuentoMonto = Math.max(0, subtotalBruto - subtotalBase);
     const ajusteMonto = (compraDirectaActiva || pedidoCompraEditandoId) ? parseNumeroConSigno(pedidoCompraAjusteMonto) : 0;
-    const iva21 = compraDirectaActiva
+    const iva21 = compraDirectaActiva && compraEsFacturaA(compraDirectaTipoComprobante)
       ? calcularIvaAutomaticoPedidoCompra(filas, '21')
       : (pedidoCompraEditandoId ? Math.max(0, parseNumeroBasico(pedidoCompraIva21)) : 0);
-    const iva105 = compraDirectaActiva
+    const iva105 = compraDirectaActiva && compraEsFacturaA(compraDirectaTipoComprobante)
       ? calcularIvaAutomaticoPedidoCompra(filas, '10.5')
       : (pedidoCompraEditandoId ? Math.max(0, parseNumeroBasico(pedidoCompraIva105)) : 0);
     const ingresosBrutos = Math.max(0, parseNumeroConSigno(pedidoCompraIngresosBrutos));
+    // El flete se conserva informado para el cálculo posterior del precio
+    // final, pero no forma parte del importe de una compra directa/remito.
     const flete = Math.max(0, parseNumeroConSigno(pedidoCompraFlete));
-    const totalEstimado = Math.max(0, subtotalBase + iva21 + iva105 + ingresosBrutos + flete + ajusteMonto);
+    const totalEstimado = Math.max(0, subtotalBase + iva21 + iva105 + ingresosBrutos + (compraDirectaActiva ? 0 : flete) + ajusteMonto);
     const itemsConProducto = compraDirectaActiva && compraImpactaInventario
       ? await crearProductosManualesDesdeCompra(filas)
       : filas;
@@ -20988,7 +21087,17 @@ function obtenerCategoriaProducto(producto) {
       .map((item) => {
         const cantidad = Math.max(0, parseNumeroPresupuesto(item.cantidad) || 0);
         if (cantidad <= 0) return null;
-        const costoPesos = Math.max(0, parseNumeroPresupuesto(item.costoPesos) || 0);
+        const costoBaseCompraPesos = item?.costoBaseCompraPesos !== undefined
+          && item?.costoBaseCompraPesos !== null
+          && String(item.costoBaseCompraPesos).trim() !== ''
+          ? Math.max(0, parseNumeroPresupuesto(item.costoBaseCompraPesos) || 0)
+          : null;
+        const descuentoProveedor = costoBaseCompraPesos !== null
+          ? obtenerDescuentoProveedorParaPedidoCompra(item?.proveedor || '')
+          : 0;
+        const costoPesos = costoBaseCompraPesos !== null
+          ? Math.max(0, costoBaseCompraPesos * (1 - (descuentoProveedor / 100)))
+          : Math.max(0, parseNumeroPresupuesto(item.costoPesos) || 0);
         const descuento = Math.min(100, Math.max(0, parseNumeroPresupuesto(item.descuento) || 0));
         const subtotalBruto = cantidad * costoPesos;
         const descuentoMonto = subtotalBruto * (descuento / 100);
@@ -21782,6 +21891,54 @@ function obtenerCategoriaProducto(producto) {
   };
 
   const generarPdfReciboCobroFile = async (mov = null) => {
+    // El PDF descargable debe salir de las mismas hojas HTML que ve el
+    // usuario en la previsualización. La antigua ruta dibujaba otro recibo
+    // con coordenadas independientes y podía perder datos o desordenar el
+    // detalle de los remitos.
+    {
+      const resumenPreview = construirResumenReciboCobro(mov);
+      if (!resumenPreview) throw new Error('Recibo no disponible');
+      let vistaPreview = reciboCobroPreviewRef.current;
+      if (!vistaPreview) {
+        const disponible = await asegurarVistaReciboCobroDisponible(mov);
+        if (disponible) vistaPreview = reciboCobroPreviewRef.current;
+      }
+      const paginasPreview = vistaPreview
+        ? Array.from(vistaPreview.querySelectorAll('.recibo-a4-sheet'))
+        : [];
+      if (paginasPreview.length) {
+        const htmlToImageApi = await asegurarHtmlToImage();
+        let pdfPreview = null;
+        for (const paginaPreview of paginasPreview) {
+          await esperarImagenesNodo(paginaPreview);
+          await esperarFrame();
+          const rect = paginaPreview.getBoundingClientRect();
+          const ancho = Math.max(1, Math.ceil(rect.width || paginaPreview.scrollWidth || paginaPreview.offsetWidth || 1));
+          const alto = Math.max(1, Math.ceil(rect.height || paginaPreview.scrollHeight || paginaPreview.offsetHeight || 1));
+          const canvas = await htmlToImageApi.toCanvas(paginaPreview, {
+            pixelRatio: 2,
+            cacheBust: true,
+            backgroundColor: '#ffffff',
+            width: ancho,
+            height: alto,
+            canvasWidth: ancho * 2,
+            canvasHeight: alto * 2,
+            style: { transform: 'none', transformOrigin: 'top left', margin: '0' }
+          });
+          const orientacion = canvas.width > canvas.height ? 'landscape' : 'portrait';
+          if (!pdfPreview) pdfPreview = crearPdfA4(orientacion, { titulo: 'Recibo de pago a cliente' });
+          else pdfPreview.addPage('a4', orientacion);
+          const imagen = canvas.toDataURL('image/jpeg', 0.96);
+          const ajuste = ajustarImagenA4(canvas.width, canvas.height, orientacion, 0);
+          pdfPreview.addImage(imagen, 'JPEG', ajuste.drawX, ajuste.drawY, ajuste.drawW, ajuste.drawH, undefined, 'FAST');
+        }
+        const blobPreview = pdfPreview?.output('blob');
+        if (!blobPreview || blobPreview.size < 512 || blobPreview.type !== 'application/pdf') {
+          throw new Error('El PDF del recibo se generó sin contenido.');
+        }
+        return new File([blobPreview], obtenerNombreArchivoReciboCobro(resumenPreview, true), { type: 'application/pdf' });
+      }
+    }
     const resumen = construirResumenReciboCobro(mov);
     if (!resumen) throw new Error('Recibo no disponible');
 
@@ -25778,6 +25935,9 @@ function obtenerCategoriaProducto(producto) {
         .sf-enterprise-shell .sf-client-account-modal .sf-client-account-actions > .sf-client-update-price-action { margin-left:12px !important; position:relative !important; z-index:1 !important; }
         .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout > div:first-child > .mt-3.flex > button { min-height:31px; padding:.38rem .6rem; border-radius:5px; border-color:#d8e4e6; background:#fff; color:#52647b; box-shadow:none; }
         .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout > div:first-child > .mt-3.flex > button:nth-child(5) { border-color:#0f8d87; background:#0f8d87; color:#fff; }
+        .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout > div:first-child > .sf-client-account-actions > .sf-client-update-price-action { min-width:max-content !important; width:max-content !important; min-height:31px !important; padding:.38rem .75rem !important; border:1px solid #dc2626 !important; border-radius:5px !important; background:#dc2626 !important; color:#fff !important; opacity:1 !important; display:inline-flex !important; align-items:center !important; justify-content:center !important; }
+        .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout > div:first-child > .sf-client-account-actions > .sf-client-update-price-action:hover:not(:disabled) { background:#b91c1c !important; border-color:#b91c1c !important; }
+        .sf-enterprise-shell .sf-client-account-modal .sf-client-account-layout > div:first-child > .sf-client-account-actions > .sf-client-update-price-action:disabled { background:#fecaca !important; border-color:#fca5a5 !important; color:#991b1b !important; opacity:1 !important; cursor:not-allowed !important; }
         .sf-enterprise-shell .sf-client-account-history-card { border-radius:8px; border-color:#dfe8ee; }
         .sf-enterprise-shell .sf-client-account-history { overflow-x:hidden !important; overflow-y:auto !important; }
         @media (min-width:1024px) {
@@ -27932,7 +28092,7 @@ function obtenerCategoriaProducto(producto) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="relative">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input value={busquedaPedidosCompra} onChange={(e) => setBusquedaPedidosCompra(e.target.value)} placeholder="Buscar pedido, item o proveedor..." className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500" />
@@ -31051,7 +31211,7 @@ function obtenerCategoriaProducto(producto) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-3"><p className="text-[10px] font-black uppercase text-amber-800">Mano de obra incluida</p><p className="text-xl font-black text-amber-900">{formatearDinero(resumenProductoCompuesto.manoObra)}</p><p className="text-[10px] font-bold text-amber-700 mt-1">Incluida en el costo y en el precio final.</p></div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-[10px] font-black uppercase text-slate-600">Costo de componentes</p><p className="text-xl font-black text-slate-800">{formatearDinero(resumenProductoCompuesto.costoComponentes)}</p></div>
               <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3"><p className="text-[10px] font-black uppercase text-indigo-700">Categoría / marca</p><p className="text-sm font-black text-indigo-900">{resumenProductoCompuesto.compuesto.categoria || 'Sin categoría'} · {resumenProductoCompuesto.compuesto.marca || 'Sin marca'}</p><p className="text-[10px] font-bold text-indigo-700 mt-1">IVA: {resumenProductoCompuesto.compuesto.iva || 'sin especificar'} · Unidad: {resumenProductoCompuesto.compuesto.unidad || 'unid'}</p></div>
@@ -31306,6 +31466,7 @@ function obtenerCategoriaProducto(producto) {
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Venta seleccionada</p><p className="mt-1 font-black text-slate-900">{OPCIONES_COMPROBANTE_VENTA.find((opcion) => opcion.value === ventaAsignarVendedor?.detallesPago?.tipoComprobante)?.label || 'Comprobante'} {textoSeguroTrim(ventaAsignarVendedor?.detallesPago?.numeroComprobante, 'Sin número')}</p><p className="text-xs font-bold text-slate-500">{textoSeguroTrim(ventaAsignarVendedor?.detallesPago?.cliente, 'Sin cliente')} · Total {formatearDinero(Number(ventaAsignarVendedor.monto || 0))}</p></div>
             <div><label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1">Vendedor</label><select value={formAsignacionVendedor.vendedorId} onChange={(event) => setFormAsignacionVendedor((prev) => ({ ...prev, vendedorId: event.target.value }))} required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-teal-500"><option value="">Seleccionar vendedor</option>{vendedores.filter((vendedor) => vendedor.activo !== false || vendedor.id === formAsignacionVendedor.vendedorId).map((vendedor) => <option key={vendedor.id} value={vendedor.id}>{vendedor.nombre}{vendedor.activo === false ? ' (inactivo)' : ''}</option>)}</select></div>
             <div><label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1">Porcentaje de comisión</label><div className="relative"><input inputMode="decimal" value={formAsignacionVendedor.porcentaje} onChange={(event) => setFormAsignacionVendedor((prev) => ({ ...prev, porcentaje: event.target.value.replace(/[^0-9.,]/g, '') }))} placeholder="Ej.: 5" required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pr-10 text-right text-lg font-black outline-none focus:ring-2 focus:ring-teal-500" /><span className="absolute right-3 top-1/2 -translate-y-1/2 font-black text-slate-500">%</span></div></div>
+            <label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 cursor-pointer"><input type="checkbox" checked={formAsignacionVendedor.aplicarAlPrecio === true} onChange={(event) => setFormAsignacionVendedor((prev) => ({ ...prev, aplicarAlPrecio: event.target.checked }))} className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600" /><span className="text-[10px] font-black uppercase tracking-wider text-amber-800">Incrementar el precio con la comisión<span className="block normal-case tracking-normal font-bold text-amber-700">Si no se tilda, la comisión sale de tu ganancia.</span></span></label>
             <div className="rounded-xl border border-teal-200 bg-teal-50 p-3 space-y-2"><div className="flex items-center justify-between gap-3"><span className="text-xs font-black uppercase text-teal-700">Comisión incorporada a los ítems</span><strong className="text-lg text-teal-800">{formatearDinero(calcularPreciosConComisionVendedor(ventaAsignarVendedor?.detallesPago?.items || [], formAsignacionVendedor.porcentaje).totalComision)}</strong></div><p className="text-[11px] font-bold text-teal-700">Al guardar se recalcula desde el precio original y cambia el total de la venta.</p></div>
             {vendedores.length === 0 && <button type="button" onClick={() => { setVentaAsignarVendedor(null); setVista('vendedores'); }} className="w-full rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs font-black text-blue-700">Primero cargá un vendedor</button>}
             <div className="flex flex-col sm:flex-row gap-2">{ventaAsignarVendedor?.detallesPago?.vendedorId && <button type="button" disabled={guardandoAsignacionVendedor} onClick={quitarAsignacionVendedorVenta} className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-black text-red-700">Quitar asignación</button>}<button type="button" disabled={guardandoAsignacionVendedor} onClick={() => setVentaAsignarVendedor(null)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-700">Cancelar</button><button type="submit" disabled={guardandoAsignacionVendedor || !vendedores.length} className="flex-1 rounded-xl bg-teal-600 px-4 py-3 text-xs font-black text-white disabled:bg-teal-300">{guardandoAsignacionVendedor ? 'Guardando...' : 'Guardar asignación'}</button></div>
@@ -31357,8 +31518,9 @@ function obtenerCategoriaProducto(producto) {
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                     <div className="rounded-xl border border-slate-200 bg-white px-3 py-2"><p className="text-[9px] font-black uppercase tracking-wider text-slate-500">Monto del pago</p><p className="mt-1 text-sm font-black text-slate-900">{formatearDinero(resumenAplicacionPagoProveedor.montoPago)}</p></div>
                     <div className="rounded-xl border border-slate-200 bg-white px-3 py-2"><p className="text-[9px] font-black uppercase tracking-wider text-slate-500">Pendiente seleccionado</p><p className="mt-1 text-sm font-black text-slate-900">{formatearDinero(resumenAplicacionPagoProveedor.totalPendienteSeleccionado)}</p></div>
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2"><p className="text-[9px] font-black uppercase tracking-wider text-amber-700">Descuento proveedor</p><p className="mt-1 text-sm font-black text-amber-900">{formatearDinero(resumenAplicacionPagoProveedor.descuentoProveedor)}</p></div>
                     <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2"><p className="text-[9px] font-black uppercase tracking-wider text-emerald-700">Importe aplicado</p><p className="mt-1 text-sm font-black text-emerald-800">{formatearDinero(resumenAplicacionPagoProveedor.totalAplicado)}</p></div>
-                    <div className={`rounded-xl border px-3 py-2 ${resumenAplicacionPagoProveedor.restantePago > 0.009 ? 'border-amber-300 bg-amber-50' : 'border-emerald-300 bg-emerald-50'}`}><p className={`text-[9px] font-black uppercase tracking-wider ${resumenAplicacionPagoProveedor.restantePago > 0.009 ? 'text-amber-700' : 'text-emerald-700'}`}>Resta del pago</p><p className={`mt-1 text-sm font-black ${resumenAplicacionPagoProveedor.restantePago > 0.009 ? 'text-amber-900' : 'text-emerald-800'}`}>{formatearDinero(resumenAplicacionPagoProveedor.restantePago)}</p></div>
+                    <div className={`rounded-xl border px-3 py-2 ${resumenAplicacionPagoProveedor.restanteAplicable > 0.009 ? 'border-amber-300 bg-amber-50' : 'border-emerald-300 bg-emerald-50'}`}><p className={`text-[9px] font-black uppercase tracking-wider ${resumenAplicacionPagoProveedor.restanteAplicable > 0.009 ? 'text-amber-700' : 'text-emerald-700'}`}>Resta por aplicar</p><p className={`mt-1 text-sm font-black ${resumenAplicacionPagoProveedor.restanteAplicable > 0.009 ? 'text-amber-900' : 'text-emerald-800'}`}>{formatearDinero(resumenAplicacionPagoProveedor.restanteAplicable)}</p></div>
                   </div>
                   <div className="overflow-hidden rounded-xl border border-emerald-100 bg-white">
                     <div className="flex items-center justify-between gap-3 border-b border-emerald-100 px-3 py-2"><p className="text-[10px] font-black uppercase tracking-wider text-slate-600">Comprobantes pendientes</p><div className="flex items-center gap-3"><button type="button" onClick={() => { setSobrantePagoProveedorDetectado(0); setConfirmarSaldoFavorPagoProveedor(false); setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: cargosPendientesPagoProveedor.map((cargo) => cargo.pedidoId) })); }} className="text-[10px] font-black uppercase text-emerald-700">Seleccionar todos</button><button type="button" onClick={() => { setSobrantePagoProveedorDetectado(0); setConfirmarSaldoFavorPagoProveedor(false); setFormPagoProveedor((prev) => ({ ...prev, pedidoCompraIds: [] })); }} className="text-[10px] font-black uppercase text-slate-500">Limpiar</button></div></div>
@@ -31372,7 +31534,7 @@ function obtenerCategoriaProducto(producto) {
                     </div>
                   </div>
                   {!(formPagoProveedor.pedidoCompraIds || []).length && <p className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[10px] font-black text-blue-800">Marcá el remito o factura al que querés aplicar el pago.</p>}
-                  {(formPagoProveedor.pedidoCompraIds || []).length > 0 && resumenAplicacionPagoProveedor.restantePago > 0.009 && <div className={`rounded-xl border p-3 ${confirmarSaldoFavorPagoProveedor ? 'border-emerald-300 bg-emerald-50' : 'border-amber-300 bg-amber-50'}`}><p className={`text-xs font-black ${confirmarSaldoFavorPagoProveedor ? 'text-emerald-900' : 'text-amber-900'}`}>Quedan {formatearDinero(resumenAplicacionPagoProveedor.restantePago)} del pago.</p><p className={`mt-1 text-[10px] font-bold ${confirmarSaldoFavorPagoProveedor ? 'text-emerald-800' : 'text-amber-800'}`}>{confirmarSaldoFavorPagoProveedor ? 'Ese importe se registrará como saldo a favor del proveedor.' : 'Marcá otro comprobante para seguir descontando este importe, o dejalo como saldo a favor.'}</p>{!confirmarSaldoFavorPagoProveedor && <button type="button" onClick={() => setConfirmarSaldoFavorPagoProveedor(true)} className="mt-2 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-[10px] font-black uppercase text-amber-800 hover:bg-amber-100">Dejar resto como saldo a favor</button>}</div>}
+                  {(formPagoProveedor.pedidoCompraIds || []).length > 0 && resumenAplicacionPagoProveedor.restanteAplicable > 0.009 && <div className={`rounded-xl border p-3 ${confirmarSaldoFavorPagoProveedor ? 'border-emerald-300 bg-emerald-50' : 'border-amber-300 bg-amber-50'}`}><p className={`text-xs font-black ${confirmarSaldoFavorPagoProveedor ? 'text-emerald-900' : 'text-amber-900'}`}>Quedan {formatearDinero(resumenAplicacionPagoProveedor.restanteAplicable)} por aplicar.</p><p className={`mt-1 text-[10px] font-bold ${confirmarSaldoFavorPagoProveedor ? 'text-emerald-800' : 'text-amber-800'}`}>{confirmarSaldoFavorPagoProveedor ? 'Ese importe se registrará como saldo a favor del proveedor.' : 'Marcá otro comprobante para seguir descontando este importe, o dejalo como saldo a favor.'}</p>{!confirmarSaldoFavorPagoProveedor && <button type="button" onClick={() => setConfirmarSaldoFavorPagoProveedor(true)} className="mt-2 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-[10px] font-black uppercase text-amber-800 hover:bg-amber-100">Dejar resto como saldo a favor</button>}</div>}
                   <p className="text-[10px] font-bold text-emerald-700">Los comprobantes se pagan en el mismo orden en que los vas marcando.</p>
                 </>
               )}
@@ -31404,7 +31566,7 @@ function obtenerCategoriaProducto(producto) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div>
                 <label className="block text-[10px] font-black text-gray-600 uppercase tracking-wider mb-1">Monto</label>
                 <input
@@ -31417,6 +31579,19 @@ function obtenerCategoriaProducto(producto) {
                   placeholder="3.305.054,50"
                   required
                 />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-amber-700 uppercase tracking-wider mb-1">Descuento / bonificación</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={formPagoProveedor.descuentoProveedor || ''}
+                  onChange={(e) => { setSobrantePagoProveedorDetectado(0); setConfirmarSaldoFavorPagoProveedor(false); setFormPagoProveedor((prev) => ({ ...prev, descuentoProveedor: e.target.value.replace(/[^0-9.,]/g, '') })); }}
+                  className="w-full px-3 py-2.5 rounded-xl border border-amber-200 bg-amber-50 font-black text-sm text-right outline-none focus:ring-2 focus:ring-amber-500"
+                  placeholder="Descuento del proveedor"
+                />
+                <p className="mt-1 text-[9px] font-bold text-amber-700">Reduce la deuda, no sale de caja.</p>
               </div>
               <div>
                 <label className="block text-[10px] font-black text-gray-600 uppercase tracking-wider mb-1">Forma de pago</label>
@@ -33322,7 +33497,7 @@ function obtenerCategoriaProducto(producto) {
                     />
                   </div>
                   {compraDirectaActiva && <>
-                    {[['IVA 21%', calcularIvaAutomaticoPedidoCompra(itemsPedidoCompra, '21'), null], ['IVA 10,5%', calcularIvaAutomaticoPedidoCompra(itemsPedidoCompra, '10.5'), null], ['Ingresos Brutos', pedidoCompraIngresosBrutos, setPedidoCompraIngresosBrutos], ['Flete', pedidoCompraFlete, setPedidoCompraFlete]].map(([label, value, setter]) => { const esIvaAutomatico = label.startsWith('IVA'); return <div key={label}><label className="block text-[9px] font-black text-emerald-700 uppercase tracking-wider mb-0.5">{label}</label><input value={esIvaAutomatico ? Number(value || 0).toFixed(2) : value} readOnly={esIvaAutomatico} inputMode="decimal" onChange={setter ? (e) => setter(e.target.value) : undefined} placeholder="0" className={`w-full px-2 py-1.5 rounded-lg border border-emerald-200 text-[11px] font-bold text-right outline-none focus:ring-2 focus:ring-emerald-500 ${esIvaAutomatico ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white text-slate-700'}`} /></div>; })}
+                    {[['IVA 21%', compraEsFacturaA(compraDirectaTipoComprobante) ? calcularIvaAutomaticoPedidoCompra(itemsPedidoCompra, '21') : 0, null], ['IVA 10,5%', compraEsFacturaA(compraDirectaTipoComprobante) ? calcularIvaAutomaticoPedidoCompra(itemsPedidoCompra, '10.5') : 0, null], ['Ingresos Brutos', pedidoCompraIngresosBrutos, setPedidoCompraIngresosBrutos], ['Flete', pedidoCompraFlete, setPedidoCompraFlete]].map(([label, value, setter]) => { const esIvaAutomatico = label.startsWith('IVA'); return <div key={label}><label className="block text-[9px] font-black text-emerald-700 uppercase tracking-wider mb-0.5">{label}</label><input value={esIvaAutomatico ? Number(value || 0).toFixed(2) : value} readOnly={esIvaAutomatico} inputMode="decimal" onChange={setter ? (e) => setter(e.target.value) : undefined} placeholder="0" className={`w-full px-2 py-1.5 rounded-lg border border-emerald-200 text-[11px] font-bold text-right outline-none focus:ring-2 focus:ring-emerald-500 ${esIvaAutomatico ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white text-slate-700'}`} /></div>; })}
                   </>}
                   <div>
                     <label className="block text-[9px] font-black text-emerald-700 uppercase tracking-wider mb-0.5">Transporte / envio</label>
@@ -33608,7 +33783,7 @@ function obtenerCategoriaProducto(producto) {
                     <p className="text-[10px] font-bold text-emerald-700">Se calcula automáticamente con los ítems cargados.</p>
                   </div>
                   <input
-                    value={formatearDinero(construirFilasPedidoCompra(itemsPedidoCompra || []).reduce((acc, item) => acc + Number(item.subtotal || 0), 0) + calcularIvaAutomaticoPedidoCompra(itemsPedidoCompra, '21') + calcularIvaAutomaticoPedidoCompra(itemsPedidoCompra, '10.5') + parseNumeroConSigno(pedidoCompraIngresosBrutos) + parseNumeroConSigno(pedidoCompraFlete) + parseNumeroConSigno(pedidoCompraAjusteMonto))}
+                    value={formatearDinero(construirFilasPedidoCompra(itemsPedidoCompra || []).reduce((acc, item) => acc + Number(item.subtotal || 0), 0) + (compraEsFacturaA(compraDirectaTipoComprobante) ? calcularIvaAutomaticoPedidoCompra(itemsPedidoCompra, '21') + calcularIvaAutomaticoPedidoCompra(itemsPedidoCompra, '10.5') : 0) + parseNumeroConSigno(pedidoCompraIngresosBrutos) + parseNumeroConSigno(pedidoCompraAjusteMonto))}
                     readOnly
                     className="w-full h-10 min-h-10 px-3 py-0 rounded-lg border border-emerald-300 bg-white text-sm font-black text-right text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-500"
                   />
@@ -35836,9 +36011,10 @@ function obtenerCategoriaProducto(producto) {
                   const puedeActualizarPrecios = usuarioTieneRolAdministrador(usuarioActual);
                   return (
                     <button
+                      type="button"
                       disabled={!puedeActualizarPrecios || actualizacionesPrecio.length === 0}
                       onClick={aplicarActualizacionPreciosCuentaCliente}
-                      title={actualizacionesPrecio.length ? 'Aplicar los aumentos pendientes de los productos vinculados por código' : 'No hay productos pendientes con aumento de precio'}
+                      aria-label={actualizacionesPrecio.length ? 'Aplicar los aumentos pendientes de los productos vinculados por código' : 'No hay productos pendientes con aumento de precio'}
                       className="sf-client-update-price-action bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:bg-gray-200 disabled:text-gray-400 px-3 py-2 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all order-last whitespace-nowrap shrink-0"
                     >
                       <RefreshCw size={14} /> Actualizar
@@ -36064,12 +36240,35 @@ function obtenerCategoriaProducto(producto) {
                                     const descuento = Math.min(100, Math.max(0, parseNumeroBasico(item?.descuento) || 0));
                                     const bruto = cantidad * precio;
                                     const subtotal = Math.max(0, bruto - (bruto * descuento / 100));
+                                    const codigoItem = normalizarCodigoParaComparar(item?.codigo || item?.codigoProducto || item?.codigoInterno || item?.sku || '');
+                                    const codigoItemNumerico = normalizarCodigoNumericoParaComparar(item?.codigo || item?.codigoProducto || item?.codigoInterno || item?.sku || '');
+                                    const actualizacionItem = actualizacionPrecioPendiente?.items?.find((actual) => {
+                                      const mismoProducto = actual?.productoId && item?.productoId
+                                        && String(actual.productoId) === String(item.productoId);
+                                      const codigoActual = normalizarCodigoParaComparar(actual?.codigo || '');
+                                      const codigoActualNumerico = normalizarCodigoNumericoParaComparar(actual?.codigo || '');
+                                      return mismoProducto
+                                        || (codigoActual && codigoItem && codigoActual === codigoItem)
+                                        || (codigoActualNumerico && codigoItemNumerico && codigoActualNumerico === codigoItemNumerico);
+                                    }) || null;
+                                    const precioAnteriorAumento = Math.max(0, parseNumeroBasico(actualizacionItem?.precioAnterior ?? precio));
+                                    const precioNuevoAumento = Math.max(0, parseNumeroBasico(actualizacionItem?.precioNuevo ?? precio));
+                                    const porcentajeAumento = precioAnteriorAumento > 0
+                                      ? ((precioNuevoAumento - precioAnteriorAumento) / precioAnteriorAumento) * 100
+                                      : 0;
                                     return (
                                       <div key={`${mov.id}-cc-item-${item?.id || index}`} className="px-3 py-2 grid grid-cols-12 gap-2 items-start text-[11px]">
                                         <div className="col-span-12 sm:col-span-2 font-black text-slate-500 truncate">{textoSeguroTrim(item?.codigo, '-')}</div>
                                         <div className="col-span-12 sm:col-span-5 font-bold text-slate-900 leading-snug">{textoSeguroTrim(item?.descripcion, 'Producto sin detalle')}</div>
                                         <div className="col-span-4 sm:col-span-1 font-black text-slate-700 whitespace-nowrap text-right">{cantidad} {textoSeguroTrim(item?.unidad, 'unid')}</div>
-                                        <div className="col-span-4 sm:col-span-2 font-bold text-slate-600 whitespace-nowrap text-right">{formatearDinero(precio)}</div>
+                                        <div className="col-span-4 sm:col-span-2 font-bold text-slate-600 whitespace-nowrap text-right">
+                                          <div>{formatearDinero(precio)}</div>
+                                          {actualizacionItem && (
+                                            <div className="mt-1 text-[10px] font-black leading-tight text-red-700">
+                                              +{formatearPorcentaje(porcentajeAumento)}% · Nuevo {formatearDinero(precioNuevoAumento)}
+                                            </div>
+                                          )}
+                                        </div>
                                         <div className="col-span-4 sm:col-span-2 font-black text-emerald-700 whitespace-nowrap text-right">{formatearDinero(subtotal)}</div>
                                         {descuento > 0 && (
                                           <div className="col-span-12 text-[10px] font-black text-orange-700 text-right">Desc. {descuento}%</div>
@@ -38163,7 +38362,7 @@ function obtenerCategoriaProducto(producto) {
         <Modal titulo="Asignar vendedor a esta venta" onClose={() => setAsignacionVendedorPuntoVentaAbierta(false)} customWidth="max-w-lg" extraClases="z-[75]">
           <form onSubmit={confirmarAsignacionVendedorPuntoVenta} className="space-y-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Venta actual</p><p className="font-black text-slate-900">{formPuntoVenta.tipoComprobante === 'remito_x' ? 'Remito X' : (OPCIONES_COMPROBANTE_VENTA.find((opcion) => opcion.value === formPuntoVenta.tipoComprobante)?.label || 'Comprobante')} {formPuntoVenta.numeroComprobante || 'sin número'}</p></div><p className="text-2xl font-black text-emerald-700">{formatearDinero(totalFormularioPuntoVenta)}</p></div>
-            <div className="grid sm:grid-cols-2 gap-3"><div><label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1">Vendedor</label><select value={formAsignacionVendedorPuntoVenta.vendedorId} onChange={(event) => setFormAsignacionVendedorPuntoVenta((prev) => ({ ...prev, vendedorId: event.target.value }))} required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-bold outline-none focus:ring-2 focus:ring-teal-500"><option value="">Seleccionar vendedor</option>{vendedores.filter((vendedor) => vendedor.activo !== false || vendedor.id === formPuntoVenta.vendedorId).map((vendedor) => <option key={`pv-vendedor-${vendedor.id}`} value={vendedor.id}>{vendedor.nombre}{vendedor.activo === false ? ' (inactivo)' : ''}</option>)}</select></div><div><label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1">Porcentaje sobre la venta</label><div className="relative"><input inputMode="decimal" value={formAsignacionVendedorPuntoVenta.porcentaje} onChange={(event) => setFormAsignacionVendedorPuntoVenta((prev) => ({ ...prev, porcentaje: event.target.value.replace(/[^0-9.,]/g, '') }))} placeholder="Ej.: 10" required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pr-10 text-right text-lg font-black outline-none focus:ring-2 focus:ring-teal-500" /><span className="absolute right-3 top-1/2 -translate-y-1/2 font-black text-slate-500">%</span></div></div></div>
+            <div className="grid sm:grid-cols-2 gap-3"><div><label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1">Vendedor</label><select value={formAsignacionVendedorPuntoVenta.vendedorId} onChange={(event) => setFormAsignacionVendedorPuntoVenta((prev) => ({ ...prev, vendedorId: event.target.value }))} required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-bold outline-none focus:ring-2 focus:ring-teal-500"><option value="">Seleccionar vendedor</option>{vendedores.filter((vendedor) => vendedor.activo !== false || vendedor.id === formPuntoVenta.vendedorId).map((vendedor) => <option key={`pv-vendedor-${vendedor.id}`} value={vendedor.id}>{vendedor.nombre}{vendedor.activo === false ? ' (inactivo)' : ''}</option>)}</select></div><div><label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1">Porcentaje sobre la venta</label><div className="relative"><input inputMode="decimal" value={formAsignacionVendedorPuntoVenta.porcentaje} onChange={(event) => setFormAsignacionVendedorPuntoVenta((prev) => ({ ...prev, porcentaje: event.target.value.replace(/[^0-9.,]/g, '') }))} placeholder="Ej.: 10" required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pr-10 text-right text-lg font-black outline-none focus:ring-2 focus:ring-teal-500" /><span className="absolute right-3 top-1/2 -translate-y-1/2 font-black text-slate-500">%</span></div></div><label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 cursor-pointer sm:col-span-2"><input type="checkbox" checked={formAsignacionVendedorPuntoVenta.aplicarAlPrecio === true} onChange={(event) => setFormAsignacionVendedorPuntoVenta((prev) => ({ ...prev, aplicarAlPrecio: event.target.checked }))} className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600" /><span className="text-[10px] font-black uppercase tracking-wider text-amber-800">Incrementar el precio con la comisión<span className="block normal-case tracking-normal font-bold text-amber-700">Si no se tilda, la comisión sale de tu ganancia.</span></span></label></div>
             <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-3"><div><p className="text-[10px] font-black uppercase tracking-wider text-teal-700">Comisión incorporada a los ítems</p><p className="mt-1 text-2xl font-black text-teal-900">{formatearDinero(comisionPuntoVentaVista)}</p></div><div className="sm:text-right"><p className="text-[10px] font-black uppercase tracking-wider text-teal-700">Nuevo total de venta</p><p className="mt-1 text-2xl font-black text-teal-900">{formatearDinero(totalConComisionPuntoVentaVista)}</p></div><p className="sm:col-span-2 text-xs font-bold text-teal-700">El porcentaje se suma proporcionalmente al precio original de cada ítem.</p></div>
             <div className="flex flex-col sm:flex-row gap-2 pt-1">{formPuntoVenta.vendedorId && <button type="button" onClick={quitarAsignacionVendedorPuntoVenta} className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-black text-red-700">Quitar vendedor</button>}<button type="button" onClick={() => setAsignacionVendedorPuntoVentaAbierta(false)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-700">Cancelar</button><button type="submit" className="flex-1 rounded-xl bg-teal-600 px-4 py-3 text-xs font-black text-white">Aplicar vendedor y comisión</button></div>
           </form>
