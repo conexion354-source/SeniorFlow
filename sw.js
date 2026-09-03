@@ -1,10 +1,10 @@
-const CACHE_NAME = 'seniorflow-flyer-gestion-20260903-51';
+const CACHE_NAME = 'seniorflow-flyer-gestion-20260903-52';
 const ASSETS = [
   './',
   './index.html',
   './stock-app.html',
   './stock-app.js?v=seniorflow-stock-mobile-20260807-08',
-  './app.js?v=seniorflow-flyer-gestion-20260903-51',
+  './app.js?v=seniorflow-flyer-gestion-20260903-52',
   './firebase-config.js?v=seniorflow-online-firestore-20260825-36',
   './manifest.json',
   './manifest-stock-app.json?v=seniorflow-stock-mobile-20260807-08',
