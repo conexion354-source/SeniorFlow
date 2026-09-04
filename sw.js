@@ -1,10 +1,10 @@
-const CACHE_NAME = 'seniorflow-flyer-gestion-20260904-57';
+const CACHE_NAME = 'seniorflow-flyer-gestion-20260904-58';
 const ASSETS = [
   './',
   './index.html',
   './stock-app.html',
   './stock-app.js?v=seniorflow-stock-mobile-20260807-08',
-  './app.js?v=seniorflow-flyer-gestion-20260904-57',
+  './app.js?v=seniorflow-flyer-gestion-20260904-58',
   './firebase-config.js?v=seniorflow-online-firestore-20260825-36',
   './manifest.json',
   './manifest-stock-app.json?v=seniorflow-stock-mobile-20260807-08',
@@ -35,7 +35,13 @@ self.addEventListener('activate', (event) => {
     const keys = await caches.keys();
     await Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)));
     await self.clients.claim();
+    const clientes = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    clientes.forEach((cliente) => cliente.postMessage({ type: 'SENIORFLOW_UPDATE_READY', version: CACHE_NAME }));
   })());
+});
+
+self.addEventListener('message', (event) => {
+  if (event?.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', (event) => {
@@ -94,7 +100,7 @@ self.addEventListener('fetch', (event) => {
             ? './stock-app.js?v=seniorflow-stock-mobile-20260807-08'
             : url.pathname.endsWith('/ofertas.html')
             ? './ofertas.html?v=seniorflow-flyer-gestion-20260903-51'
-            : './app.js?v=seniorflow-flyer-gestion-20260904-57'));
+            : './app.js?v=seniorflow-flyer-gestion-20260904-58'));
       }
     })());
     return;

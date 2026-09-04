@@ -2011,7 +2011,8 @@
   <!-- SCRIPTS ORIGINALES DE TU APLICACION -->
   <script>
     (function () {
-      const CURRENT_BUILD = 'seniorflow-flyer-gestion-20260904-57';
+      const CURRENT_BUILD = 'seniorflow-flyer-gestion-20260904-58';
+      window.__SENIORFLOW_BUILD__ = CURRENT_BUILD;
       const BUILD_KEY = 'seniorflow-current-build';
       const isFileProtocol = window.location.protocol === 'file:';
       if (isFileProtocol) return;
@@ -2049,7 +2050,7 @@
   </script>
   <script>
     (function () {
-          const APP_BUNDLE = './app.js?v=seniorflow-flyer-gestion-20260904-57';
+          const APP_BUNDLE = './app.js?v=seniorflow-flyer-gestion-20260904-58';
       const isFileProtocol = window.location.protocol === 'file:';
 
       if (!isFileProtocol) {
@@ -2116,11 +2117,109 @@
   <script>
     if (window.location.protocol !== 'file:' && 'serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=seniorflow-flyer-gestion-20260904-57').catch((error) => {
+      navigator.serviceWorker.register('./sw.js?v=seniorflow-flyer-gestion-20260904-58').catch((error) => {
           console.error('SW register error', error);
         });
       });
     }
+  </script>
+  <script>
+    (() => {
+      if (window.location.protocol === 'file:') return;
+      const BUILD_ACTUAL = window.__SENIORFLOW_BUILD__ || 'seniorflow-flyer-gestion-20260904-58';
+      const POSPONER_KEY = 'seniorflow-actualizacion-pospuesta-hasta';
+      const INTERVALO_CONTROL_MS = 3 * 60 * 1000;
+      let aviso = null;
+
+      const versionVisible = (build = '') => {
+        const partes = String(build).split('-');
+        return partes.length ? partes[partes.length - 1] : build;
+      };
+      const ocultarAviso = () => {
+        aviso?.remove();
+        aviso = null;
+      };
+      const actualizarAhora = async (boton) => {
+        boton.disabled = true;
+        boton.textContent = 'Preparando actualización...';
+        try {
+          if ('serviceWorker' in navigator) {
+            const registros = await navigator.serviceWorker.getRegistrations();
+            await Promise.allSettled(registros.map(async (registro) => {
+              await registro.update();
+              registro.waiting?.postMessage({ type: 'SKIP_WAITING' });
+            }));
+            await Promise.allSettled(registros.map((registro) => registro.unregister()));
+          }
+          if ('caches' in window) {
+            const claves = await caches.keys();
+            await Promise.allSettled(claves.map((clave) => caches.delete(clave)));
+          }
+          localStorage.removeItem('seniorflow-current-build');
+          sessionStorage.removeItem(POSPONER_KEY);
+        } catch (error) {
+          console.warn('No se pudo completar la limpieza previa a la actualización.', error);
+        } finally {
+          const url = new URL(window.location.href);
+          url.searchParams.set('actualizacion', Date.now().toString());
+          window.location.replace(url.toString());
+        }
+      };
+      const mostrarAviso = (nuevoBuild) => {
+        if (!nuevoBuild || nuevoBuild === BUILD_ACTUAL) return;
+        const pospuestaHasta = Number(sessionStorage.getItem(POSPONER_KEY) || 0);
+        if (Date.now() < pospuestaHasta || aviso) return;
+        aviso = document.createElement('aside');
+        aviso.setAttribute('role', 'alertdialog');
+        aviso.setAttribute('aria-label', 'Actualización disponible');
+        aviso.style.cssText = 'position:fixed;right:20px;bottom:20px;z-index:2147483647;width:min(420px,calc(100vw - 24px));font-family:Inter,system-ui,-apple-system,sans-serif;background:#fff;border:1px solid #bfdbfe;border-radius:16px;box-shadow:0 24px 65px rgba(15,23,42,.28);overflow:hidden;color:#17233c;';
+        aviso.innerHTML = `
+          <div style="height:5px;background:linear-gradient(90deg,#0f766e,#2563eb);"></div>
+          <div style="padding:18px 18px 16px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <div style="width:42px;height:42px;flex:0 0 42px;border-radius:12px;background:#ecfdf5;color:#047857;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;">↻</div>
+              <div style="min-width:0;flex:1;">
+                <p style="margin:0;color:#0f172a;font-size:16px;line-height:1.25;font-weight:900;">Nueva actualización disponible</p>
+                <p style="margin:6px 0 0;color:#475569;font-size:13px;line-height:1.45;font-weight:600;">La versión ${versionVisible(nuevoBuild)} está lista. Guardá cualquier operación abierta antes de actualizar.</p>
+              </div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:16px;">
+              <button type="button" data-accion="despues" style="min-height:40px;padding:9px 13px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#334155;font-size:12px;font-weight:800;cursor:pointer;">Recordarme más tarde</button>
+              <button type="button" data-accion="actualizar" style="min-height:40px;padding:9px 15px;border:0;border-radius:9px;background:#0f766e;color:#fff;font-size:12px;font-weight:900;cursor:pointer;">Actualizar ahora</button>
+            </div>
+          </div>`;
+        aviso.querySelector('[data-accion="despues"]').addEventListener('click', () => {
+          sessionStorage.setItem(POSPONER_KEY, String(Date.now() + (30 * 60 * 1000)));
+          ocultarAviso();
+        });
+        const botonActualizar = aviso.querySelector('[data-accion="actualizar"]');
+        botonActualizar.addEventListener('click', () => actualizarAhora(botonActualizar));
+        document.body.appendChild(aviso);
+      };
+      const controlarActualizacion = async () => {
+        if (!navigator.onLine) return;
+        try {
+          const respuesta = await fetch(`./sw.js?control-version=${Date.now()}`, { cache: 'no-store', headers: { 'cache-control': 'no-cache' } });
+          if (!respuesta.ok) return;
+          const contenido = await respuesta.text();
+          const encontrado = contenido.match(/seniorflow-flyer-gestion-\d{8}-\d+/)?.[0] || '';
+          if (encontrado && encontrado !== BUILD_ACTUAL) mostrarAviso(encontrado);
+        } catch (error) {
+          // Sin conexión: se vuelve a intentar automáticamente.
+        }
+      };
+      navigator.serviceWorker?.addEventListener('message', (event) => {
+        const version = event?.data?.type === 'SENIORFLOW_UPDATE_READY' ? event.data.version : '';
+        if (version && version !== BUILD_ACTUAL) mostrarAviso(version);
+      });
+      window.addEventListener('focus', controlarActualizacion);
+      window.addEventListener('online', controlarActualizacion);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') controlarActualizacion();
+      });
+      window.setTimeout(controlarActualizacion, 15000);
+      window.setInterval(controlarActualizacion, INTERVALO_CONTROL_MS);
+    })();
   </script>
 </body>
 </html>
