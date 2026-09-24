@@ -2562,6 +2562,22 @@ ${f.nombre}`,h=null;try{h=await jK(s)}catch(S){console.error("No se pudo generar
         .sf-enterprise-shell .sf-purchase-modal .shrink-0.grid { border:0 !important; border-top:1px solid #edebe9 !important; border-radius:0 !important; background:#fff !important; padding:16px 0 0 !important; }
         .sf-enterprise-shell .sf-purchase-modal .shrink-0.grid button { min-height:36px !important; border-radius:6px !important; background:#0067c0 !important; box-shadow:none !important; font-size:13px !important; font-weight:600 !important; }
         .sf-enterprise-shell .sf-purchase-modal .shrink-0.grid button:hover:not(:disabled) { background:#005a9e !important; }
+        /* Ajuste de densidad: la tabla es el \xE1rea central del modal, nunca una franja comprimida. */
+        .sf-enterprise-shell .sf-modal-panel.sf-purchase-modal { width:min(1160px,calc(100vw - 32px)) !important; max-width:1160px !important; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-modal-header h2 { font-size:32px !important; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-workspace,
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-workspace:has(.sf-purchase-empty) { height:min(88dvh,920px) !important; min-height:720px !important; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-workspace > .space-y-2,
+        .sf-enterprise-shell .sf-purchase-modal .bg-emerald-100/60,
+        .sf-enterprise-shell .sf-purchase-modal .bg-emerald-100/70,
+        .sf-enterprise-shell .sf-purchase-modal .bg-emerald-50 { background:#f9fafb !important; border-color:#e5e7eb !important; }
+        .sf-enterprise-shell .sf-purchase-modal .flex-1.min-h-0.overflow-y-auto { min-height:280px !important; overflow-x:auto !important; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-empty { min-height:280px !important; height:280px !important; }
+        .sf-enterprise-shell .sf-purchase-modal .hidden.lg\\:grid,
+        .sf-enterprise-shell .sf-purchase-modal .divide-y > div > .grid { grid-template-columns:80px minmax(220px,1.5fr) 86px 58px 68px 94px 60px 86px 120px 32px 32px !important; min-width:980px !important; }
+        .sf-enterprise-shell .sf-purchase-modal .hidden.lg\\:grid { background:#f3f4f6 !important; color:#374151 !important; font-size:12px !important; }
+        .sf-enterprise-shell .sf-purchase-modal .shrink-0.grid { background:#fff !important; }
+        .sf-enterprise-shell .sf-purchase-modal .shrink-0.grid > div:first-child { min-width:310px; }
         @media (max-width:767px) {
           .sf-enterprise-shell .sf-modal-overlay { padding:0; }
           .sf-enterprise-shell .sf-modal-panel.sf-modal-fullscreen { width:100vw; height:100dvh; max-height:100dvh; border-radius:0; }
