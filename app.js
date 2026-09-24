@@ -2541,6 +2541,27 @@ ${f.nombre}`,h=null;try{h=await jK(s)}catch(S){console.error("No se pudo generar
         .sf-enterprise-shell .sf-purchase-modal .sf-purchase-empty { padding:38px 16px; color:#64748b; }
         .sf-enterprise-shell .sf-purchase-modal .sf-purchase-actions-grid > .sf-purchase-action-add { background:var(--sf-win-accent) !important; border-color:var(--sf-win-accent) !important; }
         .sf-enterprise-shell .sf-purchase-modal .sf-purchase-actions-grid > .sf-purchase-action-manual { background:#fff !important; border-color:#9abfe8 !important; color:#075aa5 !important; }
+        /* Compra directa: variante Fluent Windows 11. S\xF3lo presentaci\xF3n; no modifica flujos ni c\xE1lculos. */
+        .sf-enterprise-shell .sf-modal-panel.sf-purchase-modal { width:min(880px,calc(100vw - 32px)) !important; max-width:880px !important; border:1px solid #e6e6e6 !important; border-radius:12px !important; box-shadow:0 8px 32px rgba(0,0,0,.12) !important; font-family:"Segoe UI Variable","Segoe UI",system-ui,sans-serif !important; }
+        .sf-enterprise-shell .sf-purchase-modal > .sf-modal-header { min-height:72px !important; padding:0 22px 0 24px !important; background:#fff !important; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-modal-header h2 { color:#1f1f1f !important; font-size:28px !important; font-weight:700 !important; }
+        .sf-enterprise-shell .sf-purchase-modal > .sf-modal-body { padding:20px 24px 18px !important; background:#f3f3f3 !important; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-workspace { gap:16px !important; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-workspace > .space-y-2 { padding:16px !important; border:1px solid #e6e6e6 !important; border-radius:8px !important; background:#fff !important; }
+        .sf-enterprise-shell .sf-purchase-modal label { color:#605e5c !important; font-size:11px !important; font-weight:600 !important; letter-spacing:.5px !important; }
+        .sf-enterprise-shell .sf-purchase-modal input:not([type="checkbox"]), .sf-enterprise-shell .sf-purchase-modal select { min-height:36px !important; height:36px !important; border-color:#d1d1d1 !important; border-radius:6px !important; color:#1f1f1f !important; font-size:13px !important; box-shadow:none !important; }
+        .sf-enterprise-shell .sf-purchase-modal input:not([type="checkbox"]):hover, .sf-enterprise-shell .sf-purchase-modal select:hover { border-color:#8a8886 !important; }
+        .sf-enterprise-shell .sf-purchase-modal input:not([type="checkbox"]):focus, .sf-enterprise-shell .sf-purchase-modal select:focus { border-color:#0078d4 !important; box-shadow:0 0 0 1px #0078d4 !important; }
+        .sf-enterprise-shell .sf-purchase-modal input[type="checkbox"] { width:18px !important; height:18px !important; accent-color:#0067c0; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-item-header { min-height:48px !important; padding:8px 0 !important; background:#fff !important; border-bottom:1px solid #edebe9 !important; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-item-title { color:#1f1f1f !important; font-size:14px !important; font-weight:700 !important; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-actions-grid > .sf-purchase-action { height:32px !important; min-height:32px !important; border:1px solid #d1d1d1 !important; border-radius:6px !important; background:#f3f3f3 !important; color:#1f1f1f !important; font-size:13px !important; font-weight:600 !important; box-shadow:none !important; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-actions-grid > .sf-purchase-action-add { background:#0067c0 !important; border-color:#0067c0 !important; color:#fff !important; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-actions-grid > .sf-purchase-action-add:hover { background:#005a9e !important; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-empty { display:grid !important; min-height:220px !important; place-items:center !important; border:1.5px dashed #c8c6c4 !important; border-radius:8px !important; background:#fafafa !important; color:#605e5c !important; font-size:13px !important; font-weight:500 !important; }
+        .sf-enterprise-shell .sf-purchase-modal .shrink-0.grid { border:0 !important; border-top:1px solid #edebe9 !important; border-radius:0 !important; background:#fff !important; padding:16px 0 0 !important; }
+        .sf-enterprise-shell .sf-purchase-modal .shrink-0.grid button { min-height:36px !important; border-radius:6px !important; background:#0067c0 !important; box-shadow:none !important; font-size:13px !important; font-weight:600 !important; }
+        .sf-enterprise-shell .sf-purchase-modal .shrink-0.grid button:hover:not(:disabled) { background:#005a9e !important; }
         @media (max-width:767px) {
           .sf-enterprise-shell .sf-modal-overlay { padding:0; }
           .sf-enterprise-shell .sf-modal-panel.sf-modal-fullscreen { width:100vw; height:100dvh; max-height:100dvh; border-radius:0; }
