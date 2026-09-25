@@ -2606,6 +2606,13 @@ ${f.nombre}`,h=null;try{h=await GK(s)}catch(S){console.error("No se pudo generar
         .sf-enterprise-shell .sf-product-images > .grid > div > .mt-3 label { min-height:28px !important; }
         .sf-enterprise-shell .sf-product-upload-plus { width:36px !important; height:36px !important; min-height:36px !important; margin:5px auto 0 !important; display:inline-flex !important; align-items:center; justify-content:center; border:1px solid #aebbc8; border-radius:7px; background:#fff; color:#52677d; cursor:pointer; transition:background .15s,border-color .15s,color .15s; }
         .sf-enterprise-shell .sf-product-upload-plus:hover { background:#eaf3fb; border-color:#6e9dcc; color:#075aa5; }
+        .sf-enterprise-shell .sf-product-images > .grid > div > div[class*="min-h"] { min-height:112px !important; height:112px !important; overflow:hidden !important; }
+        .sf-enterprise-shell .sf-product-images > .grid > div > div[class*="min-h"] > .text-center { width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+        .sf-enterprise-shell .sf-product-images > .grid > div > div[class*="min-h"] > .text-center > div:first-child,
+        .sf-enterprise-shell .sf-product-images > .grid > div > div[class*="min-h"] > .text-center > p { display:none !important; }
+        .sf-enterprise-shell .sf-product-images .min-h-[126px] { min-height:58px !important; height:58px !important; }
+        .sf-enterprise-shell .sf-product-images .min-h-[126px] .h-24 { height:36px !important; }
+        .sf-enterprise-shell .sf-product-images .min-h-[126px] > span { margin-top:2px !important; }
         .sf-enterprise-shell .sf-product-general input,
         .sf-enterprise-shell .sf-product-general textarea,
         .sf-enterprise-shell .sf-product-stock input,
