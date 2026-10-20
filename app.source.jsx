@@ -76,7 +76,8 @@ const parseImporteCajaHistorico = (valor) => {
   const textoOriginal = (valor ?? '').toString().trim();
   if (!textoOriginal) return 0;
   const textoAnalisis = textoOriginal.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const multiplicador = textoAnalisis.includes('millon') ? 1000000 : textoAnalisis.includes('mil') ? 1000 : 1;
+  const tieneSufijoMillon = textoAnalisis.includes('millon');
+  const tieneSufijoMil = !tieneSufijoMillon && textoAnalisis.includes('mil');
   const texto = textoOriginal.replace(/\s+/g, '').replace(/\$/g, '').replace(/[^\d.,-]/g, '');
   const tieneComa = texto.includes(',');
   const tienePunto = texto.includes('.');
@@ -93,7 +94,22 @@ const parseImporteCajaHistorico = (valor) => {
     normalizado = partes.length > 2 || ((partes[1] || '').length === 3 && (partes[0] || '').replace('-', '').length <= 3) ? texto.replace(/\./g, '') : texto;
   }
   const numero = parseFloat(normalizado);
-  return Number.isFinite(numero) ? numero * multiplicador : 0;
+  if (!Number.isFinite(numero)) return 0;
+  const multiplicador = tieneSufijoMillon
+    ? (numero < 1000 ? 1000000 : 1)
+    : (tieneSufijoMil && numero < 1000 ? 1000 : 1);
+  return numero * multiplicador;
+};
+const parseImporteCajaIngresado = (valor) => {
+  const texto = String(valor ?? '').trim().replace(/\s/g, '').replace(/^\$/, '');
+  if (!texto || !/^[\d.,]+$/.test(texto)) return NaN;
+  const formatoAgrupado = /^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/;
+  const formatoDecimalPunto = /^\d+(?:\.\d{1,2})?$/;
+  const formatoDecimalComa = /^\d+(?:,\d{1,2})?$/;
+  if (!formatoAgrupado.test(texto) && !formatoDecimalPunto.test(texto) && !formatoDecimalComa.test(texto)) return NaN;
+  const normalizado = formatoAgrupado.test(texto) ? texto.replace(/\./g, '').replace(',', '.') : texto.replace(',', '.');
+  const numero = Number(normalizado);
+  return Number.isFinite(numero) && numero >= 0 ? numero : NaN;
 };
 const obtenerStockActualProducto = (producto = {}) => parseNumeroBasico(producto?.cantidad ?? producto?.stock ?? 0);
 const obtenerStockMinimoProducto = (producto = {}) => {
@@ -2590,6 +2606,7 @@ function AppInterna() {
   const [rastreoChequesAbiertos, setRastreoChequesAbiertos] = useState({});
 
   const [formData, setFormData] = useState({ monto: '', efectivo: '', cheques: '', tieneCheques: false, descripcion: '', metodoPago: 'efectivo', detallesPago: {}, impactaCajaReportes: true });
+  const [efectivoContadoParaCorregirCaja, setEfectivoContadoParaCorregirCaja] = useState('');
   const [montoCierreReal, setMontoCierreReal] = useState('');
   
   const [formUsuario, setFormUsuario] = useState(FORM_USUARIO_VACIO);
@@ -10594,7 +10611,7 @@ const abrirPuntoVenta = () => {
       }
       // El fondo queda editable antes de confirmar la apertura para poder
       // corregir cierres históricos o importes mal cargados.
-      const efectivoApertura = parseMontoCaja(formData.efectivo);
+      const efectivoApertura = parseImporteCajaIngresado(formData.efectivo);
       // Los cheques se registran como movimiento con la caja abierta.
       const chequesApertura = 0;
       if (!Number.isFinite(efectivoApertura) || efectivoApertura < 0) {
@@ -10626,10 +10643,19 @@ const abrirPuntoVenta = () => {
   const editarApertura = async (e) => {
     e.preventDefault();
     try {
+      const efectivoInicial = parseImporteCajaIngresado(formData.efectivo);
+      const chequesInicial = formData.tieneCheques ? parseImporteCajaIngresado(formData.cheques) : 0;
+      if (!Number.isFinite(efectivoInicial) || !Number.isFinite(chequesInicial)) {
+        await notificarSistema('Ingresá importes válidos. Usá, por ejemplo, 527.466,50.', { tipo: 'warning', titulo: 'Importe inválido' });
+        return;
+      }
+      const saldoResultante = efectivoInicial + totales.balanceEfectivo;
+      const confirmado = window.confirm(`Vas a guardar una apertura de ${formatearDinero(efectivoInicial)}. Con los movimientos de este turno, el efectivo en caja quedará en ${formatearDinero(saldoResultante)}. ¿Confirmás?`);
+      if (!confirmado) return;
       const docRef = doc(db, 'sistema', 'caja');
       await setDoc(docRef, {
-        efectivoInicial: parseMontoCaja(formData.efectivo),
-        chequesInicial: formData.tieneCheques ? parseMontoCaja(formData.cheques) : 0
+        efectivoInicial,
+        chequesInicial
       }, { merge: true });
       setFormData({ monto: '', efectivo: '', cheques: '', tieneCheques: false, descripcion: '', metodoPago: 'efectivo', detallesPago: {} });
       setModalActivo(null);
@@ -26246,8 +26272,9 @@ function obtenerCategoriaProducto(producto) {
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <p className="text-xs font-bold text-gray-400">Inició con {formatearDinero(caja.efectivoInicial)}</p>
                     {caja.chequesInicial > 0 && <span className="text-[10px] font-black bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-md truncate">+{formatearDinero(caja.chequesInicial)} cheques</span>}
-                    <button onClick={(e) => { e.stopPropagation(); setFormData({...formData, efectivo: caja.efectivoInicial.toString(), cheques: caja.chequesInicial.toString(), tieneCheques: caja.chequesInicial > 0}); setModalActivo('editar_apertura'); }} className="text-gray-400 hover:text-blue-600 p-1 rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100" title="Editar apertura"><Edit2 size={12} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); setEfectivoContadoParaCorregirCaja(''); setFormData({...formData, efectivo: String(caja.efectivoInicial ?? ''), cheques: String(caja.chequesInicial ?? 0), tieneCheques: caja.chequesInicial > 0}); setModalActivo('editar_apertura'); }} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700 hover:bg-blue-100" title="Editar apertura"><Edit2 size={12} /> Corregir apertura</button>
                   </div>
+                  <p className="mt-1 text-xs font-bold text-gray-500">Movimientos en efectivo del turno: {formatearDinero(totales.balanceEfectivo)}</p>
                 </div>
                 <div className="p-3 rounded-full shrink-0 bg-blue-100"><Wallet size={24} className="text-blue-600" /></div>
               </div>
@@ -32247,6 +32274,11 @@ function obtenerCategoriaProducto(producto) {
                   autoFocus
                 />
               </div>
+              <p className="mt-2 text-sm font-bold text-blue-800" aria-live="polite">
+                {Number.isFinite(parseImporteCajaIngresado(formData.efectivo))
+                  ? `Se guardará: ${formatearDinero(parseImporteCajaIngresado(formData.efectivo))}`
+                  : 'Escribí pesos y hasta dos decimales. Ejemplo: 527.466,50'}
+              </p>
             </div>
 
             <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl text-sm uppercase tracking-wider">
@@ -32259,22 +32291,45 @@ function obtenerCategoriaProducto(producto) {
       {modalActivo === 'editar_apertura' && (
         <Modal titulo="Editar Apertura de Caja" onClose={() => setModalActivo(null)}>
           <form onSubmit={editarApertura} className="space-y-4">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+              <label className="block text-xs font-black uppercase text-emerald-900 mb-2">Si contaste el efectivo que hay ahora</label>
+              <input type="text" inputMode="decimal" value={efectivoContadoParaCorregirCaja} onChange={(e) => setEfectivoContadoParaCorregirCaja(e.target.value)} className="w-full rounded-lg border border-emerald-300 bg-white px-3 py-2 text-lg font-bold outline-none focus:border-emerald-600" placeholder="Ejemplo: 527.466,50" />
+              {Number.isFinite(parseImporteCajaIngresado(efectivoContadoParaCorregirCaja)) && (
+                <p className="mt-2 text-xs font-bold text-emerald-900">Para que el saldo actual sea {formatearDinero(parseImporteCajaIngresado(efectivoContadoParaCorregirCaja))}, la apertura debe ser {formatearDinero(parseImporteCajaIngresado(efectivoContadoParaCorregirCaja) - totales.balanceEfectivo)}.</p>
+              )}
+              <button type="button" disabled={!Number.isFinite(parseImporteCajaIngresado(efectivoContadoParaCorregirCaja)) || parseImporteCajaIngresado(efectivoContadoParaCorregirCaja) < totales.balanceEfectivo} onClick={() => setFormData((actual) => ({ ...actual, efectivo: (parseImporteCajaIngresado(efectivoContadoParaCorregirCaja) - totales.balanceEfectivo).toFixed(2) }))} className="mt-2 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300">Calcular apertura con el recuento actual</button>
+            </div>
+            {usuarioPuedeVerHistorialCaja() && historialCaja[0] && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-bold text-slate-700 space-y-1">
+                <p>Último cierre registrado: {formatearDinero(parseImporteCajaHistorico(historialCaja[0].efectivoCierre))}</p>
+                <p>Movimientos en efectivo de este turno: {formatearDinero(totales.balanceEfectivo)}</p>
+                <p>Si se inició con ese cierre, el saldo sería: {formatearDinero(parseImporteCajaHistorico(historialCaja[0].efectivoCierre) + totales.balanceEfectivo)}</p>
+                <button type="button" onClick={() => setFormData((actual) => ({ ...actual, efectivo: parseImporteCajaHistorico(historialCaja[0].efectivoCierre).toFixed(2) }))} className="mt-1 rounded-lg border border-blue-200 bg-white px-3 py-2 text-blue-700 hover:bg-blue-50">Usar último cierre como apertura</button>
+              </div>
+            )}
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">Efectivo inicial</label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-black text-xl">$</span>
                 <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   required
                   value={formData.efectivo}
                   onChange={(e) => setFormData({ ...formData, efectivo: e.target.value })}
                   className="w-full pl-10 pr-4 py-3 bg-white border-2 border-gray-200 rounded-xl text-2xl font-black text-gray-800 outline-none focus:border-blue-600"
-                  placeholder="0.00"
+                  placeholder="0,00"
                   autoFocus
                 />
               </div>
+              <p className="mt-2 text-sm font-bold text-blue-800" aria-live="polite">
+                {Number.isFinite(parseImporteCajaIngresado(formData.efectivo))
+                  ? `Se guardará: ${formatearDinero(parseImporteCajaIngresado(formData.efectivo))}`
+                  : 'Escribí pesos y hasta dos decimales. Ejemplo: 527.466,50'}
+              </p>
+              {Number.isFinite(parseImporteCajaIngresado(formData.efectivo)) && (
+                <p className="mt-1 text-sm font-black text-emerald-800">Efectivo resultante con los movimientos de este turno: {formatearDinero(parseImporteCajaIngresado(formData.efectivo) + totales.balanceEfectivo)}</p>
+              )}
             </div>
 
             <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
@@ -32291,9 +32346,8 @@ function obtenerCategoriaProducto(producto) {
                 <div className="mt-3 relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-orange-400 font-black">$</span>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     value={formData.cheques}
                     onChange={(e) => setFormData({ ...formData, cheques: e.target.value })}
                     className="w-full pl-8 pr-3 py-2.5 bg-white border border-orange-200 rounded-lg font-bold text-sm outline-none focus:border-orange-500"
