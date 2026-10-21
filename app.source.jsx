@@ -33752,7 +33752,7 @@ function obtenerCategoriaProducto(producto) {
           onClose={() => { setCompraDirectaActiva(false); setSelectorInventarioPedidoCompraAbierto(false); setModalActivo(null); }}
           customWidth="max-w-7xl"
         >
-          <div className="space-y-4 h-[84dvh] max-h-[calc(100dvh-6rem)] overflow-hidden flex flex-col min-w-0">
+          <div className="space-y-4 min-w-0">
             <div className="space-y-2">
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2 space-y-2">
                 <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(220px,1.2fr)_auto] gap-2 items-center min-w-0">
@@ -33930,8 +33930,8 @@ function obtenerCategoriaProducto(producto) {
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 min-h-0 flex-1">
-              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden min-h-0 flex-1 flex flex-col">
+            <div className="flex flex-col gap-3 min-w-0">
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col">
                 <div className="sf-purchase-item-header px-3 py-1.5 border-b border-slate-100 bg-slate-50">
                   <p className="sf-purchase-item-title text-[11px] font-black text-slate-700 uppercase tracking-wider" style={{ minWidth: 0, margin: 0 }}>{compraDirectaActiva ? 'Items de la compra' : 'Items del pedido'} ({itemsPedidoCompra.length})</p>
                   <div className="sf-purchase-actions-grid">
@@ -33952,7 +33952,7 @@ function obtenerCategoriaProducto(producto) {
                 {itemsPedidoCompra.length === 0 ? (
                   <p className="p-6 text-sm font-bold text-slate-400 text-center">{compraDirectaActiva ? 'Agrega productos para registrar la compra.' : 'Agrega productos para crear el pedido.'}</p>
                 ) : (
-                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-slate-50/70">
+                  <div className="sf-purchase-items-scroll overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar bg-slate-50/70" style={{ maxHeight: 'min(52dvh, 520px)', WebkitOverflowScrolling: 'touch' }}>
                     <div className="hidden lg:grid sticky top-0 z-10 grid-cols-[70px_minmax(170px,1.4fr)_86px_58px_68px_88px_60px_86px_108px_32px_32px] gap-1 items-center px-2 py-1.5 bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider">
                       <span>Código</span>
                       <span>Detalle</span>
