@@ -2995,7 +2995,6 @@ function AppInterna() {
   const [descargandoPdfMovimientoId, setDescargandoPdfMovimientoId] = useState('');
   const [descargandoResumenCuentaPdf, setDescargandoResumenCuentaPdf] = useState(false);
   const [descargandoImagenReciboCobro, setDescargandoImagenReciboCobro] = useState(false);
-  const [modoCapturaReciboWhatsapp, setModoCapturaReciboWhatsapp] = useState(false);
   const [vistaImagenRecibo, setVistaImagenRecibo] = useState(null);
   const [logoEmpresaFallbackRender, setLogoEmpresaFallbackRender] = useState('');
   const busquedaInventarioDiferida = useDeferredValue(busquedaInventario);
@@ -21832,27 +21831,6 @@ function obtenerCategoriaProducto(producto) {
     }
   };
 
-  const copiarImagenesAlPortapapeles = async (files = []) => {
-    try {
-      const lista = (files || []).filter(Boolean);
-      if (!lista.length) return { ok: false, copiados: 0 };
-      if (typeof navigator === 'undefined' || !navigator.clipboard?.write) return { ok: false, copiados: 0 };
-      if (typeof window === 'undefined' || typeof window.ClipboardItem === 'undefined') return { ok: false, copiados: 0 };
-
-      const items = lista.map((file) => {
-        const blob = file instanceof Blob ? file : new Blob([file], { type: 'image/png' });
-        const tipo = blob.type || 'image/png';
-        return new window.ClipboardItem({ [tipo]: blob });
-      });
-
-      await navigator.clipboard.write(items);
-      return { ok: true, copiados: lista.length };
-    } catch (error) {
-      console.error('No se pudieron copiar múltiples imágenes al portapapeles', error);
-      return { ok: false, copiados: 0 };
-    }
-  };
-
   const copiarTextoAlPortapapeles = async (texto = '') => {
     try {
       if (!texto) return false;
@@ -22132,36 +22110,47 @@ function obtenerCategoriaProducto(producto) {
         ? Array.from(vistaPreview.querySelectorAll('.recibo-a4-sheet'))
         : [];
       if (paginasPreview.length) {
-        const htmlToImageApi = await asegurarHtmlToImage();
-        let pdfPreview = null;
-        for (const paginaPreview of paginasPreview) {
-          await esperarImagenesNodo(paginaPreview);
-          await esperarFrame();
-          const rect = paginaPreview.getBoundingClientRect();
-          const ancho = Math.max(1, Math.ceil(rect.width || paginaPreview.scrollWidth || paginaPreview.offsetWidth || 1));
-          const alto = Math.max(1, Math.ceil(rect.height || paginaPreview.scrollHeight || paginaPreview.offsetHeight || 1));
-          const canvas = await htmlToImageApi.toCanvas(paginaPreview, {
-            pixelRatio: 2,
-            cacheBust: true,
-            backgroundColor: '#ffffff',
-            width: ancho,
-            height: alto,
-            canvasWidth: ancho * 2,
-            canvasHeight: alto * 2,
-            style: { transform: 'none', transformOrigin: 'top left', margin: '0' }
-          });
-          const orientacion = canvas.width > canvas.height ? 'landscape' : 'portrait';
-          if (!pdfPreview) pdfPreview = crearPdfA4(orientacion, { titulo: 'Recibo de pago a cliente' });
-          else pdfPreview.addPage('a4', orientacion);
-          const imagen = canvas.toDataURL('image/jpeg', 0.96);
-          const ajuste = ajustarImagenA4(canvas.width, canvas.height, orientacion, 0);
-          pdfPreview.addImage(imagen, 'JPEG', ajuste.drawX, ajuste.drawY, ajuste.drawW, ajuste.drawH, undefined, 'FAST');
+        try {
+          const htmlToImageApi = await asegurarHtmlToImage();
+          let pdfPreview = null;
+          for (const paginaPreview of paginasPreview) {
+            await esperarImagenesNodo(paginaPreview);
+            await esperarFrame();
+            const rect = paginaPreview.getBoundingClientRect();
+            const ancho = Math.max(1, Math.ceil(rect.width || paginaPreview.scrollWidth || paginaPreview.offsetWidth || 1));
+            const alto = Math.max(1, Math.ceil(rect.height || paginaPreview.scrollHeight || paginaPreview.offsetHeight || 1));
+            const canvas = await htmlToImageApi.toCanvas(paginaPreview, {
+              pixelRatio: 1,
+              cacheBust: true,
+              backgroundColor: '#ffffff',
+              width: ancho,
+              height: alto,
+              canvasWidth: ancho * 2,
+              canvasHeight: alto * 2,
+              style: { position: 'relative', left: '0', top: '0', transform: 'none', transformOrigin: 'top left', margin: '0' }
+            });
+            if (!canvasReciboTieneContenido(canvas)) {
+              pdfPreview = null;
+              break;
+            }
+            const orientacion = canvas.width > canvas.height ? 'landscape' : 'portrait';
+            if (!pdfPreview) pdfPreview = crearPdfA4(orientacion, { titulo: 'Recibo de pago a cliente' });
+            else pdfPreview.addPage('a4', orientacion);
+            const imagen = canvas.toDataURL('image/jpeg', 0.96);
+            const ajuste = ajustarImagenA4(canvas.width, canvas.height, orientacion, 0);
+            pdfPreview.addImage(imagen, 'JPEG', ajuste.drawX, ajuste.drawY, ajuste.drawW, ajuste.drawH, undefined, 'FAST');
+          }
+          if (pdfPreview) {
+            const blobPreview = pdfPreview.output('blob');
+            if (!blobPreview || blobPreview.size < 512 || blobPreview.type !== 'application/pdf') {
+              throw new Error('El PDF del recibo se generó sin contenido.');
+            }
+            return new File([blobPreview], obtenerNombreArchivoReciboCobro(resumenPreview, true), { type: 'application/pdf' });
+          }
+          console.warn('La captura del recibo quedó en blanco; se usará el PDF alternativo.');
+        } catch (error) {
+          console.warn('No se pudo capturar la vista del recibo; se usará el PDF alternativo.', error);
         }
-        const blobPreview = pdfPreview?.output('blob');
-        if (!blobPreview || blobPreview.size < 512 || blobPreview.type !== 'application/pdf') {
-          throw new Error('El PDF del recibo se generó sin contenido.');
-        }
-        return new File([blobPreview], obtenerNombreArchivoReciboCobro(resumenPreview, true), { type: 'application/pdf' });
       }
     }
     const resumen = construirResumenReciboCobro(mov);
@@ -22496,39 +22485,33 @@ function obtenerCategoriaProducto(producto) {
   const esperarImagenesNodo = async (nodo = null) => {
     const imagenes = Array.from(nodo?.querySelectorAll?.('img') || []);
     await Promise.all(imagenes.map((img) => {
-      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      if (!img.getAttribute('src') || img.complete) return Promise.resolve();
       return new Promise((resolve) => {
         const finalizar = () => resolve();
         img.addEventListener('load', finalizar, { once: true });
         img.addEventListener('error', finalizar, { once: true });
-        setTimeout(finalizar, 1200);
+        setTimeout(finalizar, 5000);
       });
     }));
   };
 
-  const prepararNodoReciboParaCaptura = async (nodo = null) => {
-    if (!nodo) return null;
-    const rect = nodo.getBoundingClientRect();
-    const width = Math.max(
-      1,
-      Math.ceil(rect.width || 0),
-      Math.ceil(nodo.scrollWidth || 0),
-      Math.ceil(nodo.offsetWidth || 0),
-      980
-    );
-    const clone = nodo.cloneNode(true);
-    clone.style.position = 'fixed';
-    clone.style.left = '-12000px';
-    clone.style.top = '0';
-    clone.style.width = `${width}px`;
-    clone.style.maxWidth = 'none';
-    clone.style.transform = 'none';
-    clone.style.background = '#ffffff';
-    clone.style.zIndex = '-1';
-    document.body.appendChild(clone);
-    await esperarImagenesNodo(clone);
-    await esperarFrame();
-    return clone;
+  const canvasReciboTieneContenido = (canvas = null) => {
+    if (!canvas?.width || !canvas?.height) return false;
+    const contexto = canvas.getContext('2d', { willReadFrequently: true });
+    if (!contexto) return false;
+    const pasoX = Math.max(1, Math.floor(canvas.width / 48));
+    const pasoY = Math.max(1, Math.floor(canvas.height / 48));
+    let muestrasConContenido = 0;
+    for (let y = 0; y < canvas.height; y += pasoY) {
+      for (let x = 0; x < canvas.width; x += pasoX) {
+        const pixel = contexto.getImageData(x, y, 1, 1).data;
+        if (pixel[3] > 20 && Math.min(pixel[0], pixel[1], pixel[2]) < 190) {
+          muestrasConContenido += 1;
+          if (muestrasConContenido >= 8) return true;
+        }
+      }
+    }
+    return false;
   };
 
   const capturarCanvasReciboCobro = async (mov = null, opciones = {}) => {
@@ -22546,47 +22529,53 @@ function obtenerCategoriaProducto(producto) {
     }
     if (!nodo) throw new Error('La vista previa del recibo no está disponible para capturar.');
 
-    setModoCapturaReciboWhatsapp(true);
-    await esperarFrame();
-    await esperarFrame();
-
-    let capturaCanvas = null;
-    let nodoCaptura = null;
-    try {
-      nodoCaptura = await prepararNodoReciboParaCaptura(nodo);
-      const target = nodoCaptura || nodo;
-      const rect = target.getBoundingClientRect();
-      const width = Math.max(1, Math.ceil(rect.width || 0), Math.ceil(target.scrollWidth || 0), 980);
-      const height = Math.max(
-        1,
-        Math.ceil(rect.height || 0),
-        Math.ceil(target.scrollHeight || 0),
-        Math.ceil(target.offsetHeight || 0)
-      );
-      const canvasWidth = Math.min(2800, Math.round(width * 2));
-      const canvasHeight = Math.round(canvasWidth * (height / width));
-
-      capturaCanvas = await htmlToImageApi.toCanvas(target, {
-        pixelRatio: 2,
+    // Capturar las hojas visibles directamente: el antiguo clon se movía a
+    // -12000px y esa posición terminaba dentro del SVG, dejando JPG/PNG blancos.
+    const hojas = Array.from(nodo.querySelectorAll('.recibo-a4-sheet'));
+    const nodosCaptura = hojas.length ? hojas : [nodo];
+    const paginasCanvas = [];
+    for (const pagina of nodosCaptura) {
+      await esperarImagenesNodo(pagina);
+      await esperarFrame();
+      const rect = pagina.getBoundingClientRect();
+      const width = Math.max(1, Math.ceil(rect.width || pagina.scrollWidth || pagina.offsetWidth || 1));
+      const height = Math.max(1, Math.ceil(rect.height || pagina.scrollHeight || pagina.offsetHeight || 1));
+      const canvasPagina = await htmlToImageApi.toCanvas(pagina, {
+        pixelRatio: 1,
         cacheBust: true,
         backgroundColor: '#ffffff',
         width,
         height,
-        canvasWidth,
-        canvasHeight,
+        canvasWidth: width * 2,
+        canvasHeight: height * 2,
         style: {
-          width: `${width}px`,
-          maxWidth: 'none',
-          transform: 'none'
+          position: 'relative',
+          left: '0',
+          top: '0',
+          transform: 'none',
+          margin: '0',
+          boxShadow: 'none'
         }
       });
-    } finally {
-      if (nodoCaptura?.parentNode) nodoCaptura.parentNode.removeChild(nodoCaptura);
-      setModoCapturaReciboWhatsapp(false);
+      if (!canvasReciboTieneContenido(canvasPagina)) throw new Error('La imagen del recibo quedó en blanco.');
+      paginasCanvas.push(canvasPagina);
     }
-
-    if (!capturaCanvas) throw new Error('No se pudo capturar el recibo para WhatsApp.');
-    return { resumen, capturaCanvas };
+    if (!paginasCanvas.length) throw new Error('No se pudo capturar el recibo para WhatsApp.');
+    if (paginasCanvas.length === 1 || opciones?.soloPaginas) return { resumen, capturaCanvas: paginasCanvas[0], paginasCanvas };
+    const separacion = 24;
+    const capturaCanvas = document.createElement('canvas');
+    capturaCanvas.width = Math.max(...paginasCanvas.map((pagina) => pagina.width));
+    capturaCanvas.height = paginasCanvas.reduce((alto, pagina) => alto + pagina.height, 0) + separacion * (paginasCanvas.length - 1);
+    const contexto = capturaCanvas.getContext('2d');
+    if (!contexto) throw new Error('No se pudo combinar las páginas del recibo.');
+    contexto.fillStyle = '#ffffff';
+    contexto.fillRect(0, 0, capturaCanvas.width, capturaCanvas.height);
+    let y = 0;
+    paginasCanvas.forEach((pagina) => {
+      contexto.drawImage(pagina, 0, y);
+      y += pagina.height + separacion;
+    });
+    return { resumen, capturaCanvas, paginasCanvas };
   };
 
   const generarImagenReciboCobroFile = async (mov = null, opciones = {}) => {
@@ -22628,51 +22617,27 @@ function obtenerCategoriaProducto(producto) {
   };
 
   const generarImagenesReciboCobroA4Files = async (mov = null) => {
-    const { resumen, capturaCanvas } = await capturarCanvasReciboCobro(mov);
-
-    const salidaW = 3840;
-    const salidaH = 2715;
-    const padding = Math.round(Math.min(salidaW, salidaH) * 0.03);
-    const areaW = Math.max(1, salidaW - (padding * 2));
-    const areaH = Math.max(1, salidaH - (padding * 2));
-
-    const escala = areaW / Math.max(capturaCanvas.width, 1);
-    const altoEscalado = Math.max(1, capturaCanvas.height * escala);
-    const totalPaginas = Math.max(1, Math.ceil(altoEscalado / areaH));
-
+    const { resumen, paginasCanvas } = await capturarCanvasReciboCobro(mov, { soloPaginas: true });
+    const salidaW = 2715;
+    const salidaH = 3840;
     const paginas = [];
-    for (let pagina = 0; pagina < totalPaginas; pagina += 1) {
-      const srcY = (pagina * areaH) / escala;
-      const srcH = Math.min(capturaCanvas.height - srcY, areaH / escala);
-      if (srcH <= 0) continue;
-
+    for (let pagina = 0; pagina < paginasCanvas.length; pagina += 1) {
+      const origen = paginasCanvas[pagina];
       const canvasPagina = document.createElement('canvas');
       canvasPagina.width = salidaW;
       canvasPagina.height = salidaH;
       const ctx = canvasPagina.getContext('2d');
       if (!ctx) throw new Error('No se pudo preparar una página del comprobante.');
-
-      ctx.fillStyle = '#f4f6f9';
+      ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, salidaW, salidaH);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
-
-      const drawH = Math.max(1, srcH * escala);
-      ctx.drawImage(
-        capturaCanvas,
-        0,
-        srcY,
-        capturaCanvas.width,
-        srcH,
-        padding,
-        padding,
-        areaW,
-        drawH
-      );
-
+      const escala = Math.min(salidaW / origen.width, salidaH / origen.height);
+      const ancho = Math.round(origen.width * escala);
+      const alto = Math.round(origen.height * escala);
+      ctx.drawImage(origen, Math.round((salidaW - ancho) / 2), Math.round((salidaH - alto) / 2), ancho, alto);
       const blob = await new Promise((resolve) => canvasPagina.toBlob(resolve, 'image/png', 1));
       if (!blob) throw new Error(`No se pudo generar la página ${pagina + 1} del comprobante.`);
-
       const baseName = obtenerNombreArchivoReciboCobroImagen(resumen, false).replace(/\.jpe?g$/i, '');
       paginas.push(new File([blob], `${baseName}_p${pagina + 1}.png`, { type: 'image/png' }));
     }
@@ -22699,33 +22664,44 @@ function obtenerCategoriaProducto(producto) {
   const capturarPantallaReciboCobro = async (mov = null) => {
     setDescargandoImagenReciboCobro(true);
     try {
-      const paginas = await generarImagenesReciboCobroA4Files(mov);
+      // Pedir acceso al portapapeles durante el clic; esperar a generar la
+      // imagen antes de solicitarlo pierde la activación del usuario.
+      const paginasPromesa = generarImagenesReciboCobroA4Files(mov);
+      const puedeCopiar = typeof navigator !== 'undefined'
+        && Boolean(navigator.clipboard?.write)
+        && typeof window !== 'undefined'
+        && typeof window.ClipboardItem !== 'undefined';
+      let copiaIniciada = Promise.resolve(false);
+      if (puedeCopiar) {
+        try {
+          copiaIniciada = navigator.clipboard.write([new window.ClipboardItem({
+            'image/png': paginasPromesa.then((archivos) => {
+              if (!archivos.length) throw new Error('No se generó ninguna página.');
+              return archivos[0];
+            })
+          })]).then(() => true, () => false);
+        } catch (error) {
+          console.warn('El portapapeles no aceptó la imagen del recibo.', error);
+        }
+      }
+      const paginas = await paginasPromesa;
       if (!paginas.length) throw new Error('No se pudo crear ninguna página del comprobante.');
 
-      const resultadoPortapapeles = await copiarImagenesAlPortapapeles(paginas);
-      if (resultadoPortapapeles.ok) {
-        await notificarSistema(`Captura lista en portapapeles (${paginas.length} página${paginas.length === 1 ? '' : 's'} A4). Ya podés pegarla donde quieras.`, {
-          tipo: 'success',
-          titulo: 'Captura realizada'
-        });
-        return;
-      }
-
-      const copioPrimera = await copiarImagenAlPortapapeles(paginas[0]);
+      const copioPrimera = await copiaIniciada || await copiarImagenAlPortapapeles(paginas[0]);
       if (!copioPrimera) {
         paginas.forEach((archivo) => descargarArchivoTemporal(archivo));
-        await notificarSistema('No se pudo copiar al portapapeles. Descargamos las páginas en alta calidad.', {
+        await notificarSistema('El navegador no permitió copiar la imagen. Descargamos las páginas PNG para adjuntarlas en WhatsApp.', {
           tipo: 'warning',
           titulo: 'Portapapeles no disponible'
         });
         return;
       }
-
-      // Si el navegador no permite múltiple imagen en clipboard, se copia la primera y se descargan las restantes.
       paginas.slice(1).forEach((archivo) => descargarArchivoTemporal(archivo));
-      await notificarSistema(`Se copió la página 1 al portapapeles. Las ${Math.max(0, paginas.length - 1)} restantes se descargaron en PNG A4.`, {
-        tipo: 'warning',
-        titulo: 'Portapapeles parcial'
+      await notificarSistema(paginas.length === 1
+        ? 'Imagen del recibo copiada. Abrí WhatsApp y pegala en el chat con Ctrl+V o ⌘V.'
+        : `Página 1 copiada para pegar en WhatsApp. Las otras ${paginas.length - 1} páginas se descargaron en PNG.`, {
+        tipo: 'success',
+        titulo: 'Imagen lista para pegar'
       });
     } catch (error) {
       console.error('No se pudo capturar el recibo al portapapeles', error);
@@ -36738,9 +36714,10 @@ function obtenerCategoriaProducto(producto) {
                                 type="button"
                                 onClick={() => capturarPantallaReciboCobro(mov)}
                                 className="p-1.5 rounded-md border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
-                                title="Capturar recibo al portapapeles"
+                                title="Copiar imagen del recibo para pegar en WhatsApp"
+                                aria-label="Copiar imagen del recibo para WhatsApp"
                               >
-                                <Camera size={12} />
+                                <Copy size={12} />
                               </button>
                               {esAdminHistorial && (
                                 <>
@@ -37499,7 +37476,9 @@ function obtenerCategoriaProducto(producto) {
                               <div className="grid grid-cols-[minmax(0,1fr)_270px] gap-4 items-start">
                                 <div className="space-y-3 min-w-0">
                                   <div className="w-[230px] h-[58px] flex items-center justify-start">
-                                    <img src={logoRecibo} alt="Logo" className="max-w-full max-h-full object-contain" />
+                                    {logoRecibo
+                                      ? <img src={logoRecibo} alt="Logo" className="max-w-full max-h-full object-contain" />
+                                      : <span className="text-xl font-black text-white truncate">{obtenerNombreEmpresaPresupuesto()}</span>}
                                   </div>
                                   <div className="grid grid-cols-[minmax(150px,0.85fr)_minmax(240px,1.15fr)] gap-x-3 gap-y-1.5 max-w-full">
                                     {[
@@ -37536,7 +37515,9 @@ function obtenerCategoriaProducto(producto) {
                             ) : (
                               <div className="flex items-center justify-between gap-4">
                                 <div className="w-[150px] h-[38px] flex items-center justify-start shrink-0">
-                                  <img src={logoRecibo} alt="Logo" className="max-w-full max-h-full object-contain" />
+                                  {logoRecibo
+                                    ? <img src={logoRecibo} alt="Logo" className="max-w-full max-h-full object-contain" />
+                                    : <span className="text-sm font-black text-white truncate">{obtenerNombreEmpresaPresupuesto()}</span>}
                                 </div>
                                 <div className="min-w-0 text-center">
                                   <p className="text-[10px] font-black uppercase text-slate-200">Continuación de detalle</p>
@@ -37656,11 +37637,12 @@ function obtenerCategoriaProducto(producto) {
                     type="button"
                     onClick={() => capturarPantallaReciboCobro(movimientoRecibo)}
                     disabled={descargandoImagenReciboCobro}
-                    className="w-10 h-10 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center shadow-sm transition-all hover:-translate-y-0.5"
-                    title={descargandoImagenReciboCobro ? 'Capturando comprobante' : 'Descargar comprobante'}
-                    aria-label={descargandoImagenReciboCobro ? 'Capturando comprobante' : 'Descargar comprobante'}
+                    className="h-10 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all hover:-translate-y-0.5 text-[11px] font-black uppercase tracking-wide"
+                    title={descargandoImagenReciboCobro ? 'Preparando imagen' : 'Copiar imagen para pegar en WhatsApp'}
+                    aria-label={descargandoImagenReciboCobro ? 'Preparando imagen' : 'Copiar imagen para WhatsApp'}
                   >
-                    {descargandoImagenReciboCobro ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                    {descargandoImagenReciboCobro ? <Loader2 size={15} className="animate-spin" /> : <Copy size={15} />}
+                    Copiar imagen para WhatsApp
                   </button>
                 </div>
               </div>
@@ -37696,7 +37678,7 @@ function obtenerCategoriaProducto(producto) {
                 onClick={() => capturarPantallaReciboCobro(vistaImagenRecibo.movimiento)}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wide flex items-center gap-1.5 shadow-sm transition-all hover:-translate-y-0.5"
               >
-                <Camera size={14} /> Capturar pantalla
+                <Copy size={14} /> Copiar para WhatsApp
               </button>
             </div>
           </div>
