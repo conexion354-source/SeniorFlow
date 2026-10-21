@@ -2562,6 +2562,7 @@ function AppInterna() {
   const [notificacionesDescartadas, setNotificacionesDescartadas] = useState(() => {
     try { return JSON.parse(window.localStorage.getItem('seniorflow-notificaciones-descartadas') || '[]'); } catch { return []; }
   });
+  const [notificacionStockParaPedido, setNotificacionStockParaPedido] = useState(null);
 
   useEffect(() => {
     if (credencialesConsultadasRef.current) return;
@@ -2879,6 +2880,7 @@ function AppInterna() {
   const [itemsPedidoCompra, setItemsPedidoCompra] = useState([]);
   const [busquedaProductosPedidoCompra, setBusquedaProductosPedidoCompra] = useState('');
   const [selectorInventarioPedidoCompraAbierto, setSelectorInventarioPedidoCompraAbierto] = useState(false);
+  const [selectorNotificacionesPedidoCompraAbierto, setSelectorNotificacionesPedidoCompraAbierto] = useState(false);
   const [busquedaSelectorInventarioPedidoCompra, setBusquedaSelectorInventarioPedidoCompra] = useState('');
   const [incluirImagenPedidoCompraPdf, setIncluirImagenPedidoCompraPdf] = useState(false);
   const [mostrarPrecioUnitarioPedidoCompraPdf, setMostrarPrecioUnitarioPedidoCompraPdf] = useState(true);
@@ -4965,6 +4967,22 @@ function AppInterna() {
     return alertas.filter((alerta) => !notificacionesDescartadas.includes(alerta.id)).sort((a, b) => (a.prioridad === 'urgente' ? -1 : 1) - (b.prioridad === 'urgente' ? -1 : 1));
   }, [configuracion?.notificacionesActivas, configuracion?.alertaActualizacionPreciosActiva, configuracion?.alertaActualizacionPreciosDias, obtenerRegistrosRastreoCheques, productosStockBajo, clientes, estadoCuentaClientes, productos, notificacionesDescartadas]);
 
+  const pedidosCompraGuardados = useMemo(() => (pedidosCompra || []).filter((pedido) => (
+    textoSeguroTrim(pedido?.estado, 'guardado') === 'guardado' && pedido?.tipoRegistro !== 'compra_directa'
+  )), [pedidosCompra]);
+  const pedidosPendientesPorProducto = useMemo(() => {
+    const porProducto = new Map();
+    (pedidosCompra || []).forEach((pedido) => {
+      if (!['guardado', 'enviado'].includes(textoSeguroTrim(pedido?.estado, 'guardado')) || pedido?.tipoRegistro === 'compra_directa') return;
+      (pedido?.items || []).forEach((item) => {
+        if (!item?.productoId) return;
+        const pedidos = porProducto.get(item.productoId) || [];
+        if (!pedidos.some((actual) => actual.id === pedido.id)) pedidos.push(pedido);
+        porProducto.set(item.productoId, pedidos);
+      });
+    });
+    return porProducto;
+  }, [pedidosCompra]);
   const notificacionesNoLeidas = notificacionesSistema.filter((alerta) => !notificacionesLeidas.includes(alerta.id));
   useEffect(() => { try { window.localStorage.setItem('seniorflow-notificaciones-leidas', JSON.stringify(notificacionesLeidas)); } catch {} }, [notificacionesLeidas]);
   useEffect(() => { try { window.localStorage.setItem('seniorflow-notificaciones-descartadas', JSON.stringify(notificacionesDescartadas)); } catch {} }, [notificacionesDescartadas]);
@@ -20646,13 +20664,16 @@ function obtenerCategoriaProducto(producto) {
     return filasActualizadas;
   };
 
-  const agregarProductoAPedidoCompra = (producto = {}, costoProveedorPreferido = null) => {
-    const costoProveedor = obtenerCostoProveedorParaPedidoCompra(producto, proveedorCompraSeleccionado, costoProveedorPreferido);
+  const agregarProductoAPedidoCompra = (producto = {}, costoProveedorPreferido = null, proveedorForzado = null, incrementarExistente = true) => {
+    const proveedorElegido = proveedorForzado === null ? proveedorCompraSeleccionado : proveedorForzado;
+    const costoProveedor = obtenerCostoProveedorParaPedidoCompra(producto, proveedorElegido, costoProveedorPreferido);
     if (!costoProveedor) return;
     setItemsPedidoCompra((prev) => {
-      const proveedorItem = proveedorCompraSeleccionado || costoProveedor.proveedor || '';
+      if (!incrementarExistente && prev.some((item) => item.productoId === producto.id)) return prev;
+      const proveedorItem = proveedorElegido || costoProveedor.proveedor || '';
       const existente = prev.find((item) => item.productoId === producto.id && item.proveedor === proveedorItem);
       if (existente) {
+        if (!incrementarExistente) return prev;
         return prev.map((item) => (
           item.productoId === producto.id && item.proveedor === proveedorItem
             ? { ...item, cantidad: (parseNumeroPresupuesto(item.cantidad) || 1) + 1 }
@@ -20678,6 +20699,16 @@ function obtenerCategoriaProducto(producto) {
       ];
     });
     setModalActivo('pedido_compra');
+  };
+
+  const enviarNotificacionAPedidoGuardado = (pedido = null) => {
+    const producto = (productos || []).find((item) => item.id === notificacionStockParaPedido?.productoId);
+    if (!pedido?.id || !pedidosCompraGuardados.some((actual) => actual.id === pedido.id) || !producto) return;
+    abrirPedidoCompraGuardado(pedido);
+    agregarProductoAPedidoCompra(producto, null, obtenerProveedorPrincipalPedidoCompra(pedido), false);
+    setNotificacionesLeidas((prev) => Array.from(new Set([...prev, notificacionStockParaPedido.id])));
+    setNotificacionStockParaPedido(null);
+    setVista('compras');
   };
 
   const abrirPedidoCompraDesdeSugerencias = async () => {
@@ -25750,16 +25781,17 @@ function obtenerCategoriaProducto(producto) {
         .sf-modal-panel .sf-pv-item-actions .sf-pv-add-service:hover { background:#1d4ed8 !important; }
         .sf-purchase-item-header { display:grid !important; grid-template-columns:minmax(0,1fr) max-content !important; align-items:center !important; gap:12px; width:100%; min-width:0; min-height:48px !important; height:auto !important; overflow:visible !important; }
         .sf-purchase-item-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .sf-purchase-actions-grid { display:grid !important; grid-template-columns:112px 112px 100px !important; align-items:center !important; justify-content:end !important; gap:8px !important; width:340px !important; min-width:340px !important; overflow:visible !important; }
+        .sf-purchase-actions-grid { display:grid !important; grid-template-columns:112px 156px 112px 100px !important; align-items:center !important; justify-content:end !important; gap:8px !important; width:504px !important; min-width:504px !important; overflow:visible !important; }
         .sf-purchase-actions-grid > .sf-purchase-action { appearance:none !important; display:inline-flex !important; position:static !important; inset:auto !important; transform:none !important; margin:0 !important; box-sizing:border-box !important; width:100% !important; min-width:0 !important; height:34px !important; min-height:34px !important; padding:0 12px !important; align-items:center !important; justify-content:center !important; gap:6px !important; border-radius:7px !important; font-size:11px !important; line-height:1 !important; font-weight:800 !important; letter-spacing:0 !important; text-transform:none !important; white-space:nowrap !important; overflow:hidden !important; }
         .sf-enterprise-shell .sf-purchase-actions-grid > .sf-purchase-action-add { width:100% !important; min-width:0 !important; height:34px !important; min-height:34px !important; padding:0 12px !important; border:1px solid #16a34a !important; background:#16a34a !important; color:#fff !important; }
         .sf-purchase-actions-grid > .sf-purchase-action-manual { border:1px solid #2563eb !important; background:#2563eb !important; color:#fff !important; }
+        .sf-purchase-actions-grid > .sf-purchase-action-notification { border:1px solid #e11d48 !important; background:#fff1f2 !important; color:#9f1239 !important; }
         .sf-purchase-actions-grid > .sf-purchase-action-clear { border:1px solid #dbe3ee !important; background:#fff !important; color:#475569 !important; }
         .sf-purchase-actions-grid > .sf-purchase-action:disabled { cursor:not-allowed !important; opacity:.45 !important; }
         @media (max-width:680px) {
           .sf-purchase-item-header { grid-template-columns:1fr !important; align-items:start !important; min-height:0 !important; }
           .sf-purchase-actions-grid { grid-template-columns:1fr 1fr !important; width:100% !important; min-width:0 !important; }
-          .sf-purchase-actions-grid > .sf-purchase-action-clear { grid-column:1 / -1; }
+          .sf-purchase-actions-grid > .sf-purchase-action-clear { grid-column:auto; }
         }
         .sf-enterprise-shell .sf-pv-item-header { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; width:100%; margin-bottom:8px; flex:0 0 auto; }
         .sf-enterprise-shell .sf-pv-item-header h3 { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -26091,10 +26123,42 @@ function obtenerCategoriaProducto(producto) {
             </div>
             {configuracion?.notificacionesActivas === false ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm font-bold text-amber-800">Las alertas están desactivadas. Podés activarlas desde Ajustes › Negocio.</div> : (
               <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white shadow-sm">
-                {notificacionesSistema.length === 0 ? <div className="p-12 text-center text-slate-500"><CheckCircle size={38} className="mx-auto mb-3 text-emerald-500" /><p className="font-black">Todo está al día</p><p className="mt-1 text-sm font-bold">No hay alertas operativas pendientes.</p></div> : notificacionesSistema.map((alerta) => { const leida = notificacionesLeidas.includes(alerta.id); return <button key={alerta.id} type="button" onClick={() => abrirNotificacion(alerta)} className={`flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-slate-50 ${leida ? 'opacity-60' : 'bg-white'}`}><span className={`h-2.5 w-2.5 rounded-full shrink-0 ${alerta.prioridad === 'urgente' ? 'bg-red-500' : 'bg-amber-500'}`} /><span className="min-w-0 flex-1"><span className={`block text-sm ${leida ? 'font-bold text-slate-600' : 'font-black text-slate-900'}`}>{alerta.titulo}</span><span className="mt-0.5 block text-xs font-bold text-slate-500">{alerta.detalle}</span></span><ChevronRight size={18} className="text-slate-400" /></button>; })}
+                {notificacionesSistema.length === 0 ? <div className="p-12 text-center text-slate-500"><CheckCircle size={38} className="mx-auto mb-3 text-emerald-500" /><p className="font-black">Todo está al día</p><p className="mt-1 text-sm font-bold">No hay alertas operativas pendientes.</p></div> : notificacionesSistema.map((alerta) => {
+                  const leida = notificacionesLeidas.includes(alerta.id);
+                  const pedidosConProducto = alerta.productoId ? (pedidosPendientesPorProducto.get(alerta.productoId) || []) : [];
+                  return <div key={alerta.id} className={`flex flex-wrap items-center gap-3 px-5 py-4 ${leida ? 'bg-slate-50/60' : 'bg-white'}`}>
+                    <button type="button" onClick={() => abrirNotificacion(alerta)} className="flex min-w-0 flex-1 items-center gap-3 text-left hover:opacity-75">
+                      <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${alerta.prioridad === 'urgente' ? 'bg-red-500' : 'bg-amber-500'}`} />
+                      <span className="min-w-0 flex-1"><span className={`block text-sm ${leida ? 'font-bold text-slate-600' : 'font-black text-slate-900'}`}>{alerta.titulo}</span><span className="mt-0.5 block text-xs font-bold text-slate-500">{alerta.detalle}</span>
+                        {pedidosConProducto.length > 0 && <span className="mt-1 block text-xs font-black text-emerald-700">Agregado a {pedidosConProducto.map((pedido) => `PC-${textoSeguroTrim(pedido.numero, '000000')} (${textoSeguroTrim(pedido.estado, 'guardado')})`).join(', ')}</span>}
+                      </span><ChevronRight size={18} className="text-slate-400" />
+                    </button>
+                    {alerta.productoId && puedeVerCompras && <button type="button" onClick={() => setNotificacionStockParaPedido(alerta)} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800 hover:bg-emerald-100">Agregar a pedido</button>}
+                  </div>;
+                })}
               </div>
             )}
           </section>
+        )}
+
+        {notificacionStockParaPedido && (
+          <Modal titulo="Agregar alerta a un pedido" onClose={() => setNotificacionStockParaPedido(null)} customWidth="max-w-xl">
+            <div className="space-y-3">
+              <p className="text-sm font-bold text-slate-700">{notificacionStockParaPedido.detalle}</p>
+              <p className="text-xs font-bold text-slate-500">Elegí un pedido guardado. Se abrirá para revisar la cantidad y guardarlo; la alerta mostrará el número del pedido después de guardar.</p>
+              {pedidosCompraGuardados.length === 0 ? <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">No hay pedidos guardados sin terminar. Creá uno en Pedidos y después agregá esta alerta.</p> : (
+                <div className="max-h-[55vh] overflow-y-auto divide-y divide-slate-100 rounded-xl border border-slate-200">
+                  {pedidosCompraGuardados.map((pedido) => {
+                    const yaIncluido = (pedido.items || []).some((item) => item.productoId === notificacionStockParaPedido.productoId);
+                    return <button key={pedido.id} type="button" onClick={() => enviarNotificacionAPedidoGuardado(pedido)} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-emerald-50">
+                      <span><span className="block text-sm font-black text-slate-900">PC-{textoSeguroTrim(pedido.numero, '000000')}</span><span className="block text-xs font-bold text-slate-500">{(pedido.proveedores || []).join(', ') || 'Sin proveedor'} · {(pedido.items || []).length} ítem(s)</span></span>
+                      <span className="text-xs font-black text-emerald-700">{yaIncluido ? 'Ya incluido · abrir' : 'Agregar'}</span>
+                    </button>;
+                  })}
+                </div>
+              )}
+            </div>
+          </Modal>
         )}
 
         {puedeVerAyuda && vista === 'ayuda' && (
@@ -33706,6 +33770,9 @@ function obtenerCategoriaProducto(producto) {
                     <button type="button" onClick={() => { setBusquedaSelectorInventarioPedidoCompra(''); setSelectorInventarioPedidoCompraAbierto(true); }} className="sf-purchase-action sf-purchase-action-add" aria-label="Agregar producto del inventario">
                       <Search size={13} /><span>Agregar</span>
                     </button>
+                    {!compraDirectaActiva && pedidoCompraEstado === 'guardado' && puedeVerNotificaciones && <button type="button" onClick={() => setSelectorNotificacionesPedidoCompraAbierto(true)} className="sf-purchase-action sf-purchase-action-notification">
+                      <Bell size={13} /><span>Notificaciones</span>
+                    </button>}
                     <button type="button" onClick={agregarItemManualPedidoCompra} className="sf-purchase-action sf-purchase-action-manual">
                       + Manual
                     </button>
@@ -33898,6 +33965,24 @@ function obtenerCategoriaProducto(producto) {
                     </div>
                   );
                 })}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {modalActivo === 'pedido_compra' && selectorNotificacionesPedidoCompraAbierto && puedeVerNotificaciones && (
+        <Modal titulo="Agregar desde notificaciones" onClose={() => setSelectorNotificacionesPedidoCompraAbierto(false)} customWidth="max-w-[760px]">
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-slate-600">Productos con alerta de stock bajo. Revisá la cantidad en el pedido y guardalo para que la alerta muestre la vinculación.</p>
+            <div className="max-h-[58vh] overflow-y-auto divide-y divide-slate-100 rounded-xl border border-slate-200">
+              {notificacionesSistema.filter((alerta) => alerta.productoId).length === 0 ? <p className="p-5 text-sm font-bold text-slate-500">No hay alertas de stock bajo.</p> : notificacionesSistema.filter((alerta) => alerta.productoId).map((alerta) => {
+                const producto = (productos || []).find((item) => item.id === alerta.productoId);
+                const yaIncluido = itemsPedidoCompra.some((item) => item.productoId === alerta.productoId);
+                return <div key={`alerta-pedido-${alerta.id}`} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <span className="min-w-0"><span className="block text-sm font-black text-slate-900">{producto?.descripcion || alerta.detalle}</span><span className="block text-xs font-bold text-slate-500">{alerta.detalle}</span></span>
+                  <button type="button" disabled={!producto || yaIncluido} onClick={() => { agregarProductoAPedidoCompra(producto, null, null, false); setSelectorNotificacionesPedidoCompraAbierto(false); }} className="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50">{yaIncluido ? 'Ya incluido' : 'Agregar'}</button>
+                </div>;
+              })}
             </div>
           </div>
         </Modal>
