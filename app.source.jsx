@@ -2983,6 +2983,7 @@ function AppInterna() {
   const [dialogoSistema, setDialogoSistema] = useState(null);
   const [descargandoPdfVistaImpresion, setDescargandoPdfVistaImpresion] = useState(false);
   const [descargandoPdfMovimientoId, setDescargandoPdfMovimientoId] = useState('');
+  const [descargandoResumenCuentaPdf, setDescargandoResumenCuentaPdf] = useState(false);
   const [descargandoImagenReciboCobro, setDescargandoImagenReciboCobro] = useState(false);
   const [modoCapturaReciboWhatsapp, setModoCapturaReciboWhatsapp] = useState(false);
   const [vistaImagenRecibo, setVistaImagenRecibo] = useState(null);
@@ -4401,6 +4402,13 @@ function AppInterna() {
     () => calcularEstadoCuentaCliente(clienteSeleccionado),
     [clienteSeleccionado, movimientos, configuracion?.recargoMoraPorcentajeGlobal, configuracion?.recargoMoraPorcentaje]
   );
+  const cantidadRemitosXCuentaSeleccionada = useMemo(() => (
+    (estadoCuentaClienteSeleccionado?.cargosProcesados || []).filter((cargo) => {
+      if (esRecargoMoraMovimiento(cargo)) return false;
+      const tipo = normalizarTextoBusqueda(cargo?.detallesPago?.tipoComprobante || '').replace(/\s+/g, '_');
+      return !tipo || tipo === 'remito' || tipo === 'remito_x';
+    }).length
+  ), [estadoCuentaClienteSeleccionado]);
 
   const movimientosClienteSeleccionado = useMemo(
     () => estadoCuentaClienteSeleccionado.movimientosDesc,
@@ -11855,7 +11863,7 @@ const abrirPuntoVenta = () => {
     }
   };
 
-  const generarPdfResumenCuentaClienteFile = async (cliente = null) => {
+  const generarPdfResumenCuentaClienteFile = async (cliente = null, incluirRemitosX = false) => {
     if (!cliente) throw new Error('Cliente no disponible');
 
     const estado = calcularEstadoCuentaCliente(cliente);
@@ -11863,12 +11871,21 @@ const abrirPuntoVenta = () => {
 	      .filter((cargo) => !esRecargoMoraMovimiento(cargo) && esMovimientoCargoCuentaCorriente(cargo));
 	    const pendientesBase = remitosBase.filter((ticket) => Number(ticket.pendiente || 0) > 0.009);
 	    const saldadosBase = remitosBase.filter((ticket) => Number(ticket.pendiente || 0) <= 0.009);
-	    const saldoPendienteSinRecargos = Math.max(0, pendientesBase.reduce((acc, item) => acc + Number(item.pendiente || 0), 0));
+    const recargosBase = (estado.cargosProcesados || []).filter((cargo) => esRecargoMoraMovimiento(cargo));
+    const recargosPendientes = recargosBase.filter((cargo) => Number(cargo.pendiente || 0) > 0.009);
+    const totalRecargosPendientes = recargosPendientes.reduce((acc, cargo) => acc + Number(cargo.pendiente || 0), 0);
+    const saldoPendienteActual = Math.max(0, Number(estado.saldoPendiente || 0));
+    const remitosXAnexables = remitosBase.filter((cargo) => {
+      const tipo = normalizarTextoBusqueda(cargo?.detallesPago?.tipoComprobante || '').replace(/\s+/g, '_');
+      return !tipo || tipo === 'remito' || tipo === 'remito_x';
+    });
+    const referenciaRemitoX = new Map(remitosXAnexables.map((cargo, indice) => [cargo.id, indice + 1]));
+    const celdasReferenciaRemitoX = [];
     const pendientePorCargoId = Object.fromEntries((estado?.cargosProcesados || []).map((cargo) => [cargo.id, Number(cargo.pendiente || 0)]));
     const totalCreditosClientePdf = (estado?.movimientosDesc || [])
       .filter((movimiento) => movimiento?.tipo === 'cobro' || esMovimientoDescuentoCuentaCorriente(movimiento))
       .reduce((total, movimiento) => total + Math.abs(Number(movimiento?.monto || 0)), 0);
-    const totalCargosClientePdf = remitosBase.reduce((total, cargo) => total + Math.max(0, Number(cargo?.montoOriginal ?? cargo?.monto ?? 0)), 0);
+    const totalCargosClientePdf = [...remitosBase, ...recargosBase].reduce((total, cargo) => total + Math.max(0, Number(cargo?.montoOriginal ?? cargo?.monto ?? 0)), 0);
     const saldoFavorClientePdf = Math.max(0, totalCreditosClientePdf - totalCargosClientePdf);
 
     const doc = crearPdfA4('landscape', { titulo: 'Resumen de cuenta corriente' });
@@ -11889,7 +11906,7 @@ const abrirPuntoVenta = () => {
     doc.text(`Emitido: ${formatearFecha(fechaEmision)} ${formatearHora(fechaEmision)}`, 278, 18, { align: 'right' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(52, 211, 153);
-    doc.text(formatearDinero(saldoPendienteSinRecargos), 278, 26, { align: 'right' });
+    doc.text(formatearDinero(saldoPendienteActual), 278, 26, { align: 'right' });
 
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(219, 227, 239);
@@ -11909,14 +11926,16 @@ const abrirPuntoVenta = () => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
     doc.setTextColor(127, 29, 29);
-    doc.text(formatearDinero(saldoPendienteSinRecargos), 278, 54, { align: 'right' });
+    doc.text(formatearDinero(saldoPendienteActual), 278, 54, { align: 'right' });
     doc.setFontSize(8);
     doc.setTextColor(71, 85, 105);
-	    doc.text(`${pendientesBase.length} impago(s) · ${saldadosBase.length} saldado(s)${saldoFavorClientePdf > 0.009 ? ` · A favor ${formatearDinero(saldoFavorClientePdf)}` : ''}`, 278, 59, { align: 'right' });
+    doc.text(`${pendientesBase.length} remito(s) impago(s) · Recargos pendientes ${formatearDinero(totalRecargosPendientes)}${saldoFavorClientePdf > 0.009 ? ` · A favor ${formatearDinero(saldoFavorClientePdf)}` : ''}`, 278, 59, { align: 'right' });
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(100, 116, 139);
-    doc.text('Lectura simple por pago: importe recibido, comprobantes afectados, días transcurridos y saldo resultante. No incluye recargos de mora.', 14, 66);
+    doc.text(incluirRemitosX
+      ? 'Saldo actualizado: remitos y recargos, menos pagos. Número rojo = remito X anexado.'
+      : 'Saldo actualizado: remitos y recargos registrados, menos pagos aplicados.', 14, 66);
 
     // El resumen debe mostrar primero los comprobantes y luego los pagos
     // aplicados, para que se pueda seguir cada factura/remito.
@@ -12284,6 +12303,7 @@ const abrirPuntoVenta = () => {
 	        }).join('\n')
 	        : 'Sin pagos asignados';
 	      return [
+	        ...(incluirRemitosX ? [referenciaRemitoX.has(item.id) ? String(referenciaRemitoX.get(item.id)) : '-'] : []),
 	        formatearFecha(item.fecha),
 	        numeroRemito || '-',
 	        item.descripcion || 'Remito pendiente',
@@ -12297,21 +12317,42 @@ const abrirPuntoVenta = () => {
 	    if (bodyRemitos.length) {
 	      autoTable(doc, {
 	        startY: 70,
-	        head: [['Fecha remito', 'Remito N°', 'Detalle', 'Original', 'Saldo actual', 'Estado', 'Pagos aplicados a este remito']],
+	        head: [incluirRemitosX
+	          ? ['Ref.', 'Fecha remito', 'Remito N°', 'Detalle', 'Original', 'Saldo actual', 'Estado', 'Pagos aplicados a este remito']
+	          : ['Fecha remito', 'Remito N°', 'Detalle', 'Original', 'Saldo actual', 'Estado', 'Pagos aplicados a este remito']],
 	        body: bodyRemitos,
 	        theme: 'grid',
 	        margin: { left: 14, right: 14 },
 	        styles: { fontSize: 7.2, cellPadding: 1.35, textColor: [30, 41, 59], lineColor: [226, 232, 240], valign: 'top' },
 	        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
-	        columnStyles: {
-	          0: { cellWidth: 24 },
-	          1: { cellWidth: 22 },
-	          2: { cellWidth: 62 },
+	        columnStyles: incluirRemitosX ? {
+	          0: { cellWidth: 11, halign: 'center', fontStyle: 'bold' },
+	          1: { cellWidth: 24 }, 2: { cellWidth: 22 }, 3: { cellWidth: 62 },
+	          4: { halign: 'right', cellWidth: 26, fontStyle: 'bold' },
+	          5: { halign: 'right', cellWidth: 35, fontStyle: 'bold' },
+	          6: { cellWidth: 28, fontStyle: 'bold' }, 7: { cellWidth: 61 }
+	        } : {
+	          0: { cellWidth: 24 }, 1: { cellWidth: 22 }, 2: { cellWidth: 62 },
 	          3: { halign: 'right', cellWidth: 26, fontStyle: 'bold' },
 	          4: { halign: 'right', cellWidth: 35, fontStyle: 'bold' },
-	          5: { cellWidth: 28, fontStyle: 'bold' },
-	          6: { cellWidth: 71 }
-	        }
+	          5: { cellWidth: 28, fontStyle: 'bold' }, 6: { cellWidth: 72 }
+	        },
+        didParseCell: (data) => {
+          if (incluirRemitosX && data.section === 'body' && data.column.index === 0 && referenciaRemitoX.has(remitosBase[data.row.index]?.id)) {
+            data.cell.styles.textColor = [185, 28, 28];
+            data.cell.styles.fontStyle = 'bold';
+          }
+        },
+        didDrawCell: (data) => {
+          if (incluirRemitosX && data.section === 'body' && data.column.index === 0) {
+            const cargo = remitosBase[data.row.index];
+            if (referenciaRemitoX.has(cargo?.id)) celdasReferenciaRemitoX.push({
+              referencia: referenciaRemitoX.get(cargo.id),
+              pagina: doc.internal.getCurrentPageInfo().pageNumber,
+              x: data.cell.x, y: data.cell.y, ancho: data.cell.width, alto: data.cell.height
+            });
+          }
+        }
 	      });
 	    } else {
 	      doc.setFont('helvetica', 'bold');
@@ -12319,6 +12360,44 @@ const abrirPuntoVenta = () => {
 	      doc.setTextColor(22, 163, 74);
 	      doc.text('No hay remitos de cuenta corriente para este cliente.', 14, 72);
 	    }
+
+    if (recargosBase.length) {
+      let inicioRecargosY = Math.max((doc.lastAutoTable?.finalY || 70) + 10, 78);
+      if (inicioRecargosY > 178) {
+        doc.addPage('a4', 'landscape');
+        inicioRecargosY = 18;
+      }
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(185, 28, 28);
+      doc.text('RECARGOS DE MORA REGISTRADOS', 14, inicioRecargosY);
+      autoTable(doc, {
+        startY: inicioRecargosY + 4,
+        head: [['Fecha', 'Remito de origen', 'Concepto', 'Recargo original', 'Pendiente', 'Estado']],
+        body: recargosBase.map((cargo) => {
+          const origen = remitosBase.find((remito) => remito.id === cargo?.detallesPago?.cargoOrigenId);
+          const numeroOrigen = textoSeguroTrim(origen?.detallesPago?.numeroComprobante, textoSeguroTrim(origen?.detallesPago?.comprobanteNumero, '-'));
+          const referencia = origen && incluirRemitosX ? referenciaRemitoX.get(origen.id) : null;
+          return [
+            formatearFecha(cargo.fecha),
+            origen ? `Remito ${numeroOrigen}${referencia ? ` · Ref. ${referencia}` : ''}` : 'Cuenta corriente',
+            textoSeguroTrim(cargo.descripcion, 'Recargo de mora'),
+            formatearDinero(Number(cargo.montoOriginal ?? cargo.monto ?? 0)),
+            formatearDinero(Number(cargo.pendiente || 0)),
+            Number(cargo.pendiente || 0) > 0.009 ? 'Pendiente' : 'Saldado'
+          ];
+        }),
+        theme: 'grid',
+        margin: { left: 14, right: 14 },
+        styles: { fontSize: 7.4, cellPadding: 1.5, textColor: [30, 41, 59], lineColor: [226, 232, 240], valign: 'top' },
+        headStyles: { fillColor: [127, 29, 29], textColor: 255, fontStyle: 'bold' },
+        columnStyles: {
+          0: { cellWidth: 28 }, 1: { cellWidth: 49 }, 2: { cellWidth: 89 },
+          3: { cellWidth: 39, halign: 'right' }, 4: { cellWidth: 39, halign: 'right', fontStyle: 'bold' },
+          5: { cellWidth: 25 }
+        }
+      });
+    }
 
     const pagosDetalleMap = new Map();
     remitosBase.forEach((cargo) => {
@@ -12417,21 +12496,87 @@ const abrirPuntoVenta = () => {
     }
 
     }
-    const fileName = `resumen_cuenta_${normalizarTextoArchivo(cliente?.nombre || 'cliente')}_${normalizarTextoArchivo(formatearFecha(fechaEmision))}.pdf`;
+
+    if (incluirRemitosX && remitosXAnexables.length) {
+      const htmlToImageApi = await asegurarHtmlToImage();
+      const paginaAnexoPorReferencia = new Map();
+      for (const cargo of remitosXAnexables) {
+        const referencia = referenciaRemitoX.get(cargo.id);
+        const numeroRemito = textoSeguroTrim(cargo?.detallesPago?.numeroComprobante, textoSeguroTrim(cargo?.detallesPago?.comprobanteNumero, '-'));
+        let vistaPdf = null;
+        try {
+          vistaPdf = await promesaConTimeout(prepararVentaDocumentoParaPdf(cargo), 12000, 'El remito tardó demasiado en prepararse.');
+          for (const pagina of vistaPdf.paginas) {
+            await esperarImagenesNodo(pagina);
+            await esperarFrame();
+            const rect = pagina.getBoundingClientRect();
+            const ancho = Math.ceil(rect.width || pagina.scrollWidth || pagina.offsetWidth || 1);
+            const alto = Math.ceil(rect.height || pagina.scrollHeight || pagina.offsetHeight || 1);
+            const canvas = await htmlToImageApi.toCanvas(pagina, {
+              pixelRatio: 2,
+              cacheBust: true,
+              backgroundColor: '#ffffff',
+              width: ancho,
+              height: alto,
+              canvasWidth: ancho * 2,
+              canvasHeight: alto * 2,
+              style: { transform: 'none', transformOrigin: 'top left', margin: '0', boxShadow: 'none' }
+            });
+            const orientacion = canvas.width > canvas.height ? 'landscape' : 'portrait';
+            doc.addPage('a4', orientacion);
+            if (!paginaAnexoPorReferencia.has(referencia)) paginaAnexoPorReferencia.set(referencia, doc.internal.getCurrentPageInfo().pageNumber);
+            const anchoPagina = doc.internal.pageSize.getWidth();
+            const altoPagina = doc.internal.pageSize.getHeight();
+            const escala = Math.min((anchoPagina - 12) / canvas.width, (altoPagina - 30) / canvas.height);
+            const anchoImagen = canvas.width * escala;
+            const altoImagen = canvas.height * escala;
+            doc.addImage(canvas.toDataURL('image/jpeg', 0.93), 'JPEG', (anchoPagina - anchoImagen) / 2, 20 + ((altoPagina - 30 - altoImagen) / 2), anchoImagen, altoImagen, undefined, 'FAST');
+            doc.setFillColor(185, 28, 28);
+            doc.circle(19, 12, 6, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11);
+            doc.setTextColor(255, 255, 255);
+            doc.text(String(referencia), 19, 15, { align: 'center' });
+            doc.setTextColor(127, 29, 29);
+            doc.setFontSize(10);
+            doc.text(`REMITO X N° ${numeroRemito} · ANEXO DEL RESUMEN DE CUENTA`, 29, 14);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`${cliente?.nombre || 'Cliente'} · Referencia ${referencia}`, 12, altoPagina - 4);
+          }
+        } finally {
+          if (vistaPdf?.contenedor?.parentNode) vistaPdf.contenedor.parentNode.removeChild(vistaPdf.contenedor);
+        }
+      }
+      const paginaFinal = doc.internal.getCurrentPageInfo().pageNumber;
+      if (typeof doc.link === 'function') celdasReferenciaRemitoX.forEach((celda) => {
+        const paginaAnexo = paginaAnexoPorReferencia.get(celda.referencia);
+        if (!paginaAnexo) return;
+        doc.setPage(celda.pagina);
+        doc.link(celda.x, celda.y, celda.ancho, celda.alto, { pageNumber: paginaAnexo });
+      });
+      doc.setPage(paginaFinal);
+    }
+    const fileName = `resumen_cuenta_${normalizarTextoArchivo(cliente?.nombre || 'cliente')}_${normalizarTextoArchivo(formatearFecha(fechaEmision))}${incluirRemitosX ? '_con_remitos_x' : ''}.pdf`;
     const blob = doc.output('blob');
     return new File([blob], fileName, { type: 'application/pdf' });
   };
 
-  const descargarResumenCuentaClientePdf = async (cliente = null) => {
+  const descargarResumenCuentaClientePdf = async (cliente = null, incluirRemitosX = false) => {
     try {
-      const archivo = await generarPdfResumenCuentaClienteFile(cliente);
+      setDescargandoResumenCuentaPdf(true);
+      const archivo = await generarPdfResumenCuentaClienteFile(cliente, incluirRemitosX);
       descargarArchivoTemporal(archivo);
+      setModalActivo('cliente_detalle');
     } catch (error) {
       console.error('No se pudo generar el PDF de resumen de cuenta del cliente', error);
       await notificarSistema('No se pudo generar el PDF del resumen de cuenta.', {
         tipo: 'error',
         titulo: 'Error al exportar'
       });
+    } finally {
+      setDescargandoResumenCuentaPdf(false);
     }
   };
 
@@ -36112,7 +36257,7 @@ function obtenerCategoriaProducto(producto) {
                   <Edit2 size={14} /> Editar Cliente
                 </button>
                 <button
-                  onClick={() => descargarResumenCuentaClientePdf(clienteSeleccionado)}
+                  onClick={() => setModalActivo('opciones_pdf_resumen_cuenta')}
                   className="bg-slate-700 hover:bg-slate-800 text-white px-3 py-2 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all"
                 >
                   <Download size={14} /> PDF Resumen
@@ -37531,6 +37676,20 @@ function obtenerCategoriaProducto(producto) {
                 <Camera size={14} /> Capturar pantalla
               </button>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {modalActivo === 'opciones_pdf_resumen_cuenta' && clienteSeleccionado && puedeVerClienteEnCuentas(clienteSeleccionado) && (
+        <Modal titulo="Descargar resumen de cuenta" onClose={() => { if (!descargandoResumenCuentaPdf) setModalActivo('cliente_detalle'); }} customWidth="max-w-lg">
+          <div className="space-y-4">
+            <p className="text-sm font-bold text-slate-700">El resumen incluirá el saldo actualizado y los recargos registrados. ¿Querés anexar también los Remitos X de esta cuenta en el mismo PDF?</p>
+            <p className="text-xs font-bold text-slate-500">Hay {cantidadRemitosXCuentaSeleccionada} Remito(s) X en la cuenta. Si los incluís, cada uno tendrá una referencia roja que coincide con la del listado.</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button type="button" disabled={descargandoResumenCuentaPdf} onClick={() => descargarResumenCuentaClientePdf(clienteSeleccionado, false)} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-800 hover:bg-slate-50 disabled:opacity-50">Solo resumen</button>
+              <button type="button" disabled={descargandoResumenCuentaPdf || cantidadRemitosXCuentaSeleccionada === 0} onClick={() => descargarResumenCuentaClientePdf(clienteSeleccionado, true)} className="rounded-xl bg-red-700 px-4 py-3 text-sm font-black text-white hover:bg-red-800 disabled:opacity-50">Resumen + Remitos X</button>
+            </div>
+            {descargandoResumenCuentaPdf && <p className="text-xs font-bold text-blue-700" role="status">Preparando el PDF; los remitos pueden tardar unos segundos.</p>}
           </div>
         </Modal>
       )}
