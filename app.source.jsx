@@ -1041,6 +1041,15 @@ const redondearImporteVentaHaciaArriba = (importe = 0) => {
   const importeConCentavos = Math.round((Math.max(0, Number(importe) || 0) + Number.EPSILON) * 100) / 100;
   return Math.ceil(importeConCentavos - Number.EPSILON);
 };
+// El precio de venta ya incluye el IVA. La alícuota solo separa el neto y el
+// impuesto dentro del importe cobrado; nunca incrementa el total del ítem.
+const desglosarIvaIncluidoVenta = (importe = 0, iva = 'sin_iva') => {
+  const total = Math.max(0, Number(importe) || 0);
+  const tasa = String(iva).replace('%', '').replace(',', '.').trim();
+  if (tasa !== '21' && tasa !== '10.5') return { neto: total, iva: 0, total };
+  const neto = Math.round((total / (1 + Number(tasa) / 100) + Number.EPSILON) * 100) / 100;
+  return { neto, iva: total - neto, total };
+};
 const redondearPrecioProducto = (importe = 0, modo = 'ninguno') => {
   const factor = modo === 'cien' ? 100 : (modo === 'mil' ? 1000 : 1);
   const valor = Number.isFinite(Number(importe)) ? Number(importe) : 0;
@@ -1597,6 +1606,7 @@ const crearItemPuntoVentaVacio = () => ({
   cantidad: '1',
   unidad: 'unid',
   precio: '',
+  iva: 'sin_iva',
   descuento: '0',
   imagen: '',
   logoMarca: ''
@@ -6390,6 +6400,19 @@ function AppInterna() {
       : totalFormularioPuntoVentaBase,
     [redondeoVentasHaciaArribaActivo, totalFormularioPuntoVentaBase]
   );
+  const desgloseFormularioPuntoVenta = useMemo(() => (formPuntoVenta.items || []).reduce((acc, item) => {
+    const cantidad = Math.max(0, parseNumeroBasico(item?.cantidad) || 0);
+    const precioBase = Math.max(0, parseNumeroBasico(item?.precio) || 0);
+    const precio = redondeoVentasHaciaArribaActivo ? redondearImporteVentaHaciaArriba(precioBase) : precioBase;
+    const descuento = Math.min(100, Math.max(0, parseNumeroBasico(item?.descuento) || 0));
+    const brutoConDescuento = Math.max(0, cantidad * precio * (1 - descuento / 100));
+    const totalItem = redondeoVentasHaciaArribaActivo ? redondearImporteVentaHaciaArriba(brutoConDescuento) : brutoConDescuento;
+    const desglose = desglosarIvaIncluidoVenta(totalItem, item?.iva);
+    acc.neto += desglose.neto;
+    if (String(item?.iva) === '21') acc.iva21 += desglose.iva;
+    if (String(item?.iva) === '10.5') acc.iva105 += desglose.iva;
+    return acc;
+  }, { neto: 0, iva21: 0, iva105: 0 }), [formPuntoVenta.items, redondeoVentasHaciaArribaActivo]);
   const ajusteRedondeoFormularioPuntoVenta = totalFormularioPuntoVenta - totalFormularioPuntoVentaBase;
   const planesTarjetaConfigurados = useMemo(
     () => (Array.isArray(configuracion?.tarjetasPlanes) ? configuracion.tarjetasPlanes : []).map(normalizarPlanTarjeta),
@@ -8105,7 +8128,7 @@ const abrirPuntoVenta = () => {
               marca: textoSeguroTrim(producto?.marca, item.marca || ''),
               precio: obtenerPrecioVentaProductoActualizado(producto) > 0 ? normalizarPrecioPuntoVenta(obtenerPrecioVentaProductoActualizado(producto)) : item.precio,
               unidad: textoSeguroTrim(producto?.unidad, item.unidad || 'unid'),
-              iva: textoSeguroTrim(producto?.iva, item.iva || 'sin_iva'),
+              iva: item.iva || 'sin_iva',
               imagen: textoSeguroTrim(producto?.imagen, item.imagen || ''),
               logoMarca: textoSeguroTrim(producto?.logoMarca, item.logoMarca || '')
             }
@@ -8127,7 +8150,7 @@ const abrirPuntoVenta = () => {
           codigo: textoSeguroTrim(producto?.codigo, valorCodigo),
           descripcion: textoSeguroTrim(producto?.descripcion, item.descripcion),
           unidad: textoSeguroTrim(producto?.unidad, item.unidad || 'unid'),
-          iva: textoSeguroTrim(producto?.iva, item.iva || 'sin_iva'),
+          iva: item.iva || 'sin_iva',
           imagen: textoSeguroTrim(producto?.imagen, item.imagen || '')
         };
       })
@@ -8448,7 +8471,7 @@ const abrirPuntoVenta = () => {
         descuento: Math.min(100, Math.max(0, parseNumeroBasico(item?.descuento) || 0)),
         imagen: textoSeguroTrim(item?.imagen, ''),
         logoMarca: textoSeguroTrim(item?.logoMarca, ''),
-        iva: textoSeguroTrim(item?.iva, textoSeguroTrim((productos || []).find((producto) => producto?.id === item?.productoId)?.iva, 'sin_iva')),
+        iva: textoSeguroTrim(item?.iva, 'sin_iva'),
         esItemServicio: Boolean(item?.esItemServicio),
         componentesServicio: Array.isArray(item?.componentesServicio)
           ? item.componentesServicio.map((componente) => ({
@@ -20142,7 +20165,7 @@ function obtenerCategoriaProducto(producto) {
         marca: textoSeguroTrim(datosPrimero.marca || primero?.marca, ''),
         precio: parseNumeroBasico(datosPrimero.precio) > 0 ? String(parseNumeroBasico(datosPrimero.precio)) : (itemsActuales[itemObjetivoIndex]?.precio || ''),
         unidad: textoSeguroTrim(datosPrimero.unidad, itemsActuales[itemObjetivoIndex]?.unidad || 'unid'),
-        iva: textoSeguroTrim(datosPrimero.iva, itemsActuales[itemObjetivoIndex]?.iva || 'sin_iva'),
+        iva: itemsActuales[itemObjetivoIndex]?.iva || 'sin_iva',
         imagen: textoSeguroTrim(datosPrimero.imagen || primero?.imagen, ''),
         logoMarca: textoSeguroTrim(datosPrimero.logoMarca || primero?.logoMarca, '')
       };
@@ -20156,7 +20179,7 @@ function obtenerCategoriaProducto(producto) {
           marca: textoSeguroTrim(datos.marca || prod?.marca, ''),
           cantidad: '1',
           unidad: textoSeguroTrim(datos.unidad, 'unid'),
-          iva: textoSeguroTrim(datos.iva, 'sin_iva'),
+          iva: 'sin_iva',
           precio: parseNumeroBasico(datos.precio) > 0 ? String(parseNumeroBasico(datos.precio)) : '',
           descuento: '0',
           imagen: textoSeguroTrim(datos.imagen || prod?.imagen, ''),
@@ -38366,10 +38389,10 @@ function obtenerCategoriaProducto(producto) {
                       <th className="px-1.5 py-1 text-left">Detalle</th>
                       <th className="px-1.5 py-1.5 text-center w-[62px]">Cant.</th>
                       <th className="px-1.5 py-1.5 text-center w-[68px]">Unidad</th>
-                      <th className="px-1.5 py-1.5 text-right w-24">Precio U.</th>
+                      <th className="px-1.5 py-1.5 text-right w-24" title="Precio final, con IVA incluido cuando corresponde">Precio U.</th>
                       <th className="px-1.5 py-1.5 text-center w-[62px]">IVA</th>
                       <th className="px-1.5 py-1.5 text-center w-[54px]">Desc.</th>
-                      <th className="px-1.5 py-1.5 text-right w-28">Subtotal</th>
+                      <th className="px-1.5 py-1.5 text-right w-28" title="Importe neto del ítem, sin el IVA incluido en el precio">Subtotal neto</th>
                       <th className="px-1.5 py-1.5 w-9"></th>
                     </tr>
                   </thead>
@@ -38381,7 +38404,8 @@ function obtenerCategoriaProducto(producto) {
                       const precio = redondeoVentasHaciaArribaActivo ? redondearImporteVentaHaciaArriba(precioBase) : precioBase;
                       const descuento = Math.min(100, Math.max(0, parseNumeroBasico(item?.descuento) || 0));
                       const subtotalBase = Math.max(0, (cantidad * precio) - ((cantidad * precio) * descuento / 100));
-                      const subtotal = redondeoVentasHaciaArribaActivo ? redondearImporteVentaHaciaArriba(subtotalBase) : subtotalBase;
+                      const subtotalConIva = redondeoVentasHaciaArribaActivo ? redondearImporteVentaHaciaArriba(subtotalBase) : subtotalBase;
+                      const subtotal = desglosarIvaIncluidoVenta(subtotalConIva, item?.iva).neto;
                       return (
                         <tr key={item.id} className="group hover:bg-gray-50/80">
                           <td className="px-2 py-[2px]">
@@ -38466,7 +38490,7 @@ function obtenerCategoriaProducto(producto) {
                               placeholder="0.00"
                             />
                           </td>
-                          <td className="px-1 py-[2px]"><select value={item.iva || 'sin_iva'} disabled={esItemDevolucionVinculada} onChange={(e) => actualizarItemPuntoVenta(item.id, 'iva', e.target.value)} className="w-full h-6 px-1 bg-transparent border border-transparent rounded-md text-[10px] font-black text-center outline-none hover:bg-white focus:bg-white focus:border-emerald-300 focus:ring-1 focus:ring-emerald-500"><option value="sin_iva">Exento</option><option value="10.5">10,5%</option><option value="21">21%</option></select></td>
+                          <td className="px-1 py-[2px]"><select value={item.iva || 'sin_iva'} disabled={esItemDevolucionVinculada} onChange={(e) => actualizarItemPuntoVenta(item.id, 'iva', e.target.value)} className="w-full h-6 px-1 bg-transparent border border-transparent rounded-md text-[10px] font-black text-center outline-none hover:bg-white focus:bg-white focus:border-emerald-300 focus:ring-1 focus:ring-emerald-500"><option value="sin_iva">Sin IVA</option><option value="10.5">10,5%</option><option value="21">21%</option></select></td>
                           <td className="px-1 py-[2px]">
                             <input
                               type="text"
@@ -38513,6 +38537,9 @@ function obtenerCategoriaProducto(producto) {
               </div>
 
               <div className="card p-3 text-right flex flex-col justify-center min-w-0 overflow-hidden">
+                <p className="text-[10px] text-gray-500 font-bold">Subtotal sin IVA: {formatearDinero(desgloseFormularioPuntoVenta.neto)}</p>
+                {desgloseFormularioPuntoVenta.iva105 > 0.004 && <p className="text-[10px] text-gray-500 font-bold">IVA 10,5% incluido: {formatearDinero(desgloseFormularioPuntoVenta.iva105)}</p>}
+                {desgloseFormularioPuntoVenta.iva21 > 0.004 && <p className="text-[10px] text-gray-500 font-bold">IVA 21% incluido: {formatearDinero(desgloseFormularioPuntoVenta.iva21)}</p>}
                 <p className="text-xs text-gray-500 font-black uppercase tracking-wider">{mostrarResumenTarjetaPuntoVenta ? 'Cobrar POSNET' : 'Total'}</p>
                 <p
                   className="w-full font-extrabold tracking-tight text-gray-900 leading-none whitespace-nowrap tabular-nums"
