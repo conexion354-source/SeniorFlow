@@ -26480,7 +26480,7 @@ function obtenerCategoriaProducto(producto) {
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <p className="text-xs font-bold text-gray-400">Inició con {formatearDinero(caja.efectivoInicial)}</p>
                     {caja.chequesInicial > 0 && <span className="text-[10px] font-black bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-md truncate">+{formatearDinero(caja.chequesInicial)} cheques</span>}
-                    <button onClick={(e) => { e.stopPropagation(); setEfectivoContadoParaCorregirCaja(''); setFormData({...formData, efectivo: String(caja.efectivoInicial ?? ''), cheques: String(caja.chequesInicial ?? 0), tieneCheques: caja.chequesInicial > 0}); setModalActivo('editar_apertura'); }} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700 hover:bg-blue-100" title="Editar apertura"><Edit2 size={12} /> Corregir apertura</button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setEfectivoContadoParaCorregirCaja(''); setFormData({...formData, efectivo: String(caja.efectivoInicial ?? ''), cheques: String(caja.chequesInicial ?? 0), tieneCheques: caja.chequesInicial > 0}); setModalActivo('editar_apertura'); }} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100" title="Editar apertura" aria-label="Editar apertura"><Edit2 size={14} /></button>
                   </div>
                   <p className="mt-1 text-xs font-bold text-gray-500">Movimientos en efectivo del turno: {formatearDinero(totales.balanceEfectivo)}</p>
                 </div>
