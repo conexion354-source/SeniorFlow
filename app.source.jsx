@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import CompraExcelModal from './CompraExcelModal.jsx';
+import { leerArchivoCompraExcel } from './compra-importacion.js';
 import { COMPANY_RUNTIME_CONFIG } from './company-runtime-config.js';
 
 // --- INTEGRACIÓN FIREBASE ---
@@ -2900,6 +2902,9 @@ function AppInterna() {
   const [operacionPreciosEnCurso, setOperacionPreciosEnCurso] = useState({ activo: false, titulo: '', fase: '', total: 0, procesadas: 0, detalle: '' });
   const [proveedorCompraSeleccionado, setProveedorCompraSeleccionado] = useState('');
   const [itemsPedidoCompra, setItemsPedidoCompra] = useState([]);
+  const [libroImportacionCompra, setLibroImportacionCompra] = useState(null);
+  const [leyendoExcelCompra, setLeyendoExcelCompra] = useState(false);
+  const archivoExcelCompraRef = useRef(null);
   const [busquedaProductosPedidoCompra, setBusquedaProductosPedidoCompra] = useState('');
   const [selectorInventarioPedidoCompraAbierto, setSelectorInventarioPedidoCompraAbierto] = useState(false);
   const [selectorNotificacionesPedidoCompraAbierto, setSelectorNotificacionesPedidoCompraAbierto] = useState(false);
@@ -20540,8 +20545,50 @@ function obtenerCategoriaProducto(producto) {
     iva: item?.iva ?? ((productos || []).find((producto) => producto?.id === item?.productoId)?.iva ?? ''),
     descuento: item?.descuento ?? '',
     imagen: textoSeguroTrim(item?.imagen, ''),
-    manual: Boolean(item?.manual)
+    manual: Boolean(item?.manual),
+    origenExcel: Boolean(item?.origenExcel),
+    costoExcelPendiente: Boolean(item?.costoExcelPendiente)
   });
+
+  const abrirExcelCompra = async (archivo) => {
+    if (!archivo) return;
+    setLeyendoExcelCompra(true);
+    try {
+      setLibroImportacionCompra(await leerArchivoCompraExcel(archivo));
+    } catch (error) {
+      await notificarSistema(error?.message || 'No se pudo leer el Excel.', { tipo: 'warning', titulo: 'Importación de compra' });
+    } finally {
+      setLeyendoExcelCompra(false);
+      if (archivoExcelCompraRef.current) archivoExcelCompraRef.current.value = '';
+    }
+  };
+
+  const agregarFilasExcelCompra = (filas) => {
+    const codigosUsados = obtenerCodigosInventarioUsados();
+    (itemsPedidoCompra || []).forEach((item) => { if (item?.codigo) codigosUsados.add(normalizarCodigoParaComparar(item.codigo)); });
+    filas.forEach((fila) => { if (fila?.codigo) codigosUsados.add(normalizarCodigoParaComparar(fila.codigo)); });
+    let siguienteCodigo = 1;
+    const codigoNuevo = () => {
+      while (siguienteCodigo <= 999999 && codigosUsados.has(normalizarCodigoParaComparar(String(siguienteCodigo).padStart(6, '0')))) siguienteCodigo += 1;
+      const codigo = String(siguienteCodigo++).padStart(6, '0');
+      codigosUsados.add(normalizarCodigoParaComparar(codigo));
+      return codigo;
+    };
+    const agregados = filas.map((fila, indice) => {
+      const relacionado = obtenerProductoParaPedidoCompra(fila);
+      const codigo = relacionado?.codigo || relacionado?.codigoInterno || fila.codigo || codigoNuevo();
+      codigosUsados.add(normalizarCodigoParaComparar(codigo));
+      return normalizarItemPedidoCompra({
+        ...fila, id: `excel-${Date.now()}-${indice}-${Math.random().toString(36).slice(2, 7)}`,
+        productoId: relacionado?.id || '', codigo,
+        proveedor: fila.proveedor || proveedorCompraSeleccionado || '',
+        costo: fila.costoPesos, costoBaseCompraPesos: fila.costoPesos,
+        manual: !relacionado, origenExcel: true
+      }, itemsPedidoCompra.length + indice);
+    });
+    setItemsPedidoCompra((actual) => [...actual, ...agregados]);
+    setLibroImportacionCompra(null);
+  };
 
   const obtenerEstadoPedidoCompraLabel = (estado = '') => {
     const key = textoSeguroTrim(estado, 'guardado');
@@ -21099,6 +21146,7 @@ function obtenerCategoriaProducto(producto) {
         actualizado.costoBaseCompraPesos = costoPesos;
         actualizado.costo = costoPesos;
         actualizado.moneda = 'ARS';
+        if (actualizado.origenExcel) actualizado.costoExcelPendiente = !(costoPesos.trim() && Number.isFinite(Number(costoPesos)) && Number(costoPesos) >= 0);
       }
       return normalizarItemPedidoCompra(actualizado);
     }));
@@ -21117,6 +21165,11 @@ function obtenerCategoriaProducto(producto) {
   };
 
   const guardarPedidoCompra = async () => {
+    const preciosPendientes = (itemsPedidoCompra || []).filter((item) => item?.costoExcelPendiente);
+    if (preciosPendientes.length) {
+      await notificarSistema(`Completá el precio de ${preciosPendientes.length} ítem(s) importados del Excel antes de guardar.`, { tipo: 'warning', titulo: 'Precios pendientes' });
+      return;
+    }
     const filasIniciales = construirFilasPedidoCompra(itemsPedidoCompra || []);
     const proveedorPrincipalCompra = textoSeguroTrim(proveedorCompraSeleccionado, '');
     const filas = compraDirectaActiva
@@ -33771,7 +33824,7 @@ function obtenerCategoriaProducto(producto) {
       {modalActivo === 'pedido_compra' && (
         <Modal
           titulo={compraDirectaActiva ? 'Cargar compra directa' : (pedidoCompraEditandoId ? 'Editar pedido' : 'Nuevo pedido de compra')}
-          onClose={() => { setCompraDirectaActiva(false); setSelectorInventarioPedidoCompraAbierto(false); setModalActivo(null); }}
+          onClose={() => { setCompraDirectaActiva(false); setSelectorInventarioPedidoCompraAbierto(false); setLibroImportacionCompra(null); setModalActivo(null); }}
           customWidth="max-w-7xl"
         >
           <div className="space-y-4 min-w-0">
@@ -33956,6 +34009,9 @@ function obtenerCategoriaProducto(producto) {
               <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col">
                 <div className="sf-purchase-item-header px-3 py-1.5 border-b border-slate-100 bg-slate-50">
                   <p className="sf-purchase-item-title text-[11px] font-black text-slate-700 uppercase tracking-wider" style={{ minWidth: 0, margin: 0 }}>{compraDirectaActiva ? 'Items de la compra' : 'Items del pedido'} ({itemsPedidoCompra.length})</p>
+                  <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+                    <input ref={archivoExcelCompraRef} type="file" accept=".xlsx,.xls,.xlsm,.csv" className="hidden" onChange={(e) => abrirExcelCompra(e.target.files?.[0])} aria-label="Seleccionar Excel de compra" />
+                    <button type="button" onClick={() => archivoExcelCompraRef.current?.click()} disabled={leyendoExcelCompra} className="sf-purchase-action sf-purchase-action-excel inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-emerald-300 bg-white px-2 text-[11px] font-bold text-emerald-800 disabled:opacity-50"><FileSpreadsheet size={14} /> {leyendoExcelCompra ? 'Leyendo…' : 'Desde Excel'}</button>
                   <div className="sf-purchase-actions-grid">
                     <button type="button" onClick={() => { setBusquedaSelectorInventarioPedidoCompra(''); setSelectorInventarioPedidoCompraAbierto(true); }} className="sf-purchase-action sf-purchase-action-add" aria-label="Agregar producto del inventario">
                       <Search size={13} /><span>Agregar</span>
@@ -33970,11 +34026,12 @@ function obtenerCategoriaProducto(producto) {
                       Limpiar
                     </button>
                   </div>
+                  </div>
                 </div>
                 {itemsPedidoCompra.length === 0 ? (
                   <p className="p-6 text-sm font-bold text-slate-400 text-center">{compraDirectaActiva ? 'Agrega productos para registrar la compra.' : 'Agrega productos para crear el pedido.'}</p>
                 ) : (
-                  <div className="sf-purchase-items-scroll overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar bg-slate-50/70" style={{ maxHeight: 'min(52dvh, 520px)', WebkitOverflowScrolling: 'touch' }}>
+                  <div className="sf-purchase-items-scroll overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar bg-slate-50/70" style={{ minHeight: '180px', maxHeight: 'min(52dvh, 520px)', WebkitOverflowScrolling: 'touch' }}>
                     <div className="hidden lg:grid sticky top-0 z-10 grid-cols-[70px_minmax(170px,1.4fr)_86px_58px_68px_88px_60px_86px_108px_32px_32px] gap-1 items-center px-2 py-1.5 bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider">
                       <span>Código</span>
                       <span>Detalle</span>
@@ -34106,6 +34163,10 @@ function obtenerCategoriaProducto(producto) {
             </div>
           </div>
         </Modal>
+      )}
+
+      {modalActivo === 'pedido_compra' && libroImportacionCompra && (
+        <CompraExcelModal libro={libroImportacionCompra} onClose={() => setLibroImportacionCompra(null)} onImportar={agregarFilasExcelCompra} />
       )}
 
       {modalActivo === 'pedido_compra' && selectorInventarioPedidoCompraAbierto && (
