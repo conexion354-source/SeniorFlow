@@ -26037,6 +26037,35 @@ function obtenerCategoriaProducto(producto) {
           .sf-purchase-actions-grid > .sf-purchase-action-clear { grid-column:auto; }
         }
         .sf-enterprise-shell .sf-pv-item-header { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; width:100%; margin-bottom:8px; flex:0 0 auto; }
+        /* Densidad de escritorio amplio: la lista de compras tiene prioridad visual. */
+        @media (min-width:1440px) and (min-height:760px) {
+          .sf-enterprise-shell .sf-modal-panel.sf-purchase-modal { width:min(1540px,calc(100vw - 32px)) !important; max-width:1540px !important; max-height:calc(100dvh - 20px) !important; }
+          .sf-enterprise-shell .sf-purchase-modal > .sf-modal-header { min-height:50px !important; padding:0 16px !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-modal-header h2 { font-size:22px !important; }
+          .sf-enterprise-shell .sf-purchase-modal > .sf-modal-body { padding:8px 12px !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-workspace { display:flex !important; flex-direction:column !important; gap:8px !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-workspace > :not([hidden]) ~ :not([hidden]) { margin-top:0 !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-details { padding:0 !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-details > .bg-emerald-50 { padding:6px !important; gap:5px !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-details .grid { gap:5px !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-details label { margin-bottom:1px !important; font-size:10px !important; }
+          .sf-enterprise-shell .sf-purchase-modal input:not([type="checkbox"]):not([type="file"]),
+          .sf-enterprise-shell .sf-purchase-modal select { height:30px !important; min-height:30px !important; font-size:12px !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-main { gap:7px !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-item-header { min-height:38px !important; padding:4px 8px !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-item-title { font-size:12px !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-item-header > .flex { gap:5px !important; flex-wrap:nowrap !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-actions-grid { display:flex !important; width:auto !important; min-width:0 !important; gap:5px !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-actions-grid > .sf-purchase-action,
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-action-excel { width:auto !important; min-width:0 !important; height:28px !important; min-height:28px !important; padding:0 9px !important; font-size:11px !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-options { gap:5px 12px !important; padding:5px 2px 0 !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll { max-height:min(54dvh,590px) !important; min-height:280px !important; scrollbar-width:thin; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll .divide-y > div { padding:4px 8px !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-summary { padding:6px 8px !important; gap:6px !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-summary .grid { gap:5px !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-summary button { height:32px !important; min-height:32px !important; }
+        }
+
         .sf-enterprise-shell .sf-pv-item-header h3 { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         @media (max-width:680px) {
           .sf-enterprise-shell .sf-pv-items > div:first-child { align-items:flex-start; flex-wrap:wrap; }
@@ -33826,9 +33855,10 @@ function obtenerCategoriaProducto(producto) {
           titulo={compraDirectaActiva ? 'Cargar compra directa' : (pedidoCompraEditandoId ? 'Editar pedido' : 'Nuevo pedido de compra')}
           onClose={() => { setCompraDirectaActiva(false); setSelectorInventarioPedidoCompraAbierto(false); setLibroImportacionCompra(null); setModalActivo(null); }}
           customWidth="max-w-7xl"
+          modalVariant="sf-purchase-modal"
         >
-          <div className="space-y-4 min-w-0">
-            <div className="space-y-2">
+          <div className="sf-purchase-workspace space-y-4 min-w-0">
+            <div className="sf-purchase-details space-y-2">
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2 space-y-2">
                 <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(220px,1.2fr)_auto] gap-2 items-center min-w-0">
                   <div className="bg-white border border-emerald-200 rounded-lg px-2.5 py-1.5">
@@ -34005,8 +34035,8 @@ function obtenerCategoriaProducto(producto) {
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 min-w-0">
-              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col">
+            <div className="sf-purchase-main flex flex-col gap-3 min-w-0">
+              <div className="sf-purchase-items-panel bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col">
                 <div className="sf-purchase-item-header px-3 py-1.5 border-b border-slate-100 bg-slate-50">
                   <p className="sf-purchase-item-title text-[11px] font-black text-slate-700 uppercase tracking-wider" style={{ minWidth: 0, margin: 0 }}>{compraDirectaActiva ? 'Items de la compra' : 'Items del pedido'} ({itemsPedidoCompra.length})</p>
                   <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
@@ -34145,7 +34175,7 @@ function obtenerCategoriaProducto(producto) {
                 )}
               </div>
               {compraDirectaActiva && (
-                <div className="shrink-0 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_260px_auto] gap-2 items-end rounded-xl border border-emerald-200 bg-emerald-50 p-2.5">
+                <div className="sf-purchase-summary shrink-0 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_260px_auto] gap-2 items-end rounded-xl border border-emerald-200 bg-emerald-50 p-2.5">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-wider text-emerald-800">Monto total de la compra</p>
                     <p className="text-[10px] font-bold text-emerald-700">Se calcula automáticamente con los ítems cargados.</p>
