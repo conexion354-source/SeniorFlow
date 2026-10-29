@@ -2060,31 +2060,29 @@ const SelectorChequesModal = ({ abierto, onClose, busqueda, setBusqueda, cheques
 
 const FORM_VENDEDOR_VACIO = { nombre: '', documento: '', telefono: '', email: '', direccion: '', notas: '', activo: true };
 
-const calcularPreciosConComisionVendedor = (items = [], porcentaje = 0) => {
+const calcularPreciosConComisionVendedor = (items = [], porcentaje = 0, resolverCostoUnitario = () => null) => {
   const tasa = Math.min(100, Math.max(0, parseNumeroBasico(porcentaje) || 0));
   let totalBase = 0;
-  let totalFinal = 0;
+  let totalGanancia = 0;
+  let itemsSinCosto = 0;
   const itemsActualizados = (Array.isArray(items) ? items : []).map((item) => {
     const cantidad = Math.max(0, parseNumeroBasico(item?.cantidad) || 0);
     const descuento = Math.min(100, Math.max(0, parseNumeroBasico(item?.descuento) || 0));
-    const precioActual = Math.max(0, parseNumeroBasico(item?.precio) || 0);
-    const tienePrecioBaseGuardado = item?.precioAntesComisionVendedor !== undefined && item?.precioAntesComisionVendedor !== null && String(item.precioAntesComisionVendedor).trim() !== '';
-    const precioBaseGuardado = tienePrecioBaseGuardado ? parseNumeroBasico(item.precioAntesComisionVendedor) : NaN;
-    const precioBase = tienePrecioBaseGuardado && Number.isFinite(precioBaseGuardado) && precioBaseGuardado >= 0
-      ? precioBaseGuardado
-      : precioActual;
-    const precioFinal = tasa > 0 ? Math.round((precioBase * (1 + (tasa / 100))) * 100) / 100 : precioBase;
-    const factorDescuento = 1 - (descuento / 100);
-    const subtotalBase = Math.max(0, cantidad * precioBase * factorDescuento);
-    const subtotalFinal = Math.max(0, cantidad * precioFinal * factorDescuento);
-    const comisionMonto = Math.max(0, Math.round((subtotalFinal - subtotalBase) * 100) / 100);
-    totalBase += subtotalBase;
-    totalFinal += subtotalFinal;
+    const precio = Math.max(0, parseNumeroBasico(item?.precio) || 0);
+    const subtotal = Math.max(0, cantidad * precio * (1 - descuento / 100));
+    const costoResuelto = resolverCostoUnitario(item);
+    const costoConocido = Number.isFinite(costoResuelto) && costoResuelto >= 0;
+    const costoUnitario = costoConocido ? costoResuelto : 0;
+    const ganancia = costoConocido ? Math.max(0, subtotal - costoUnitario * cantidad) : 0;
+    const comisionMonto = Math.round(ganancia * tasa) / 100;
+    if (!costoConocido && cantidad > 0) itemsSinCosto += 1;
+    totalBase += subtotal;
+    totalGanancia += ganancia;
     return {
       ...item,
-      precioAntesComisionVendedor: precioBase,
-      precio: precioFinal,
-      comisionPrecioIncluida: tasa > 0,
+      costoUnitarioComision: costoConocido ? costoUnitario : null,
+      gananciaBaseComision: Math.round(ganancia * 100) / 100,
+      comisionPrecioIncluida: false,
       comisionPorcentaje: tasa,
       comisionMonto
     };
@@ -2092,8 +2090,10 @@ const calcularPreciosConComisionVendedor = (items = [], porcentaje = 0) => {
   return {
     items: itemsActualizados,
     totalBase: Math.round(totalBase * 100) / 100,
-    totalFinal: Math.round(totalFinal * 100) / 100,
-    totalComision: Math.round((totalFinal - totalBase) * 100) / 100
+    totalFinal: Math.round(totalBase * 100) / 100,
+    totalGanancia: Math.round(totalGanancia * 100) / 100,
+    itemsSinCosto,
+    totalComision: Math.round(itemsActualizados.reduce((suma, item) => suma + item.comisionMonto, 0) * 100) / 100
   };
 };
 
@@ -2108,6 +2108,15 @@ const restaurarPreciosSinComisionVendedor = (items = []) => (Array.isArray(items
   delete limpio.comisionMonto;
   return limpio;
 });
+
+const obtenerCostoHistoricoComisionVendedor = (item = {}) => {
+  for (const [campo, valor] of [['costoUnitarioComision', item?.costoUnitarioComision], ['costoBase', item?.costoBase]]) {
+    if (valor === null || valor === undefined || String(valor).trim() === '') continue;
+    const costo = parseNumeroBasico(valor);
+    if (Number.isFinite(costo) && (costo > 0 || (campo === 'costoUnitarioComision' && costo === 0))) return costo;
+  }
+  return null;
+};
 
 const ModuloVendedores = ({ vendedores = [], retiros = [], movimientos = [], notificar, usuario = null, nombreEmpresa = 'SeniorFlow', onVerVenta = null, onEditarComision = null }) => {
   const [busqueda, setBusqueda] = useState('');
@@ -2127,7 +2136,8 @@ const ModuloVendedores = ({ vendedores = [], retiros = [], movimientos = [], not
         .map((mov) => {
           const porcentaje = Math.max(0, parseNumeroBasico(mov?.detallesPago?.comisionPorcentaje));
           const totalVenta = Math.max(0, Number(mov?.monto || 0));
-          const comision = Math.max(0, Number(mov?.detallesPago?.comisionMonto ?? (totalVenta * porcentaje / 100)));
+          const comision = Math.max(0, Number(mov?.detallesPago?.comisionMonto || 0));
+          const pendienteRevision = mov?.detallesPago?.comisionCalculadaSobreGanancia !== true;
           const tipo = OPCIONES_COMPROBANTE_VENTA.find((opcion) => opcion.value === mov?.detallesPago?.tipoComprobante)?.label || 'Comprobante';
           const comprobanteTexto = `${tipo} ${textoSeguroTrim(mov?.detallesPago?.numeroComprobante, 'Sin número')}`;
           const itemsComision = (Array.isArray(mov?.detallesPago?.comisionItems) && mov.detallesPago.comisionItems.length
@@ -2145,6 +2155,7 @@ const ModuloVendedores = ({ vendedores = [], retiros = [], movimientos = [], not
             totalVenta,
             porcentaje,
             comision,
+            pendienteRevision,
             itemsComision,
             pendiente: comision,
             retirosAplicados: []
@@ -2167,7 +2178,7 @@ const ModuloVendedores = ({ vendedores = [], retiros = [], movimientos = [], not
       });
       const totalComisiones = ventas.reduce((total, venta) => total + venta.comision, 0);
       const totalRetirado = ventas.reduce((total, venta) => total + venta.retirosAplicados.reduce((suma, retiro) => suma + retiro.montoAplicado, 0), 0);
-      resultado[vendedor.id] = { vendedor, ventas, retiros: retirosVendedor, totalComisiones, totalRetirado, saldo: Math.max(0, totalComisiones - totalRetirado) };
+      resultado[vendedor.id] = { vendedor, ventas, retiros: retirosVendedor, totalComisiones, totalRetirado, saldo: Math.max(0, totalComisiones - totalRetirado), ventasPendientesRevision: ventas.filter((venta) => venta.pendienteRevision).length };
     });
     return resultado;
   }, [vendedores, retiros, movimientos, onVerVenta]);
@@ -2179,7 +2190,7 @@ const ModuloVendedores = ({ vendedores = [], retiros = [], movimientos = [], not
 
   const vendedoresFiltrados = vendedores.filter((vendedor) => coincideBusquedaCompuesta([vendedor.nombre, vendedor.documento, vendedor.telefono, vendedor.email], busqueda));
   const cuentaSeleccionada = cuentas[vendedorSeleccionadoId] || null;
-  const ventasPendientesRetiro = (cuentaSeleccionada?.ventas || []).filter((venta) => venta.pendiente > 0.009);
+  const ventasPendientesRetiro = (cuentaSeleccionada?.ventas || []).filter((venta) => !venta.pendienteRevision && venta.pendiente > 0.009);
   const resumenRetiro = useMemo(() => {
     const aplicaciones = (formRetiro.ventaIds || []).map((ventaId, indice) => {
       const venta = ventasPendientesRetiro.find((item) => item.id === ventaId);
@@ -2280,6 +2291,7 @@ const ModuloVendedores = ({ vendedores = [], retiros = [], movimientos = [], not
   return (
     <div className="sf-module-page h-full min-h-0 flex flex-col gap-4 overflow-hidden animate-in fade-in duration-300 print:hidden">
       <div className="sf-screen-header shrink-0 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"><div><p className="sf-sales-kicker">Equipo comercial</p><h1>Vendedores</h1><p>Ventas asignadas, comisiones y retiros por comprobante.</p></div><button type="button" onClick={() => abrirVendedor()} className="bg-teal-600 text-white inline-flex items-center gap-2"><UserPlus size={16} /> Nuevo vendedor</button></div>
+      {cuentaSeleccionada?.ventasPendientesRevision > 0 && <div className="shrink-0 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-900">{cuentaSeleccionada.ventasPendientesRevision} venta(s) anteriores tienen comisiones calculadas con el método viejo. El saldo es provisional y no se podrán retirar comisiones de esas ventas hasta revisarlas. <button type="button" onClick={() => onEditarComision?.(cuentaSeleccionada.ventas.find((venta) => venta.pendienteRevision)?.movimiento)} className="ml-2 rounded-lg bg-amber-700 px-3 py-1.5 text-white">Revisar primera pendiente</button></div>}
       <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-4 overflow-hidden">
         <div className="min-h-0 flex flex-col rounded-2xl border border-slate-200 bg-white overflow-hidden"><div className="p-3 border-b border-slate-100"><div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={busqueda} onChange={(event) => setBusqueda(event.target.value)} placeholder="Buscar vendedor..." className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm font-bold outline-none focus:ring-2 focus:ring-teal-500" /></div></div><div className="flex-1 overflow-y-auto divide-y divide-slate-100">{vendedoresFiltrados.length ? vendedoresFiltrados.map((vendedor) => { const cuenta = cuentas[vendedor.id] || {}; const seleccionado = vendedor.id === vendedorSeleccionadoId; return <button key={vendedor.id} type="button" onClick={() => setVendedorSeleccionadoId(vendedor.id)} className={`w-full p-3 text-left ${seleccionado ? 'bg-teal-50' : 'hover:bg-slate-50'}`}><div className="flex items-center justify-between gap-2"><span className="font-black text-slate-800">{vendedor.nombre}</span><span className={`rounded-full px-2 py-1 text-[9px] font-black uppercase ${vendedor.activo === false ? 'bg-slate-100 text-slate-500' : 'bg-emerald-100 text-emerald-700'}`}>{vendedor.activo === false ? 'Inactivo' : 'Activo'}</span></div><p className="mt-1 text-xs font-bold text-slate-500">{vendedor.telefono || vendedor.documento || 'Sin contacto'}</p><p className="mt-2 text-xs font-black text-teal-700">Saldo {formatearDinero(cuenta.saldo || 0)}</p></button>; }) : <p className="p-6 text-center text-sm font-bold text-slate-400">No hay vendedores cargados.</p>}</div></div>
         <div className="min-h-0 min-w-0 flex flex-col rounded-2xl border border-slate-200 bg-white overflow-hidden">{!cuentaSeleccionada ? <div className="m-auto text-center text-slate-400"><Users size={42} className="mx-auto mb-3 opacity-30" /><p className="font-bold">Seleccioná o cargá un vendedor.</p></div> : <><div className="shrink-0 border-b border-slate-100 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="text-xl font-black text-slate-900">{cuentaSeleccionada.vendedor.nombre}</h2><p className="text-xs font-bold text-slate-500">{[cuentaSeleccionada.vendedor.documento, cuentaSeleccionada.vendedor.telefono, cuentaSeleccionada.vendedor.email].filter(Boolean).join(' · ') || 'Sin datos adicionales'}</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => abrirVendedor(cuentaSeleccionada.vendedor)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700"><Edit2 size={14} className="inline mr-1" /> Editar</button><button type="button" onClick={imprimirCuenta} className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700"><Printer size={14} className="inline mr-1" /> Imprimir cuenta</button><button type="button" disabled={!ventasPendientesRetiro.length} onClick={abrirRetiro} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:bg-slate-300"><ArrowDownCircle size={14} className="inline mr-1" /> Registrar retiro</button><button type="button" onClick={() => eliminarVendedor(cuentaSeleccionada.vendedor)} className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700"><Trash2 size={14} /></button></div></div><div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-2"><div className="rounded-xl bg-slate-50 p-3"><p className="text-[9px] font-black uppercase text-slate-500">Ventas asignadas</p><p className="text-base font-black text-slate-900">{cuentaSeleccionada.ventas.length}</p></div><div className="rounded-xl bg-blue-50 p-3"><p className="text-[9px] font-black uppercase text-blue-600">Comisiones</p><p className="text-base font-black text-blue-800">{formatearDinero(cuentaSeleccionada.totalComisiones)}</p></div><div className="rounded-xl bg-amber-50 p-3"><p className="text-[9px] font-black uppercase text-amber-600">Retiros</p><p className="text-base font-black text-amber-800">{formatearDinero(cuentaSeleccionada.totalRetirado)}</p></div><div className="rounded-xl bg-emerald-50 p-3"><p className="text-[9px] font-black uppercase text-emerald-600">Saldo a favor</p><p className="text-base font-black text-emerald-800">{formatearDinero(cuentaSeleccionada.saldo)}</p></div></div></div><div className="flex-1 min-h-0 overflow-auto"><table className="w-full table-fixed text-left text-xs"><colgroup><col className="w-[28%]" /><col className="w-[20%]" /><col className="w-[14%]" /><col className="w-[10%]" /><col className="w-[14%]" /><col className="w-[14%]" /></colgroup><thead className="sticky top-0 bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Comprobante / fecha</th><th className="px-3 py-2">Cliente</th><th className="px-3 py-2 text-right">Venta</th><th className="px-3 py-2 text-right">%</th><th className="px-3 py-2 text-right">Comisión</th><th className="px-3 py-2 text-right">Saldo</th></tr></thead><tbody className="divide-y divide-slate-100">{cuentaSeleccionada.ventas.length ? cuentaSeleccionada.ventas.map((venta) => <React.Fragment key={venta.id}><tr><td className="px-3 py-3 align-top"><div className="min-w-0"><div className="max-w-full font-black text-slate-800">{venta.comprobante}</div><p className="mt-1 whitespace-nowrap text-[10px] font-bold text-slate-400">{formatearFecha(venta.fecha)}</p></div></td><td className="truncate px-3 py-3 font-bold text-slate-600" title={venta.cliente}>{venta.cliente}</td><td className="whitespace-nowrap px-3 py-3 text-right font-black">{formatearDinero(venta.totalVenta)}</td><td className="px-3 py-3 text-right"><button type="button" onClick={() => onEditarComision?.(venta.movimiento)} className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 font-black text-blue-700 hover:bg-blue-100" title="Modificar porcentaje de comisión">{formatearCantidad(venta.porcentaje)}% <Edit2 size={11} /></button></td><td className="whitespace-nowrap px-3 py-3 text-right font-black text-blue-700">{formatearDinero(venta.comision)}</td><td className="whitespace-nowrap px-3 py-3 text-right font-black text-emerald-700">{formatearDinero(venta.pendiente)}</td></tr>{venta.retirosAplicados.map((retiro) => <tr key={`${venta.id}-${retiro.id}`} className="bg-emerald-50/60"><td className="px-3 py-2 pl-7 font-black text-emerald-700">↳ Retiro {formatearFecha(retiro.fecha)}</td><td className="px-3 py-2 font-bold text-emerald-700">{obtenerEtiquetaMetodoPago(retiro.metodoPago)} {retiro.numeroComprobante || ''}</td><td colSpan={2} className="px-3 py-2 font-bold text-emerald-700">{retiro.notas || 'Pago de comisión'}</td><td className="px-3 py-2 text-right font-black text-red-600">-{formatearDinero(retiro.montoAplicado)}</td><td className="px-3 py-2 text-right"><button type="button" onClick={() => eliminarRetiro(retiro)} className="text-red-600" title="Eliminar retiro"><Trash2 size={13} /></button></td></tr>)}</React.Fragment>) : <tr><td colSpan={6} className="p-10 text-center font-bold text-slate-400">Todavía no tiene ventas asignadas.</td></tr>}</tbody></table></div></>}</div>
@@ -6455,18 +6467,43 @@ function AppInterna() {
     1.05,
     Math.min(2.25, 20 / Math.max(10, totalFormularioPuntoVentaTexto.length))
   );
+  const obtenerCostoUnitarioComisionVendedor = (item = {}) => {
+    const costoHistorico = obtenerCostoHistoricoComisionVendedor(item);
+    if (costoHistorico !== null) return costoHistorico;
+    const producto = (productos || []).find((actual) => actual.id === item?.productoId)
+      || (productos || []).find((actual) => item?.codigo && textoSeguroTrim(actual?.codigo, '').toLowerCase() === textoSeguroTrim(item.codigo, '').toLowerCase());
+    if (producto) {
+      const costo = obtenerCostoProductoRealPesos(producto);
+      return costo > 0 ? costo : null;
+    }
+    if (item?.esItemServicio) {
+      const componentes = Array.isArray(item.componentesServicio) ? item.componentesServicio : [];
+      if (!componentes.length) return 0;
+      let costoTotal = 0;
+      for (const componente of componentes) {
+        const productoComponente = (productos || []).find((actual) => actual.id === componente.productoId);
+        if (!productoComponente) return null;
+        const costoComponente = obtenerCostoProductoRealPesos(productoComponente);
+        if (!(costoComponente > 0)) return null;
+        costoTotal += costoComponente * Math.max(0, parseNumeroBasico(componente.cantidad) || 0);
+      }
+      return costoTotal;
+    }
+    return null;
+  };
   const porcentajeComisionPuntoVentaVista = Math.min(100, Math.max(0, parseNumeroBasico(formAsignacionVendedorPuntoVenta.porcentaje) || 0));
+  const resolverCostoPuntoVenta = formPuntoVenta.idMovimiento ? obtenerCostoHistoricoComisionVendedor : obtenerCostoUnitarioComisionVendedor;
   const simulacionComisionPuntoVentaVista = useMemo(
-    () => calcularPreciosConComisionVendedor(formPuntoVenta.items || [], porcentajeComisionPuntoVentaVista),
-    [formPuntoVenta.items, porcentajeComisionPuntoVentaVista]
+    () => calcularPreciosConComisionVendedor(formPuntoVenta.items || [], porcentajeComisionPuntoVentaVista, resolverCostoPuntoVenta),
+    [formPuntoVenta.items, formPuntoVenta.idMovimiento, porcentajeComisionPuntoVentaVista, productos]
   );
   const comisionPuntoVentaVista = simulacionComisionPuntoVentaVista.totalComision;
-  const totalConComisionPuntoVentaVista = formAsignacionVendedorPuntoVenta.aplicarAlPrecio === true ? simulacionComisionPuntoVentaVista.totalFinal : simulacionComisionPuntoVentaVista.totalBase;
+  const totalConComisionPuntoVentaVista = simulacionComisionPuntoVentaVista.totalBase;
 
   const abrirAsignacionVendedorPuntoVenta = async () => {
     if (formPuntoVenta.tipoComprobante === 'nota_credito') { await notificarSistema('Las notas de crédito no generan una nueva comisión de vendedor.', { tipo: 'info', titulo: 'Comisión no aplicable' }); return; }
     if (!vendedores.some((vendedor) => vendedor.activo !== false)) { await notificarSistema('Primero cargá al menos un vendedor activo desde el menú Vendedores.', { tipo: 'warning', titulo: 'Sin vendedores activos' }); return; }
-    setFormAsignacionVendedorPuntoVenta({ vendedorId: textoSeguroTrim(formPuntoVenta.vendedorId, ''), porcentaje: formPuntoVenta.comisionPorcentaje ?? '', aplicarAlPrecio: formPuntoVenta.comisionPrecioIncluida === true });
+    setFormAsignacionVendedorPuntoVenta({ vendedorId: textoSeguroTrim(formPuntoVenta.vendedorId, ''), porcentaje: formPuntoVenta.comisionPorcentaje ?? '', aplicarAlPrecio: false });
     setAsignacionVendedorPuntoVentaAbierta(true);
   };
 
@@ -6475,11 +6512,9 @@ function AppInterna() {
     const vendedor = vendedores.find((item) => item.id === formAsignacionVendedorPuntoVenta.vendedorId && (item.activo !== false || item.id === formPuntoVenta.vendedorId));
     const porcentaje = Math.min(100, Math.max(0, parseNumeroBasico(formAsignacionVendedorPuntoVenta.porcentaje) || 0));
     if (!vendedor || porcentaje < 0) { await notificarSistema('Seleccioná un vendedor e ingresá un porcentaje válido.', { tipo: 'warning', titulo: 'Asignación incompleta' }); return; }
-    setFormPuntoVenta((prev) => {
-      const calculoComision = calcularPreciosConComisionVendedor(prev.items || [], porcentaje);
-      const itemsAplicados = formAsignacionVendedorPuntoVenta.aplicarAlPrecio ? calculoComision.items : calculoComision.items.map((item) => ({ ...item, precio: item.precioAntesComisionVendedor ?? item.precio, comisionPrecioIncluida: false }));
-      return { ...prev, items: itemsAplicados, vendedorId: vendedor.id, vendedorNombre: vendedor.nombre, comisionPorcentaje: porcentaje, comisionMonto: calculoComision.totalComision, comisionPrecioIncluida: Boolean(formAsignacionVendedorPuntoVenta.aplicarAlPrecio) };
-    });
+    const calculoComision = calcularPreciosConComisionVendedor(formPuntoVenta.items || [], porcentaje, resolverCostoPuntoVenta);
+    if (calculoComision.itemsSinCosto) { await notificarSistema('Hay ítems sin costo registrado. Revisá el costo antes de calcular la comisión.', { tipo: 'warning', titulo: 'Costo requerido' }); return; }
+    setFormPuntoVenta((prev) => ({ ...prev, items: calculoComision.items, vendedorId: vendedor.id, vendedorNombre: vendedor.nombre, comisionPorcentaje: porcentaje, comisionMonto: calculoComision.totalComision, comisionBaseGanancia: calculoComision.totalGanancia, comisionPrecioIncluida: false }));
     setAsignacionVendedorPuntoVentaAbierta(false);
   };
 
@@ -8269,6 +8304,7 @@ const abrirPuntoVenta = () => {
           logoMarca: textoSeguroTrim(item?.logoMarca, ''),
           comisionPorcentaje: Math.max(0, Number(item?.comisionPorcentaje || 0)),
           comisionMonto: Math.max(0, Number(item?.comisionMonto || 0)),
+          costoUnitarioComision: obtenerCostoHistoricoComisionVendedor(item),
           precioAntesComisionVendedor: Number.isFinite(Number(item?.precioAntesComisionVendedor)) ? Number(item.precioAntesComisionVendedor) : undefined,
           comisionPrecioIncluida: Boolean(item?.comisionPrecioIncluida),
           esItemServicio: Boolean(item?.esItemServicio),
@@ -8483,7 +8519,8 @@ const abrirPuntoVenta = () => {
             })).filter((componente) => componente.productoId && componente.cantidad > 0)
           : [],
         precioProductos: Math.max(0, parseNumeroBasico(item?.precioProductos) || 0),
-        manoObraPesos: Math.max(0, parseNumeroBasico(item?.manoObraPesos) || 0)
+        manoObraPesos: Math.max(0, parseNumeroBasico(item?.manoObraPesos) || 0),
+        costoUnitarioComision: obtenerCostoHistoricoComisionVendedor(item) ?? (formPuntoVenta.idMovimiento ? null : obtenerCostoUnitarioComisionVendedor(item))
       }))
       .filter((item) => item.descripcion && item.cantidad > 0 && item.precio >= 0);
 
@@ -8536,11 +8573,10 @@ const abrirPuntoVenta = () => {
     const vendedorIdPuntoVenta = textoSeguroTrim(formPuntoVenta.vendedorId, '');
     const porcentajeComisionPuntoVenta = Math.min(100, Math.max(0, parseNumeroBasico(formPuntoVenta.comisionPorcentaje) || 0));
     const calculoComisionPuntoVenta = formPuntoVenta.tipoComprobante !== 'nota_credito' && vendedorIdPuntoVenta && porcentajeComisionPuntoVenta > 0
-      ? calcularPreciosConComisionVendedor(itemsNormalizados, porcentajeComisionPuntoVenta)
-      : { items: restaurarPreciosSinComisionVendedor(itemsNormalizados), totalComision: 0 };
-    const preciosComisionPuntoVenta = formPuntoVenta.comisionPrecioIncluida === true
-      ? calculoComisionPuntoVenta
-      : { ...calculoComisionPuntoVenta, items: calculoComisionPuntoVenta.items.map((item) => ({ ...item, precio: item.precioAntesComisionVendedor ?? item.precio, comisionPrecioIncluida: false })) };
+      ? calcularPreciosConComisionVendedor(itemsNormalizados, porcentajeComisionPuntoVenta, resolverCostoPuntoVenta)
+      : { items: restaurarPreciosSinComisionVendedor(itemsNormalizados), totalComision: 0, totalGanancia: 0, itemsSinCosto: 0 };
+    if (vendedorIdPuntoVenta && calculoComisionPuntoVenta.itemsSinCosto) { await notificarSistema('No se puede guardar la comisión: hay ítems sin costo registrado.', { tipo: 'warning', titulo: 'Costo requerido' }); return; }
+    const preciosComisionPuntoVenta = calculoComisionPuntoVenta;
     itemsNormalizados = preciosComisionPuntoVenta.items;
 
     const totalBase = itemsNormalizados.reduce((acc, item) => {
@@ -8775,7 +8811,9 @@ const abrirPuntoVenta = () => {
           vendedorNombre: vendedorPuntoVenta.nombre,
           comisionPorcentaje: porcentajeComisionPuntoVenta,
           comisionMonto: comisionMontoPuntoVenta,
-          comisionPrecioIncluida: true,
+          comisionPrecioIncluida: false,
+          comisionCalculadaSobreGanancia: true,
+          comisionBaseGanancia: preciosComisionPuntoVenta.totalGanancia,
           montoSinComisionVendedor: preciosComisionPuntoVenta.totalBase,
           comisionItems: itemsVentaNormalizados.map((item) => ({ itemId: textoSeguroTrim(item?.id, ''), productoId: textoSeguroTrim(item?.productoId, ''), codigo: textoSeguroTrim(item?.codigo, ''), descripcion: textoSeguroTrim(item?.descripcion, ''), porcentaje: porcentajeComisionPuntoVenta, monto: Math.max(0, Number(item?.comisionMonto || 0)) })),
           comisionAsignadaEn: textoSeguroTrim(movimientoOriginal?.detallesPago?.comisionAsignadaEn, new Date().toISOString()),
@@ -10288,8 +10326,17 @@ const abrirPuntoVenta = () => {
   const abrirAsignacionVendedorVenta = (mov = null) => {
     if (!mov) return;
     setVentaAsignarVendedor(mov);
-    setFormAsignacionVendedor({ vendedorId: textoSeguroTrim(mov?.detallesPago?.vendedorId, ''), porcentaje: mov?.detallesPago?.comisionPorcentaje ?? '', aplicarAlPrecio: mov?.detallesPago?.comisionPrecioIncluida !== false });
+    setFormAsignacionVendedor({ vendedorId: textoSeguroTrim(mov?.detallesPago?.vendedorId, ''), porcentaje: mov?.detallesPago?.comisionPorcentaje ?? '', aplicarAlPrecio: false, costosManuales: {} });
   };
+
+  const itemsVentaAsignacion = Array.isArray(ventaAsignarVendedor?.detallesPago?.items) ? ventaAsignarVendedor.detallesPago.items : [];
+  const itemsConCostoAsignacion = itemsVentaAsignacion.map((item, indice) => {
+    const costoManual = formAsignacionVendedor.costosManuales?.[indice];
+    return costoManual !== undefined && String(costoManual).trim() !== ''
+      ? { ...item, costoUnitarioComision: parseNumeroBasico(costoManual) }
+      : item;
+  });
+  const vistaComisionAsignacion = calcularPreciosConComisionVendedor(itemsConCostoAsignacion, formAsignacionVendedor.porcentaje, obtenerCostoHistoricoComisionVendedor);
 
   const guardarAsignacionVendedorVenta = async (event) => {
     event.preventDefault();
@@ -10300,22 +10347,19 @@ const abrirPuntoVenta = () => {
     const aplicacionesExistentes = retirosVendedores.flatMap((retiro) => (retiro?.aplicacionesVentas || []).filter((aplicacion) => aplicacion?.ventaId === ventaAsignarVendedor.id).map((aplicacion) => ({ retiro, aplicacion })));
     const vendedorAnteriorId = textoSeguroTrim(ventaAsignarVendedor?.detallesPago?.vendedorId, '');
     if (aplicacionesExistentes.length && vendedorAnteriorId && vendedorAnteriorId !== vendedor.id) { await notificarSistema('Esta venta ya tiene retiros de comisión aplicados. Eliminá primero esos retiros antes de cambiar el vendedor.', { tipo: 'warning', titulo: 'Venta con retiros' }); return; }
-    const itemsVenta = Array.isArray(ventaAsignarVendedor?.detallesPago?.items) ? ventaAsignarVendedor.detallesPago.items : [];
-    const calculoComision = calcularPreciosConComisionVendedor(itemsVenta, porcentaje);
-    const preciosConComision = formAsignacionVendedor.aplicarAlPrecio ? calculoComision : { ...calculoComision, items: calculoComision.items.map((item) => ({ ...item, precio: item.precioAntesComisionVendedor ?? item.precio, comisionPrecioIncluida: false })) };
+    const itemsVenta = itemsConCostoAsignacion;
+    if (!itemsVenta.length) { await notificarSistema('Este comprobante no tiene ítems con costos para calcular la ganancia.', { tipo: 'warning', titulo: 'Ítems requeridos' }); return; }
+    const preciosConComision = calcularPreciosConComisionVendedor(itemsVenta, porcentaje, obtenerCostoHistoricoComisionVendedor);
+    if (preciosConComision.itemsSinCosto) { await notificarSistema('Hay ítems sin costo histórico. Revisalos antes de recalcular la comisión.', { tipo: 'warning', titulo: 'Costo requerido' }); return; }
     const montoAnterior = Math.max(0, Number(ventaAsignarVendedor.monto || 0));
-    const comisionAnterior = Math.max(0, Number(ventaAsignarVendedor?.detallesPago?.comisionMonto || 0));
-    const montoBaseSinItems = Number.isFinite(Number(ventaAsignarVendedor?.detallesPago?.montoSinComisionVendedor))
-      ? Math.max(0, Number(ventaAsignarVendedor.detallesPago.montoSinComisionVendedor))
-      : (ventaAsignarVendedor?.detallesPago?.comisionPrecioIncluida ? Math.max(0, montoAnterior - comisionAnterior) : montoAnterior);
-    const comisionMonto = itemsVenta.length ? preciosConComision.totalComision : Math.round((montoBaseSinItems * porcentaje / 100) * 100) / 100;
-    const montoNuevo = itemsVenta.length ? (formAsignacionVendedor.aplicarAlPrecio ? preciosConComision.totalFinal : preciosConComision.totalBase) : (formAsignacionVendedor.aplicarAlPrecio ? Math.round((montoBaseSinItems + comisionMonto) * 100) / 100 : montoBaseSinItems);
+    const comisionMonto = preciosConComision.totalComision;
+    const montoNuevo = montoAnterior;
     const itemsConComision = preciosConComision.items;
     const totalRetirado = aplicacionesExistentes.reduce((total, item) => total + Number(item.aplicacion?.montoAplicado || 0), 0);
     if (comisionMonto + 0.009 < totalRetirado) { await notificarSistema(`La comisión no puede quedar por debajo de los retiros ya aplicados (${formatearDinero(totalRetirado)}).`, { tipo: 'warning', titulo: 'Comisión insuficiente' }); return; }
     setGuardandoAsignacionVendedor(true);
     try {
-      const detallesPagoActualizados = limpiarDatoFirestore({ ...(ventaAsignarVendedor.detallesPago || {}), vendedorId: vendedor.id, vendedorNombre: vendedor.nombre, comisionPorcentaje: porcentaje, comisionMonto, comisionPrecioIncluida: Boolean(formAsignacionVendedor.aplicarAlPrecio), montoSinComisionVendedor: itemsVenta.length ? preciosConComision.totalBase : montoBaseSinItems, items: itemsConComision, comisionItems: itemsConComision.map((item) => ({ itemId: textoSeguroTrim(item?.id, ''), productoId: textoSeguroTrim(item?.productoId, ''), codigo: textoSeguroTrim(item?.codigo, ''), descripcion: textoSeguroTrim(item?.descripcion, ''), porcentaje, monto: Math.max(0, Number(item?.comisionMonto || 0)) })), comisionAsignadaEn: new Date().toISOString(), comisionAsignadaPor: usuarioActual?.nombre || '' });
+      const detallesPagoActualizados = limpiarDatoFirestore({ ...(ventaAsignarVendedor.detallesPago || {}), vendedorId: vendedor.id, vendedorNombre: vendedor.nombre, comisionPorcentaje: porcentaje, comisionMonto, comisionPrecioIncluida: false, comisionCalculadaSobreGanancia: true, comisionBaseGanancia: preciosConComision.totalGanancia, montoSinComisionVendedor: preciosConComision.totalBase, items: itemsConComision, comisionItems: itemsConComision.map((item) => ({ itemId: textoSeguroTrim(item?.id, ''), productoId: textoSeguroTrim(item?.productoId, ''), codigo: textoSeguroTrim(item?.codigo, ''), descripcion: textoSeguroTrim(item?.descripcion, ''), porcentaje, monto: Math.max(0, Number(item?.comisionMonto || 0)) })), comisionAsignadaEn: new Date().toISOString(), comisionAsignadaPor: usuarioActual?.nombre || '' });
       await updateDoc(doc(db, 'movimientos', ventaAsignarVendedor.id), { monto: montoNuevo, detallesPago: detallesPagoActualizados });
       const deltaCuentaCliente = Math.round((montoNuevo - montoAnterior) * 100) / 100;
       const clienteId = textoSeguroTrim(ventaAsignarVendedor?.detallesPago?.clienteId, '');
@@ -10329,7 +10373,7 @@ const abrirPuntoVenta = () => {
       }
       setMovimientos((prev) => prev.map((movimiento) => movimiento.id === ventaAsignarVendedor.id ? { ...movimiento, monto: montoNuevo, detallesPago: detallesPagoActualizados } : movimiento));
       setVentaAsignarVendedor(null);
-      await notificarSistema(`Venta asignada a ${vendedor.nombre}. La comisión de ${formatearDinero(comisionMonto)} se distribuyó en los precios de los ítems.`, { tipo: 'success', titulo: 'Comisión asignada' });
+      await notificarSistema(`Venta asignada a ${vendedor.nombre}. La comisión de ${formatearDinero(comisionMonto)} se calculó sobre la ganancia sin cambiar el precio al cliente.`, { tipo: 'success', titulo: 'Comisión asignada' });
     } catch (error) { console.error(error); await notificarSistema('No se pudo guardar la asignación del vendedor.', { tipo: 'error', titulo: 'Error' }); }
     finally { setGuardandoAsignacionVendedor(false); }
   };
@@ -10342,8 +10386,10 @@ const abrirPuntoVenta = () => {
     const montoAnterior = Math.max(0, Number(ventaAsignarVendedor.monto || 0));
     const itemsRestaurados = restaurarPreciosSinComisionVendedor(detalles.items || []);
     const totalItemsRestaurados = calcularPreciosConComisionVendedor(itemsRestaurados, 0).totalFinal;
-    const montoNuevo = itemsRestaurados.length ? totalItemsRestaurados : Math.max(0, Number(detalles.montoSinComisionVendedor ?? (montoAnterior - Number(detalles.comisionMonto || 0))));
-    delete detalles.vendedorId; delete detalles.vendedorNombre; delete detalles.comisionPorcentaje; delete detalles.comisionMonto; delete detalles.comisionItems; delete detalles.comisionPrecioIncluida; delete detalles.montoSinComisionVendedor; delete detalles.comisionAsignadaEn; delete detalles.comisionAsignadaPor;
+    const montoNuevo = detalles.comisionPrecioIncluida === true
+      ? (itemsRestaurados.length ? totalItemsRestaurados : Math.max(0, Number(detalles.montoSinComisionVendedor ?? (montoAnterior - Number(detalles.comisionMonto || 0)))))
+      : montoAnterior;
+    delete detalles.vendedorId; delete detalles.vendedorNombre; delete detalles.comisionPorcentaje; delete detalles.comisionMonto; delete detalles.comisionItems; delete detalles.comisionPrecioIncluida; delete detalles.comisionBaseGanancia; delete detalles.comisionCalculadaSobreGanancia; delete detalles.montoSinComisionVendedor; delete detalles.comisionAsignadaEn; delete detalles.comisionAsignadaPor;
     detalles.items = itemsRestaurados;
     const detallesPagoActualizados = limpiarDatoFirestore(detalles);
     await updateDoc(doc(db, 'movimientos', ventaAsignarVendedor.id), { monto: montoNuevo, detallesPago: detallesPagoActualizados });
@@ -31700,9 +31746,9 @@ function obtenerCategoriaProducto(producto) {
           <form onSubmit={guardarAsignacionVendedorVenta} className="space-y-4">
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Venta seleccionada</p><p className="mt-1 font-black text-slate-900">{OPCIONES_COMPROBANTE_VENTA.find((opcion) => opcion.value === ventaAsignarVendedor?.detallesPago?.tipoComprobante)?.label || 'Comprobante'} {textoSeguroTrim(ventaAsignarVendedor?.detallesPago?.numeroComprobante, 'Sin número')}</p><p className="text-xs font-bold text-slate-500">{textoSeguroTrim(ventaAsignarVendedor?.detallesPago?.cliente, 'Sin cliente')} · Total {formatearDinero(Number(ventaAsignarVendedor.monto || 0))}</p></div>
             <div><label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1">Vendedor</label><select value={formAsignacionVendedor.vendedorId} onChange={(event) => setFormAsignacionVendedor((prev) => ({ ...prev, vendedorId: event.target.value }))} required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-teal-500"><option value="">Seleccionar vendedor</option>{vendedores.filter((vendedor) => vendedor.activo !== false || vendedor.id === formAsignacionVendedor.vendedorId).map((vendedor) => <option key={vendedor.id} value={vendedor.id}>{vendedor.nombre}{vendedor.activo === false ? ' (inactivo)' : ''}</option>)}</select></div>
-            <div><label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1">Porcentaje de comisión</label><div className="relative"><input inputMode="decimal" value={formAsignacionVendedor.porcentaje} onChange={(event) => setFormAsignacionVendedor((prev) => ({ ...prev, porcentaje: event.target.value.replace(/[^0-9.,]/g, '') }))} placeholder="Ej.: 5" required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pr-10 text-right text-lg font-black outline-none focus:ring-2 focus:ring-teal-500" /><span className="absolute right-3 top-1/2 -translate-y-1/2 font-black text-slate-500">%</span></div></div>
-            <label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 cursor-pointer"><input type="checkbox" checked={formAsignacionVendedor.aplicarAlPrecio === true} onChange={(event) => setFormAsignacionVendedor((prev) => ({ ...prev, aplicarAlPrecio: event.target.checked }))} className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600" /><span className="text-[10px] font-black uppercase tracking-wider text-amber-800">Incrementar el precio con la comisión<span className="block normal-case tracking-normal font-bold text-amber-700">Si no se tilda, la comisión sale de tu ganancia.</span></span></label>
-            <div className="rounded-xl border border-teal-200 bg-teal-50 p-3 space-y-2"><div className="flex items-center justify-between gap-3"><span className="text-xs font-black uppercase text-teal-700">Comisión incorporada a los ítems</span><strong className="text-lg text-teal-800">{formatearDinero(calcularPreciosConComisionVendedor(ventaAsignarVendedor?.detallesPago?.items || [], formAsignacionVendedor.porcentaje).totalComision)}</strong></div><p className="text-[11px] font-bold text-teal-700">Al guardar se recalcula desde el precio original y cambia el total de la venta.</p></div>
+            <div><label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1">Porcentaje sobre la ganancia</label><div className="relative"><input inputMode="decimal" value={formAsignacionVendedor.porcentaje} onChange={(event) => setFormAsignacionVendedor((prev) => ({ ...prev, porcentaje: event.target.value.replace(/[^0-9.,]/g, '') }))} placeholder="Ej.: 5" required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pr-10 text-right text-lg font-black outline-none focus:ring-2 focus:ring-teal-500" /><span className="absolute right-3 top-1/2 -translate-y-1/2 font-black text-slate-500">%</span></div></div>
+            {itemsVentaAsignacion.map((item, indice) => obtenerCostoHistoricoComisionVendedor(item) === null && <div key={`costo-comision-${item.id || indice}`} className="rounded-xl border border-amber-200 bg-amber-50 p-3"><label className="block text-[11px] font-black text-amber-900 mb-1">Revisar costo unitario histórico · {item.descripcion || item.codigo || `Ítem ${indice + 1}`}</label><input inputMode="decimal" value={formAsignacionVendedor.costosManuales?.[indice] ?? ''} onChange={(event) => setFormAsignacionVendedor((prev) => ({ ...prev, costosManuales: { ...prev.costosManuales, [indice]: event.target.value.replace(/[^0-9.,]/g, '') } }))} placeholder="Ingresá el costo de la fecha de venta" className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-bold" /><p className="mt-1 text-[10px] text-amber-800">No se usará el costo actual del producto.</p></div>)}
+            <div className="rounded-xl border border-teal-200 bg-teal-50 p-3 space-y-2"><div className="flex items-center justify-between gap-3"><span className="text-xs font-black uppercase text-teal-700">Comisión sobre ganancia de {formatearDinero(vistaComisionAsignacion.totalGanancia)}</span><strong className="text-lg text-teal-800">{formatearDinero(vistaComisionAsignacion.totalComision)}</strong></div><p className="text-[11px] font-bold text-teal-700">El precio y el total que paga el cliente no cambian.{vistaComisionAsignacion.itemsSinCosto ? ` Faltan ${vistaComisionAsignacion.itemsSinCosto} costo(s) por revisar.` : ''}</p></div>
             {vendedores.length === 0 && <button type="button" onClick={() => { setVentaAsignarVendedor(null); setVista('vendedores'); }} className="w-full rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs font-black text-blue-700">Primero cargá un vendedor</button>}
             <div className="flex flex-col sm:flex-row gap-2">{ventaAsignarVendedor?.detallesPago?.vendedorId && <button type="button" disabled={guardandoAsignacionVendedor} onClick={quitarAsignacionVendedorVenta} className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-black text-red-700">Quitar asignación</button>}<button type="button" disabled={guardandoAsignacionVendedor} onClick={() => setVentaAsignarVendedor(null)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-700">Cancelar</button><button type="submit" disabled={guardandoAsignacionVendedor || !vendedores.length} className="flex-1 rounded-xl bg-teal-600 px-4 py-3 text-xs font-black text-white disabled:bg-teal-300">{guardandoAsignacionVendedor ? 'Guardando...' : 'Guardar asignación'}</button></div>
           </form>
@@ -38669,8 +38715,8 @@ function obtenerCategoriaProducto(producto) {
         <Modal titulo="Asignar vendedor a esta venta" onClose={() => setAsignacionVendedorPuntoVentaAbierta(false)} customWidth="max-w-lg" extraClases="z-[75]">
           <form onSubmit={confirmarAsignacionVendedorPuntoVenta} className="space-y-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Venta actual</p><p className="font-black text-slate-900">{formPuntoVenta.tipoComprobante === 'remito_x' ? 'Remito X' : (OPCIONES_COMPROBANTE_VENTA.find((opcion) => opcion.value === formPuntoVenta.tipoComprobante)?.label || 'Comprobante')} {formPuntoVenta.numeroComprobante || 'sin número'}</p></div><p className="text-2xl font-black text-emerald-700">{formatearDinero(totalFormularioPuntoVenta)}</p></div>
-            <div className="grid sm:grid-cols-2 gap-3"><div><label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1">Vendedor</label><select value={formAsignacionVendedorPuntoVenta.vendedorId} onChange={(event) => setFormAsignacionVendedorPuntoVenta((prev) => ({ ...prev, vendedorId: event.target.value }))} required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-bold outline-none focus:ring-2 focus:ring-teal-500"><option value="">Seleccionar vendedor</option>{vendedores.filter((vendedor) => vendedor.activo !== false || vendedor.id === formPuntoVenta.vendedorId).map((vendedor) => <option key={`pv-vendedor-${vendedor.id}`} value={vendedor.id}>{vendedor.nombre}{vendedor.activo === false ? ' (inactivo)' : ''}</option>)}</select></div><div><label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1">Porcentaje sobre la venta</label><div className="relative"><input inputMode="decimal" value={formAsignacionVendedorPuntoVenta.porcentaje} onChange={(event) => setFormAsignacionVendedorPuntoVenta((prev) => ({ ...prev, porcentaje: event.target.value.replace(/[^0-9.,]/g, '') }))} placeholder="Ej.: 10" required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pr-10 text-right text-lg font-black outline-none focus:ring-2 focus:ring-teal-500" /><span className="absolute right-3 top-1/2 -translate-y-1/2 font-black text-slate-500">%</span></div></div><label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 cursor-pointer sm:col-span-2"><input type="checkbox" checked={formAsignacionVendedorPuntoVenta.aplicarAlPrecio === true} onChange={(event) => setFormAsignacionVendedorPuntoVenta((prev) => ({ ...prev, aplicarAlPrecio: event.target.checked }))} className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600" /><span className="text-[10px] font-black uppercase tracking-wider text-amber-800">Incrementar el precio con la comisión<span className="block normal-case tracking-normal font-bold text-amber-700">Si no se tilda, la comisión sale de tu ganancia.</span></span></label></div>
-            <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-3"><div><p className="text-[10px] font-black uppercase tracking-wider text-teal-700">Comisión incorporada a los ítems</p><p className="mt-1 text-2xl font-black text-teal-900">{formatearDinero(comisionPuntoVentaVista)}</p></div><div className="sm:text-right"><p className="text-[10px] font-black uppercase tracking-wider text-teal-700">Nuevo total de venta</p><p className="mt-1 text-2xl font-black text-teal-900">{formatearDinero(totalConComisionPuntoVentaVista)}</p></div><p className="sm:col-span-2 text-xs font-bold text-teal-700">El porcentaje se suma proporcionalmente al precio original de cada ítem.</p></div>
+            <div className="grid sm:grid-cols-2 gap-3"><div><label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1">Vendedor</label><select value={formAsignacionVendedorPuntoVenta.vendedorId} onChange={(event) => setFormAsignacionVendedorPuntoVenta((prev) => ({ ...prev, vendedorId: event.target.value }))} required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-bold outline-none focus:ring-2 focus:ring-teal-500"><option value="">Seleccionar vendedor</option>{vendedores.filter((vendedor) => vendedor.activo !== false || vendedor.id === formPuntoVenta.vendedorId).map((vendedor) => <option key={`pv-vendedor-${vendedor.id}`} value={vendedor.id}>{vendedor.nombre}{vendedor.activo === false ? ' (inactivo)' : ''}</option>)}</select></div><div><label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1">Porcentaje sobre la ganancia</label><div className="relative"><input inputMode="decimal" value={formAsignacionVendedorPuntoVenta.porcentaje} onChange={(event) => setFormAsignacionVendedorPuntoVenta((prev) => ({ ...prev, porcentaje: event.target.value.replace(/[^0-9.,]/g, '') }))} placeholder="Ej.: 10" required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pr-10 text-right text-lg font-black outline-none focus:ring-2 focus:ring-teal-500" /><span className="absolute right-3 top-1/2 -translate-y-1/2 font-black text-slate-500">%</span></div></div></div>
+            <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-3"><div><p className="text-[10px] font-black uppercase tracking-wider text-teal-700">Comisión sobre ganancia de {formatearDinero(simulacionComisionPuntoVentaVista.totalGanancia)}</p><p className="mt-1 text-2xl font-black text-teal-900">{formatearDinero(comisionPuntoVentaVista)}</p></div><div className="sm:text-right"><p className="text-[10px] font-black uppercase tracking-wider text-teal-700">Total sin modificar</p><p className="mt-1 text-2xl font-black text-teal-900">{formatearDinero(totalConComisionPuntoVentaVista)}</p></div><p className="sm:col-span-2 text-xs font-bold text-teal-700">La comisión se calcula sobre venta menos costo por ítem y no cambia el precio al cliente.{simulacionComisionPuntoVentaVista.itemsSinCosto ? ` Faltan costos en ${simulacionComisionPuntoVentaVista.itemsSinCosto} ítem(s).` : ''}</p></div>
             <div className="flex flex-col sm:flex-row gap-2 pt-1">{formPuntoVenta.vendedorId && <button type="button" onClick={quitarAsignacionVendedorPuntoVenta} className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-black text-red-700">Quitar vendedor</button>}<button type="button" onClick={() => setAsignacionVendedorPuntoVentaAbierta(false)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-700">Cancelar</button><button type="submit" className="flex-1 rounded-xl bg-teal-600 px-4 py-3 text-xs font-black text-white">Aplicar vendedor y comisión</button></div>
           </form>
         </Modal>
