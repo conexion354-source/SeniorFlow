@@ -26336,6 +26336,47 @@ function obtenerCategoriaProducto(producto) {
           .sf-enterprise-shell .sf-topbar { margin-left:248px; }
           .sf-enterprise-shell .sf-mobile-nav { display:none; }
         }
+        /* 1920×1080: más filas visibles y formulario de producto en dos columnas. */
+        @media (min-width:1440px) and (min-height:760px) {
+          .sf-enterprise-shell .sf-module-inventory { gap:8px !important; }
+          .sf-enterprise-shell .sf-inventory-hero { padding:9px 12px !important; gap:8px !important; }
+          .sf-enterprise-shell .sf-inventory-hero > div:first-child { gap:8px !important; }
+          .sf-enterprise-shell .sf-inventory-hero > div:first-child > div:first-child { padding:7px !important; }
+          .sf-enterprise-shell .sf-inventory-hero h2 { font-size:19px !important; line-height:1.15 !important; }
+          .sf-enterprise-shell .sf-inventory-hero p { line-height:1.2 !important; }
+          .sf-enterprise-shell .sf-inventory-actions { width:auto !important; flex-wrap:nowrap !important; gap:5px !important; }
+          .sf-enterprise-shell .sf-inventory-actions > button { width:auto !important; height:30px !important; min-height:30px !important; padding:0 8px !important; font-size:10px !important; white-space:nowrap; }
+          .sf-enterprise-shell .sf-inventory-actions > button:first-child { width:30px !important; min-width:30px !important; padding:0 !important; }
+          .sf-enterprise-shell .sf-inventory-filters { padding:8px 12px !important; gap:8px !important; }
+          .sf-enterprise-shell .sf-inventory-filters > div:last-child { gap:6px !important; }
+          .sf-enterprise-shell .sf-inventory-filters input,
+          .sf-enterprise-shell .sf-inventory-filters select { height:32px !important; min-height:32px !important; padding-top:0 !important; padding-bottom:0 !important; font-size:12px !important; }
+          .sf-enterprise-shell .sf-inventory-table th { padding:8px 10px !important; }
+          .sf-enterprise-shell .sf-inventory-table td { padding:6px 10px !important; }
+          .sf-enterprise-shell .sf-inventory-table td:last-child button { width:30px !important; min-width:30px !important; height:30px !important; min-height:30px !important; }
+          .sf-enterprise-shell .sf-inventory-table td:last-child > div { gap:4px !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal > .sf-modal-header { min-height:48px !important; padding:0 16px !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal > .sf-modal-body { padding:0 !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-workspace { display:grid !important; width:min(1580px,100%) !important; max-width:1580px !important; min-height:0 !important; height:max-content !important; margin:0 auto !important; grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr); grid-template-areas:"general stock" "general images" "composite composite" "pricing final" "providers providers" "actions actions"; align-items:start; gap:8px 10px !important; padding:10px 14px 12px !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-workspace > :not([hidden]) ~ :not([hidden]) { margin-top:0 !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-workspace > div { margin-top:0 !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-general { grid-area:general; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-stock { grid-area:stock; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-images { grid-area:images; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-composite { grid-area:composite; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-pricing { grid-area:pricing; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-providers { grid-area:providers; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-final-price { grid-area:final; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-actions { grid-area:actions; margin:0 -14px -12px !important; padding:8px 14px !important; bottom:0 !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-actions .btn { min-height:32px !important; padding:6px 12px !important; font-size:12px !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-stock,
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-general,
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-images,
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-pricing { padding:8px 10px !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-stock > .grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-workspace input:not([type="checkbox"]):not([type="file"]),
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-workspace select { min-height:30px !important; }
+        }
       `}</style>
       
       {/* NAVEGACIÓN EMPRESARIAL */}
@@ -29412,7 +29453,7 @@ function obtenerCategoriaProducto(producto) {
                 <div className="bg-indigo-600 p-2.5 rounded-xl shadow-sm"><Package size={20} className="text-white"/></div>
                 <div><p className="text-[10px] font-black text-blue-700 uppercase tracking-[.16em]">Catálogo y existencias</p><h2 className="text-2xl font-black text-gray-900 tracking-tight">Inventario</h2><p className="text-xs font-bold text-gray-500">Productos, precios, proveedores y control de stock.</p></div>
               </div>
-              <div className="w-full sm:w-auto flex flex-col sm:flex-row sm:flex-wrap sm:justify-end gap-2">
+              <div className="sf-inventory-actions w-full sm:w-auto flex flex-col sm:flex-row sm:flex-wrap sm:justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -29443,7 +29484,7 @@ function obtenerCategoriaProducto(producto) {
             </div>
 
             <div className="flex-1 min-h-0 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
-              <div className="shrink-0 p-4 border-b border-gray-100 bg-gray-50/50 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+              <div className="sf-inventory-filters shrink-0 p-4 border-b border-gray-100 bg-gray-50/50 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                 <div className="hidden sm:flex flex-col gap-1">
                   <h3 className="font-bold text-gray-800 text-base uppercase tracking-tight">Listado de Precios</h3>
                 </div>
@@ -34320,6 +34361,7 @@ function obtenerCategoriaProducto(producto) {
           onClose={() => { setModalActivo(null); setProductoAEditar(null); setSelectorTaxonomiaProducto(null); setBusquedaSelectorTaxonomiaProducto(''); limpiarEdicionTaxonomias(); }}
           customWidth="max-w-[1480px]"
           fullScreen
+          modalVariant="sf-product-fullscreen-modal"
         >
           <form onSubmit={guardarProducto} noValidate className="sf-product-workspace w-full max-w-none space-y-6">
             <div className="sf-product-images">
@@ -34708,7 +34750,7 @@ function obtenerCategoriaProducto(producto) {
             </div>
             
             {formProducto.esProductoCompuesto && (
-              <div className="border border-fuchsia-200 bg-fuchsia-50/60 rounded-xl p-3 space-y-3">
+              <div className="sf-product-composite border border-fuchsia-200 bg-fuchsia-50/60 rounded-xl p-3 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-black uppercase tracking-wider text-fuchsia-900">Producto compuesto</p>
