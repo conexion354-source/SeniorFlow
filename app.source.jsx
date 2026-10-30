@@ -2493,6 +2493,7 @@ function AppInterna() {
   const [isDBReady, setIsDBReady] = useState(false);
   const [usuariosCargados, setUsuariosCargados] = useState(false);
   const [estadoConexion, setEstadoConexion] = useState('conectando');
+  const [mensajeConexion, setMensajeConexion] = useState('');
 
   // --- ESTADOS DE LA APP ---
   const [configuracion, setConfiguracion] = useState(CONFIG_DEFAULT);
@@ -2576,6 +2577,7 @@ function AppInterna() {
   
   const [usuarioActual, setUsuarioActual] = useState(null);
   const [loginForm, setLoginForm] = useState({ username: '', password: '', error: '' });
+  const [mostrarClaveLogin, setMostrarClaveLogin] = useState(false);
   const [recordarme, setRecordarme] = useState(false);
   const credencialesConsultadasRef = useRef(false);
   const [vista, setVista] = useState('caja'); 
@@ -3216,14 +3218,11 @@ function AppInterna() {
   useEffect(() => {
     let desmontado = false;
     let authResuelto = false;
-    const activarModoLocal = (razon = '') => {
+    const informarFalloInicial = (razon = '') => {
       if (desmontado || authResuelto) return;
-      authResuelto = true;
-      if (razon) console.warn(razon);
-      setEstadoConexion('conectado');
-      setUsuarios((actuales) => (actuales.length ? actuales : [USUARIO_ADMIN_FALLBACK]));
-      setUsuariosCargados(true);
-      setIsDBReady(true);
+      if (razon) console.error(razon);
+      setMensajeConexion('No se pudo validar la conexión con Firebase. No se modificaron usuarios ni contraseñas; reintentá cuando el servicio esté disponible.');
+      setEstadoConexion('error');
     };
 
     const initAuth = async () => {
@@ -3235,21 +3234,23 @@ function AppInterna() {
         }
       } catch (e) {
         console.error("Auth error", e);
-        activarModoLocal('No se pudo completar la autenticación inicial. Activando modo local.');
+        informarFalloInicial('No se pudo completar la autenticación inicial.');
       }
     };
 
     const authTimeout = setTimeout(() => {
       if (!authResuelto) {
-        activarModoLocal('La autenticación tardó demasiado. Activando modo local.');
+        informarFalloInicial('La autenticación inicial tardó demasiado.');
       }
     }, 7000);
 
     initAuth();
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      authResuelto = true;
       setFirebaseUser(user);
-      if (user) setEstadoConexion('conectando');
+      if (user) {
+        authResuelto = true;
+        setEstadoConexion('conectando');
+      }
     });
     return () => {
       desmontado = true;
@@ -3260,17 +3261,35 @@ function AppInterna() {
 
   useEffect(() => {
     if (!firebaseUser) return;
-    setEstadoConexion('conectando');
+    if (!usuarioActual) setEstadoConexion('conectando');
     const dbReadyTimer = setTimeout(() => setIsDBReady(true), 4500);
     const marcarDBLista = () => {
       clearTimeout(dbReadyTimer);
       setIsDBReady(true);
     };
+    let configLista = false;
+    let usuariosListos = false;
+    let falloDatosEsenciales = false;
+    const marcarAccesoListo = () => {
+      if (configLista && usuariosListos && !falloDatosEsenciales) {
+        setMensajeConexion('');
+        setEstadoConexion('conectado');
+      }
+    };
+    const informarFalloDatos = (err) => {
+      falloDatosEsenciales = true;
+      console.error('No se pudieron validar los datos de acceso.', err);
+      setMensajeConexion(err?.code === 'resource-exhausted' || /quota exceeded/i.test(err?.message || '')
+        ? 'La base de datos alcanzó su límite de uso. El acceso está temporalmente indisponible; no es un problema de contraseña.'
+        : 'No se pudieron validar los datos de la empresa y los usuarios. Reintentá cuando la conexión esté disponible.');
+      setEstadoConexion('error');
+    };
 
-    const unsubConfig = onSnapshot(doc(db, 'sistema', 'configuracion'), (d) => {
+    const unsubConfig = onSnapshot(doc(db, 'sistema', 'configuracion'), { includeMetadataChanges: true }, (d) => {
         if (d.exists()) {
           const datosConfig = d.data();
           const configDB = { ...CONFIG_DEFAULT, ...datosConfig };
+          if (!textoSeguroTrim(configDB.nombre, '') || /^mi empresa$/i.test(textoSeguroTrim(configDB.nombre, ''))) configDB.nombre = NOMBRE_EMPRESA_FALLBACK;
           setConfiguracion(configDB);
           setConfiguracionPersistida(configDB);
           // Recupera únicamente datos de cobro faltantes. No reemplaza ni
@@ -3286,56 +3305,56 @@ function AppInterna() {
               .catch((error) => console.error('No se pudo recuperar la configuración de cobro.', error));
           }
         } else {
-          setDoc(d.ref, CONFIG_DEFAULT, { merge: true });
+          // Una lectura vacía no debe guardar valores genéricos sobre la empresa.
           setConfiguracion(CONFIG_DEFAULT);
           setConfiguracionPersistida(CONFIG_DEFAULT);
         }
+        configLista = !d.metadata?.fromCache;
+        marcarAccesoListo();
         marcarDBLista();
-    }, (err) => console.error(err));
+    }, informarFalloDatos);
 
     const unsubCaja = onSnapshot(doc(db, 'sistema', 'caja'), (d) => {
         if(d.exists()) setCaja(d.data());
-        else setDoc(d.ref, { estado: 'cerrada', efectivoInicial: 0, chequesInicial: 0, fechaApertura: null });
+        else console.warn('Estado de caja no disponible todavía; se conserva el estado actual.');
         marcarDBLista();
     }, (err) => console.error(err));
 
-    const unsubHistorialCaja = onSnapshot(collection(db, 'historial_caja'), (snapshot) => {
+    const unsubHistorialCaja = usuarioActual ? onSnapshot(collection(db, 'historial_caja'), (snapshot) => {
         const loaded = [];
         snapshot.forEach((item) => loaded.push({ id: item.id, ...item.data() }));
         loaded.sort((a, b) => new Date(b.cierreFecha || b.fechaCierre || 0) - new Date(a.cierreFecha || a.fechaCierre || 0));
         setHistorialCaja(loaded);
-    }, (err) => console.error('No se pudo cargar el historial de caja.', err));
+    }, (err) => console.error('No se pudo cargar el historial de caja.', err)) : () => {};
 
-    const unsubUsuarios = onSnapshot(collection(db, 'usuarios'), async (snapshot) => {
+    const unsubUsuarios = onSnapshot(collection(db, 'usuarios'), { includeMetadataChanges: true }, async (snapshot) => {
         if (snapshot.empty) {
-            setUsuarios([USUARIO_ADMIN_FALLBACK]);
-            const { id: _id, ...usuarioSemillaFirestore } = USUARIO_ADMIN_FALLBACK;
-            // ID fijo: si dos pestañas inicializan al mismo tiempo, ambas escriben
-            // el mismo documento en lugar de crear administradores duplicados.
-            setDoc(doc(db, 'usuarios', 'admin'), usuarioSemillaFirestore, { merge: true })
-              .catch((err) => console.error(err));
+            if (!snapshot.metadata?.fromCache) informarFalloDatos(new Error('No hay usuarios configurados en la base de datos.'));
         } else {
             const loaded = []; snapshot.forEach(doc => loaded.push({ id: doc.id, ...doc.data() }));
-            const admins = loaded.filter((usuario) => textoSeguro(usuario.username || usuario.usuario || '', '').trim().toLowerCase() === 'admin');
-            const canonico = admins.find((usuario) => usuario.id === 'admin') || admins[0];
-            if (canonico && canonico.id !== 'admin') {
-              const { id: _id, ...datosCanonicos } = canonico;
-              await setDoc(doc(db, 'usuarios', 'admin'), datosCanonicos, { merge: true });
-            }
-            const idsDuplicados = new Set(admins.filter((usuario) => usuario !== canonico || usuario.id !== 'admin').map((usuario) => usuario.id));
-            await Promise.all(Array.from(idsDuplicados).map((id) => deleteDoc(doc(db, 'usuarios', id))));
-            setUsuarios(loaded.filter((usuario) => !idsDuplicados.has(usuario.id)).map((usuario) => usuario.id === canonico?.id && canonico.id !== 'admin' ? { ...usuario, id: 'admin' } : usuario));
+            setUsuarios(loaded);
+            usuariosListos = !snapshot.metadata?.fromCache;
+            marcarAccesoListo();
         }
         setUsuariosCargados(true);
-        setEstadoConexion('conectado');
         marcarDBLista();
       }, (err) => {
-        console.error(err);
-        setUsuarios([USUARIO_ADMIN_FALLBACK]);
+        informarFalloDatos(err);
         setUsuariosCargados(true);
-        setEstadoConexion('conectado');
         marcarDBLista();
       });
+
+    // La pantalla de acceso sólo necesita configuración, caja y usuarios.
+    // El resto de las colecciones se consulta después del inicio de sesión.
+    if (!usuarioActual) {
+      return () => {
+        clearTimeout(dbReadyTimer);
+        unsubConfig();
+        unsubCaja();
+        unsubHistorialCaja();
+        unsubUsuarios();
+      };
+    }
 
     const unsubMovs = onSnapshot(collection(db, 'movimientos'), (snapshot) => {
         const loaded = []; snapshot.forEach(doc => loaded.push({ id: doc.id, ...doc.data() }));
@@ -3493,7 +3512,7 @@ function AppInterna() {
     }, (err) => console.error(err));
 
     return () => { clearTimeout(dbReadyTimer); unsubConfig(); unsubCaja(); unsubHistorialCaja(); unsubUsuarios(); unsubMovs(); unsubClientes(); unsubPresupuestos(); unsubOfertas(); unsubCombos(); unsubProductos(); unsubVariacionesPrecios(); unsubProveedores(); unsubListasProveedoresWeb(); unsubListasProveedoresItems(); unsubListasProveedoresPrelista(); unsubPagosProveedores(); unsubFacturasEmitidas(); unsubVendedores(); unsubRetirosVendedores(); unsubMarcas(); unsubPedidosCompra(); };
-  }, [firebaseUser]);
+  }, [firebaseUser, usuarioActual?.id]);
 
   useEffect(() => {
     let desmontado = false;
@@ -6103,10 +6122,11 @@ function AppInterna() {
         }
       } catch {}
       setUsuarioActual(user);
+      setMostrarClaveLogin(false);
       setLoginForm({ username: '', password: '', error: '' });
       setVista(obtenerVistaInicialUsuario(user));
     } 
-    else { setLoginForm({ ...loginForm, error: 'Usuario o contraseña incorrectos.' }); }
+    else { setLoginForm({ ...loginForm, error: 'Usuario o contraseña incorrectos. Si el navegador completó la clave, borrala y escribila de nuevo.' }); }
   };
 
   const cerrarSesion = async () => {
@@ -24804,7 +24824,7 @@ function obtenerCategoriaProducto(producto) {
       <div className={`sf-app-shell sf-screen-${perfilPantalla.tipo} sf-density-${perfilPantalla.densidad} min-h-screen flex flex-col items-center justify-center bg-slate-50 font-sans px-4 text-center`}>
         <Store size={48} className="text-amber-600 mb-4" />
         <p className="font-bold text-gray-700 text-lg">No se pudo conectar con el servidor</p>
-        <p className="text-sm text-gray-500 mt-2 max-w-md">Esperá unos segundos y reintentá. El acceso se habilita únicamente cuando podamos validar los usuarios.</p>
+        <p className="text-sm text-gray-500 mt-2 max-w-md">{mensajeConexion || 'Esperá unos segundos y reintentá. El acceso se habilita únicamente cuando podamos validar los usuarios.'}</p>
         <button
           type="button"
           onClick={() => window.location.reload()}
@@ -24816,7 +24836,7 @@ function obtenerCategoriaProducto(producto) {
     );
   }
 
-  if (!isDBReady || !usuariosCargados) {
+  if (!isDBReady || !usuariosCargados || estadoConexion !== 'conectado') {
     return (
       <div className={`sf-auth-screen sf-screen-${perfilPantalla.tipo} sf-density-${perfilPantalla.densidad} min-h-[100dvh] flex items-center justify-center p-4 font-sans`}>
         <div className="sf-auth-backdrop" />
@@ -24845,7 +24865,13 @@ function obtenerCategoriaProducto(producto) {
               <div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><User size={18} /></span><input name="sf-login-usuario" type="text" required value={loginForm.username} onChange={(e) => setLoginForm({...loginForm, username: e.target.value})} className="sf-auth-input w-full pl-11 pr-4 py-2 outline-none font-bold text-sm" placeholder="Usuario" autoComplete={recordarme ? "username" : "off"} /></div>
             </div>
             <div>
-              <div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Lock size={18} /></span><input name="sf-login-clave" type="password" required value={loginForm.password} onChange={(e) => setLoginForm({...loginForm, password: e.target.value})} className="sf-auth-input w-full pl-11 pr-4 py-2 outline-none font-bold tracking-widest text-sm" placeholder="Contraseña" autoComplete={recordarme ? "current-password" : "new-password"} /></div>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Lock size={18} /></span>
+                <input name="sf-login-clave" type={mostrarClaveLogin ? 'text' : 'password'} required value={loginForm.password} onChange={(e) => setLoginForm({...loginForm, password: e.target.value})} className="sf-auth-input w-full pl-11 pr-11 py-2 outline-none font-bold text-sm" placeholder="Contraseña" autoComplete={recordarme ? "current-password" : "new-password"} />
+                <button type="button" onClick={() => setMostrarClaveLogin((actual) => !actual)} aria-label={mostrarClaveLogin ? 'Ocultar contraseña' : 'Mostrar contraseña'} title={mostrarClaveLogin ? 'Ocultar contraseña' : 'Mostrar contraseña'} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800">
+                  {mostrarClaveLogin ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
             <label className="flex items-center gap-2 text-xs font-semibold text-slate-500"><input type="checkbox" checked={recordarme} onChange={(e) => { setRecordarme(e.target.checked); if (!e.target.checked) window.localStorage.removeItem('seniorflow-login-recordarme'); }} className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500" /> Recordarme</label>
             <button type="submit" className="sf-auth-submit w-full font-bold py-3 px-4 rounded-lg transition-transform active:scale-95 mt-2 text-sm">Ingresar</button>
