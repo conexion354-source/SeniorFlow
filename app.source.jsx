@@ -26362,7 +26362,7 @@ function obtenerCategoriaProducto(producto) {
           .sf-enterprise-shell .sf-inventory-table td:last-child > div { gap:4px !important; }
           .sf-enterprise-shell .sf-product-fullscreen-modal > .sf-modal-header { min-height:48px !important; padding:0 16px !important; }
           .sf-enterprise-shell .sf-product-fullscreen-modal > .sf-modal-body { padding:0 !important; }
-          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-workspace { display:grid !important; width:min(1580px,100%) !important; max-width:1580px !important; min-height:0 !important; height:max-content !important; margin:0 auto !important; grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr); grid-template-areas:"general stock" "general images" "composite composite" "pricing final" "providers providers" "actions actions"; align-items:start; gap:8px 10px !important; padding:10px 14px 12px !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-workspace { display:grid !important; width:min(1580px,100%) !important; max-width:1580px !important; min-height:0 !important; height:max-content !important; margin:0 auto !important; grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-areas:"general stock" "pricing images" "final images" "composite composite" "providers providers" "actions actions"; align-items:start; gap:12px 14px !important; padding:16px 18px !important; background:#f8fafc !important; }
           .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-workspace > :not([hidden]) ~ :not([hidden]) { margin-top:0 !important; }
           .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-workspace > div { margin-top:0 !important; }
           .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-general { grid-area:general; }
@@ -26372,15 +26372,51 @@ function obtenerCategoriaProducto(producto) {
           .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-pricing { grid-area:pricing; }
           .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-providers { grid-area:providers; }
           .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-final-price { grid-area:final; }
-          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-actions { grid-area:actions; margin:0 -14px -12px !important; padding:8px 14px !important; bottom:0 !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-actions { grid-area:actions; margin:0 -18px -16px !important; padding:10px 18px !important; bottom:0 !important; }
           .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-actions .btn { min-height:32px !important; padding:6px 12px !important; font-size:12px !important; }
           .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-stock,
           .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-general,
           .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-images,
-          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-pricing { padding:8px 10px !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-pricing { padding:14px 16px !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-general,
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-stock,
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-images,
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-pricing,
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-final-price,
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-providers { background:#fff !important; border-color:#dce5e9 !important; border-radius:10px !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-stock,
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-general { padding:14px 16px !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-stock > .grid { gap:12px !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-workspace input:not([type="checkbox"]):not([type="file"]),
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-workspace select { min-height:38px !important; font-size:12px !important; }
           .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-stock > .grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
           .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-workspace input:not([type="checkbox"]):not([type="file"]),
           .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-workspace select { min-height:30px !important; }
+        }
+        .sf-enterprise-shell .sf-product-images > .grid { gap:14px !important; }
+        .sf-enterprise-shell .sf-product-images > .grid > div > div[class*="min-h"] { background:#fff !important; border:1px dashed #cbd5e1 !important; border-radius:9px !important; }
+        .sf-enterprise-shell .sf-product-images > .grid > div > .mt-3 { display:flex !important; justify-content:flex-start !important; gap:8px !important; }
+        .sf-enterprise-shell .sf-product-media-upload,
+        .sf-enterprise-shell .sf-product-media-action { display:inline-flex !important; align-items:center; justify-content:center; gap:6px; min-height:34px !important; padding:6px 11px !important; border:1px solid #cbd5e1 !important; border-radius:7px !important; background:#fff !important; color:#334155 !important; box-shadow:none !important; font-size:11px !important; font-weight:700 !important; letter-spacing:0 !important; text-transform:none !important; line-height:1.2; white-space:nowrap; cursor:pointer; }
+        .sf-enterprise-shell .sf-product-media-upload:hover,
+        .sf-enterprise-shell .sf-product-media-action:hover { background:#f1f5f9 !important; border-color:#94a3b8 !important; }
+        .sf-enterprise-shell .sf-product-media-upload svg,
+        .sf-enterprise-shell .sf-product-media-action svg { flex:0 0 auto; }
+        .sf-enterprise-shell .sf-product-provider-table { min-width:1360px !important; table-layout:fixed; }
+        .sf-enterprise-shell .sf-product-provider-table th,
+        .sf-enterprise-shell .sf-product-provider-table td { padding-left:9px !important; padding-right:9px !important; }
+        .sf-enterprise-shell .sf-product-provider-table th:nth-child(1) { width:25% !important; }
+        .sf-enterprise-shell .sf-product-provider-table th:nth-child(2) { width:11% !important; }
+        .sf-enterprise-shell .sf-product-provider-table th:nth-child(3) { width:8% !important; }
+        .sf-enterprise-shell .sf-product-provider-table th:nth-child(4) { width:9% !important; }
+        .sf-enterprise-shell .sf-product-provider-table th:nth-child(5) { width:9% !important; }
+        .sf-enterprise-shell .sf-product-provider-table th:nth-child(6) { width:6% !important; }
+        .sf-enterprise-shell .sf-product-provider-table th:nth-child(7) { width:10% !important; }
+        .sf-enterprise-shell .sf-product-provider-table th:nth-child(8) { width:10% !important; }
+        .sf-enterprise-shell .sf-product-provider-table th:nth-child(9) { width:8% !important; }
+        .sf-enterprise-shell .sf-product-provider-table th:nth-child(10) { width:4% !important; }
+        @media (min-width:1440px) and (min-height:760px) {
+          .sf-enterprise-shell .sf-product-images > .grid > div > div[class*="min-h"] { min-height:116px !important; }
         }
       `}</style>
       
@@ -34442,30 +34478,27 @@ function obtenerCategoriaProducto(producto) {
                         <div className={`mx-auto w-10 h-10 rounded-2xl flex items-center justify-center mb-2 transition-colors ${productoImagenArrastrando ? 'bg-indigo-100' : 'bg-white border'}`}>
                           {productoImagenArrastrando ? <Download size={20} className="text-indigo-600" /> : <ImageIcon size={20} className="text-gray-400" />}
                         </div>
-                        <p className="text-sm font-medium text-gray-700 mb-2">
-                          {productoImagenArrastrando ? 'Soltá la imagen aquí' : 'Arrastrá o subí una imagen'}
-                        </p>
                         <div className="flex gap-2 justify-center">
-                          <label className="btn btn-secondary btn-sm cursor-pointer">
-                            Subir
+                          <label className="sf-product-media-upload cursor-pointer" title="Subir imagen desde la computadora">
+                            <Upload size={15} /> Subir imagen
                             <input type="file" accept="image/*" capture="environment" className="hidden" onChange={procesarImagenProducto} />
                           </label>
-                          <button type="button" onClick={capturarImagenDesdePantallaProducto} className="btn btn-ghost btn-sm">
-                            Capturar
+                          <button type="button" onClick={capturarImagenDesdePantallaProducto} className="sf-product-media-action" title="Capturar imagen de la pantalla">
+                            <Camera size={15} /> Capturar
                           </button>
                         </div>
                       </div>
                     )}
                   </div>
                   <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <button type="button" onClick={buscarImagenProductoEnGoogle} className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 transition-colors">
+                    <button type="button" onClick={buscarImagenProductoEnGoogle} title="Buscar imagen en la web" aria-label="Buscar imagen en la web" className="sf-product-media-action flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 transition-colors">
                       <Search size={16} />
-                      <span className="text-[11px] font-black uppercase tracking-wider">Buscar en la web</span>
+                      <span>Buscar</span>
                     </button>
                     {puedePegarImagenProducto && (
-                      <button type="button" onClick={pegarImagenDesdePortapapelesProducto} className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors">
+                      <button type="button" onClick={pegarImagenDesdePortapapelesProducto} title="Pegar imagen del portapapeles" aria-label="Pegar imagen del portapapeles" className="sf-product-media-action flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors">
                         <Copy size={16} />
-                        <span className="text-[11px] font-black uppercase tracking-wider">Pegar imagen</span>
+                        <span>Pegar</span>
                       </button>
                     )}
                   </div>
@@ -34475,7 +34508,6 @@ function obtenerCategoriaProducto(producto) {
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-sm font-semibold text-gray-700">
                       Logo de marca <span className="text-gray-400 font-normal">(Opcional)</span>
-                      <span className="block text-[10px] font-bold text-gray-400">Recomendado: PNG transparente 600×240 px.</span>
                     </label>
                     {formProducto.logoMarca && (
                       <button type="button" onClick={() => setFormProducto((prev) => ({ ...prev, logoMarca: '' }))} className="text-xs font-bold text-red-600 hover:text-red-700">
@@ -34513,9 +34545,8 @@ function obtenerCategoriaProducto(producto) {
                         <div className="mx-auto w-10 h-10 bg-white rounded-2xl flex items-center justify-center mb-2 border">
                           <ImageIcon size={20} className="text-gray-400" />
                         </div>
-                        <p className="text-sm font-bold text-gray-600 mb-2">{logoMarcaArrastrando ? 'Soltá el logo aquí' : 'Logo de la marca'}</p>
-                        <label className="btn btn-secondary btn-sm cursor-pointer">
-                          Subir logo
+                        <label className="sf-product-media-upload cursor-pointer" title="Subir logo de marca">
+                          <Upload size={15} /> Subir logo
                           <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={procesarLogoMarcaProducto} />
                         </label>
                       </div>
@@ -34914,7 +34945,7 @@ function obtenerCategoriaProducto(producto) {
               <div className="px-3 py-2 border-b border-emerald-100 flex items-center justify-between gap-2">
                 <div>
                   <p className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">Costos por proveedor</p>
-                  <p className="text-[10px] font-bold text-emerald-700">El producto queda único; acá comparás de quién conviene comprar.</p>
+                  <p className="text-[10px] font-bold text-emerald-700">Compará costos y elegí el proveedor principal.</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => { setModalActivo(null); setVista('proveedores'); }} className="h-8 px-2.5 rounded-lg border border-indigo-200 bg-white text-indigo-700 text-[10px] font-black uppercase flex items-center gap-1 hover:bg-indigo-50">
@@ -34926,7 +34957,7 @@ function obtenerCategoriaProducto(producto) {
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1000px] text-xs">
+                <table className="sf-product-provider-table w-full min-w-[1000px] text-xs">
                   <thead className="bg-white/70 text-[10px] uppercase text-emerald-900 font-black">
                     <tr>
                       <th className="px-2 py-2 text-left min-w-[230px]">Proveedor</th>
