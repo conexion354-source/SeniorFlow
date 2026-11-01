@@ -25977,10 +25977,10 @@ function obtenerCategoriaProducto(producto) {
           padding:12px 14px;
         }
         .sf-enterprise-shell .sf-product-stock > .grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
-        .sf-enterprise-shell .sf-product-stock .sm\:col-span-2 { grid-column:span 1 / span 1; }
-        .sf-enterprise-shell .sf-product-stock .sm\:col-span-3 { grid-column:span 4 / span 4; }
+        .sf-enterprise-shell .sf-product-stock [class~="sm:col-span-2"] { grid-column:span 1 / span 1; }
+        .sf-enterprise-shell .sf-product-stock [class~="sm:col-span-3"] { grid-column:1 / -1; }
         .sf-enterprise-shell .sf-product-stock .space-y-2 { display:contents; }
-        .sf-enterprise-shell .sf-product-stock .grid.grid-cols-1.sm\:grid-cols-2 { display:contents; }
+        .sf-enterprise-shell .sf-product-stock .grid[class~="sm:grid-cols-2"] { display:contents; }
         .sf-enterprise-shell .sf-product-stock input,
         .sf-enterprise-shell .sf-product-stock select,
         .sf-enterprise-shell .sf-product-general input,
@@ -26435,15 +26435,19 @@ function obtenerCategoriaProducto(producto) {
         .sf-enterprise-shell .sf-product-upload-plus { width:38px !important; height:38px !important; min-height:38px !important; display:inline-flex !important; align-items:center; justify-content:center; border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:#334155; cursor:pointer; }
         .sf-enterprise-shell .sf-product-upload-plus:hover { background:#f1f5f9; border-color:#94a3b8; }
         @media (min-width:901px) {
-          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-general { grid-template-columns:minmax(0,1.3fr) repeat(2,minmax(0,1fr)) !important; align-items:end; gap:12px !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-general { grid-template-columns:minmax(0,1.3fr) repeat(2,minmax(0,1fr)) !important; align-items:start; gap:12px !important; }
           .sf-enterprise-shell .sf-product-general > h3,
           .sf-enterprise-shell .sf-product-general > div:first-of-type { grid-column:1 / -1 !important; }
           .sf-enterprise-shell .sf-product-general .sf-product-details-field { min-width:0; }
           .sf-enterprise-shell .sf-product-general .sf-product-taxonomy { display:contents !important; }
-          .sf-enterprise-shell .sf-product-general .sf-product-taxonomy > div { min-width:0; }
+          .sf-enterprise-shell .sf-product-general .sf-product-details-field,
+          .sf-enterprise-shell .sf-product-general .sf-product-taxonomy > div { display:flex !important; flex-direction:column; min-width:0; align-self:start; }
+          .sf-enterprise-shell .sf-product-general .sf-product-details-field > label,
+          .sf-enterprise-shell .sf-product-general .sf-product-taxonomy > div > label { height:16px; line-height:16px; margin-bottom:4px !important; }
           .sf-enterprise-shell .sf-product-general .sf-product-details-field textarea,
-          .sf-enterprise-shell .sf-product-general .sf-product-taxonomy input { height:38px !important; min-height:38px !important; }
-          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-stock > .grid { grid-template-columns:minmax(0,1.45fr) minmax(0,1.55fr) minmax(0,.8fr) minmax(0,.8fr) !important; }
+          .sf-enterprise-shell .sf-product-general .sf-product-taxonomy input,
+          .sf-enterprise-shell .sf-product-general .sf-product-taxonomy button { height:40px !important; min-height:40px !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-stock > .grid { grid-template-columns:minmax(0,1.5fr) minmax(0,1.6fr) minmax(0,.65fr) minmax(0,.65fr) !important; }
         }
         .sf-enterprise-shell .sf-product-provider-table { min-width:1360px !important; table-layout:fixed; }
         .sf-enterprise-shell .sf-product-provider-table th,
@@ -34725,7 +34729,6 @@ function obtenerCategoriaProducto(producto) {
               <div className="sm:col-span-1">
                 <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Stock mínimo</label>
                 <input type="text" inputMode="decimal" value={formProducto.stockMinimo ?? ''} onChange={(e) => setFormProducto({...formProducto, stockMinimo: e.target.value.replace(',', '.')})} className="w-full px-3 py-2 bg-white border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-sm font-bold text-center" placeholder="Sin alerta"/>
-                <p className="mt-1 text-[10px] font-semibold text-amber-700">Avisa cuando el stock sea igual o menor.</p>
               </div>
               <div className="sm:col-span-3">
                 <label className="inline-flex items-start gap-2 text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
