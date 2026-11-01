@@ -6697,11 +6697,6 @@ function AppInterna() {
     const pagoPendienteDisplay = ventaActivaDisplay && pagoPendientePuntoVenta;
     const transferenciaSeleccionadaDisplay = normalizarMetodoPago(formPuntoVenta.metodoPago) === 'transferencia';
     const aliasTransferenciaDisplay = textoSeguroTrim(configuracion?.pagoAlias, '');
-    const avisoTransferenciaDisplay = transferenciaSeleccionadaDisplay ? `
-      <div class="transfer-preview">
-        <span>Transferencia · alias</span>
-        <strong>${escaparHtmlPantallaCliente(aliasTransferenciaDisplay || 'Alias no configurado')}</strong>
-      </div>` : '';
     const cantidadItems = items.reduce((acc, item) => acc + (Number(item.cantidad) || 0), 0);
     const itemsCarritoVisibles = items;
     const itemsComparacion = items.slice(0, 4);
@@ -6977,7 +6972,7 @@ function AppInterna() {
     .pay-lines .pay-alert strong { color: #c2410c; }
     .pay-lines .pay-compact { display: grid; grid-template-columns: 130px minmax(0, 1fr); align-items: center; }
     .pay-lines .pay-compact strong { font-size: clamp(20px, 2.6vw, 34px); line-height: 1.08; white-space: normal; word-break: break-word; }
-    .payment-active > :not(.payment-overlay) { filter: blur(6px); transform: scale(.995); opacity: .32; pointer-events: none; }
+    .payment-active { filter: blur(6px); transform: scale(.995); opacity: .32; pointer-events: none; }
     .payment-overlay { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; padding: clamp(18px, 4vw, 48px); background: rgba(238, 244, 248, .62); backdrop-filter: blur(8px); }
     .payment-card { width: min(880px, 90vw); max-height: calc(100vh - 80px); overflow: hidden; border-radius: 32px; background: white; border: 1px solid #dbe5ee; box-shadow: 0 28px 80px rgba(15, 23, 42, .18); padding: clamp(26px, 4.2vw, 52px); text-align: center; display: grid; gap: 16px; }
     .payment-card h1 { margin: 0; color: #0f172a; font-size: clamp(40px, 6vw, 78px); line-height: .98; font-weight: 950; }
@@ -6993,7 +6988,7 @@ function AppInterna() {
     .transfer-line strong { color: #0f172a; font-size: clamp(24px, 3.2vw, 42px); line-height: 1.02; font-weight: 950; text-align: right; overflow-wrap: anywhere; word-break: break-word; }
     .transfer-line.alias-line { background: #ecfdf5; border-color: #a7f3d0; }
     .transfer-line.alias-line span { color: #047857; }
-    .transfer-line.alias-line strong { min-width: 0; color: #065f46; font-size: clamp(26px, 3.2vw, 46px); overflow-wrap: anywhere; }
+    .transfer-line.alias-line strong { color: #065f46; font-size: clamp(34px, 4.4vw, 58px); }
     .transfer-line.cbu-line strong { font-size: clamp(22px, 2.8vw, 36px); letter-spacing: .02em; }
     .welcome-screen { flex: 1 1 auto; min-height: 0; display: grid; place-items: center; }
     .welcome-card { width: min(860px, 92vw); min-height: min(520px, 70vh); border-radius: 34px; background: white; border: 1px solid #dbe5ee; box-shadow: 0 24px 70px rgba(15, 23, 42, .12); display: grid; place-items: center; align-content: center; gap: clamp(28px, 5vw, 54px); padding: clamp(34px, 6vw, 72px); text-align: center; }
@@ -7057,10 +7052,7 @@ function AppInterna() {
     .cart-summary-info p { margin: 0; color: #6b7280; font-size: 13px; font-weight: 950; text-transform: uppercase; letter-spacing: .12em; }
     .cart-summary-info h3 { margin: 0; color: #111827; font-size: clamp(24px, 2.6vw, 38px); line-height: 1; font-weight: 950; letter-spacing: 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     .cart-summary-info strong { color: #111827; font-size: clamp(34px, 3.8vw, 58px); line-height: .95; font-weight: 950; letter-spacing: 0; white-space: nowrap; }
-    .transfer-preview { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 14px; padding: clamp(18px, 2vw, 28px); border-radius: 18px; background: #ecfdf5; border: 1px solid #a7f3d0; }
-    .transfer-preview span { color: #047857; font-size: clamp(13px, 1.2vw, 17px); font-weight: 950; letter-spacing: .09em; text-transform: uppercase; }
-    .transfer-preview strong { min-width: 0; color: #065f46; font-size: clamp(27px, 3vw, 46px); line-height: 1.05; font-weight: 950; overflow-wrap: anywhere; }
-    .product-transfer-preview { flex: 0 0 auto; margin-top: 18px; }
+    .transfer-header { min-width: 0; max-width: min(55vw, 620px); margin-left: auto; padding: 7px 12px; border-radius: 8px; background: #ecfdf5; color: #065f46; font-size: clamp(11px, 1vw, 15px); font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .card-plans-display { min-height: 0; display: flex; flex: 1 1 auto; flex-direction: column; gap: 12px; }
     .card-plans-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .card-plans-head p { margin: 0; color: #111827; font-size: 18px; font-weight: 950; }
@@ -7110,6 +7102,7 @@ function AppInterna() {
       <div class="brand">
         ${logo ? `<img class="brand-logo" src="${escaparHtmlPantallaCliente(logo)}" alt="">` : `<div class="brand-fallback">${escaparHtmlPantallaCliente(negocio.slice(0, 2).toUpperCase())}</div>`}
       </div>
+      ${transferenciaSeleccionadaDisplay ? `<div class="transfer-header" title="${escaparHtmlPantallaCliente(aliasTransferenciaDisplay || 'No configurado')}">Transferencia · Alias: ${escaparHtmlPantallaCliente(aliasTransferenciaDisplay || 'No configurado')}</div>` : ''}
     </header>
     ${cierreHtml}
     ${bienvenidaHtml}
@@ -7133,7 +7126,7 @@ function AppInterna() {
             </div>
           </section>
           <aside class="cart-summary-panel">
-            ${avisoTransferenciaDisplay || planesTarjetaPantallaClienteHtml || `
+            ${planesTarjetaPantallaClienteHtml || `
               <div class="cart-summary-image">
                 ${destacado?.imagen ? `<img src="${escaparHtmlPantallaCliente(destacado.imagen)}" alt="${escaparHtmlPantallaCliente(destacado.descripcion || 'Producto')}">` : `<div class="customer-empty-image">${escaparHtmlPantallaCliente(negocio.slice(0, 2).toUpperCase())}</div>`}
               </div>
@@ -7171,7 +7164,6 @@ function AppInterna() {
                 </div>
               </div>
             </div>
-            ${avisoTransferenciaDisplay ? avisoTransferenciaDisplay.replace('class="transfer-preview"', 'class="transfer-preview product-transfer-preview"') : ''}
             ${tarjetasAlternativasDisplay ? `
               <section class="alternatives-section">
                 <div class="alternatives-head">
