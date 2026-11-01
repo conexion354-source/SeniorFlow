@@ -26440,6 +26440,19 @@ function obtenerCategoriaProducto(producto) {
         .sf-enterprise-shell .sf-product-media-action:hover { background:#f1f5f9 !important; border-color:#94a3b8 !important; }
         .sf-enterprise-shell .sf-product-media-upload svg,
         .sf-enterprise-shell .sf-product-media-action svg { flex:0 0 auto; }
+        .sf-enterprise-shell .sf-product-upload-plus { width:38px !important; height:38px !important; min-height:38px !important; display:inline-flex !important; align-items:center; justify-content:center; border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:#334155; cursor:pointer; }
+        .sf-enterprise-shell .sf-product-upload-plus:hover { background:#f1f5f9; border-color:#94a3b8; }
+        @media (min-width:901px) {
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-general { grid-template-columns:minmax(0,1.3fr) repeat(2,minmax(0,1fr)) !important; align-items:end; gap:12px !important; }
+          .sf-enterprise-shell .sf-product-general > h3,
+          .sf-enterprise-shell .sf-product-general > div:first-of-type { grid-column:1 / -1 !important; }
+          .sf-enterprise-shell .sf-product-general .sf-product-details-field { min-width:0; }
+          .sf-enterprise-shell .sf-product-general .sf-product-taxonomy { display:contents !important; }
+          .sf-enterprise-shell .sf-product-general .sf-product-taxonomy > div { min-width:0; }
+          .sf-enterprise-shell .sf-product-general .sf-product-details-field textarea,
+          .sf-enterprise-shell .sf-product-general .sf-product-taxonomy input { height:38px !important; min-height:38px !important; }
+          .sf-enterprise-shell .sf-product-fullscreen-modal .sf-product-stock > .grid { grid-template-columns:minmax(0,1.45fr) minmax(0,1.55fr) minmax(0,.8fr) minmax(0,.8fr) !important; }
+        }
         .sf-enterprise-shell .sf-product-provider-table { min-width:1360px !important; table-layout:fixed; }
         .sf-enterprise-shell .sf-product-provider-table th,
         .sf-enterprise-shell .sf-product-provider-table td { padding-left:9px !important; padding-right:9px !important; }
@@ -34500,35 +34513,26 @@ function obtenerCategoriaProducto(producto) {
                               );
                             })}
                           </div>
-                          <div className="mt-3 flex flex-wrap gap-2 justify-center">
-                            <label className="bg-white hover:bg-gray-100 text-gray-700 px-2.5 py-1.5 rounded-lg shadow border text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-                              Agregar / cambiar
+                          <div className="mt-2 flex justify-center">
+                            <label className="sf-product-upload-plus" title="Agregar o cambiar imagen" aria-label="Agregar o cambiar imagen">
+                              <Plus size={20} />
                               <input type="file" accept="image/*" capture="environment" className="hidden" onChange={procesarImagenProducto} />
                             </label>
-                            <button type="button" onClick={() => setFormProducto((prev) => ({ ...prev, imagen: '', imagenes: [] }))} className="bg-red-500 hover:bg-red-600 text-white px-2.5 py-1.5 rounded-lg shadow text-xs font-bold">
-                              Quitar todas
-                            </button>
                           </div>
                         </div>
                       );
                     })() : (
                       <div className="text-center">
-                        <div className={`mx-auto w-10 h-10 rounded-2xl flex items-center justify-center mb-2 transition-colors ${productoImagenArrastrando ? 'bg-indigo-100' : 'bg-white border'}`}>
-                          {productoImagenArrastrando ? <Download size={20} className="text-indigo-600" /> : <ImageIcon size={20} className="text-gray-400" />}
-                        </div>
                         <div className="flex gap-2 justify-center">
-                          <label className="sf-product-media-upload cursor-pointer" title="Subir imagen desde la computadora">
-                            <Upload size={15} /> Subir imagen
+                          <label className="sf-product-upload-plus" title="Subir imagen desde la computadora" aria-label="Subir imagen desde la computadora">
+                            <Plus size={20} />
                             <input type="file" accept="image/*" capture="environment" className="hidden" onChange={procesarImagenProducto} />
                           </label>
-                          <button type="button" onClick={capturarImagenDesdePantallaProducto} className="sf-product-media-action" title="Capturar imagen de la pantalla">
-                            <Camera size={15} /> Capturar
-                          </button>
                         </div>
                       </div>
                     )}
                   </div>
-                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2">
                     <button type="button" onClick={buscarImagenProductoEnGoogle} title="Buscar imagen en la web" aria-label="Buscar imagen en la web" className="sf-product-media-action flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 transition-colors">
                       <Search size={16} />
                       <span>Buscar</span>
@@ -34539,6 +34543,9 @@ function obtenerCategoriaProducto(producto) {
                         <span>Pegar</span>
                       </button>
                     )}
+                    <button type="button" onClick={capturarImagenDesdePantallaProducto} className="sf-product-media-action" title="Capturar imagen de la pantalla" aria-label="Capturar imagen de la pantalla">
+                      <Camera size={15} /> <span>Capturar</span>
+                    </button>
                   </div>
                 </div>
 
@@ -34569,22 +34576,16 @@ function obtenerCategoriaProducto(producto) {
                       <div className="relative w-full max-w-[180px]">
                         <img src={formProducto.logoMarca} alt="Logo de marca" className="max-h-20 mx-auto object-contain" />
                         <div className="absolute -top-2 -right-2 flex gap-2">
-                          <label className="bg-white hover:bg-gray-100 text-gray-700 px-2 py-1 rounded-lg shadow border text-xs font-bold cursor-pointer">
-                            Cambiar
+                          <label className="sf-product-upload-plus" title="Cambiar logo de marca" aria-label="Cambiar logo de marca">
+                            <Plus size={20} />
                             <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={procesarLogoMarcaProducto} />
                           </label>
-                          <button type="button" onClick={() => setFormProducto((prev) => ({ ...prev, logoMarca: '' }))} className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded-lg shadow text-xs font-bold">
-                            Quitar
-                          </button>
                         </div>
                       </div>
                     ) : (
                       <div className="text-center">
-                        <div className="mx-auto w-10 h-10 bg-white rounded-2xl flex items-center justify-center mb-2 border">
-                          <ImageIcon size={20} className="text-gray-400" />
-                        </div>
-                        <label className="sf-product-media-upload cursor-pointer" title="Subir logo de marca">
-                          <Upload size={15} /> Subir logo
+                        <label className="sf-product-upload-plus" title="Subir logo de marca" aria-label="Subir logo de marca">
+                          <Plus size={20} />
                           <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={procesarLogoMarcaProducto} />
                         </label>
                       </div>
@@ -34756,14 +34757,13 @@ function obtenerCategoriaProducto(producto) {
             <div className="sf-product-general">
               <h3 className="text-sm font-bold text-gray-600 mb-4 tracking-wider">INFORMACIÓN GENERAL</h3>
               <div><label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Descripción del Producto</label><input type="text" required value={formProducto.descripcion} onChange={(e) => setFormProducto({...formProducto, descripcion: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm font-bold" /></div>
-              <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Detalles (solo para ofertas)</label>
-              <textarea
-                rows={2}
+              <div className="sf-product-details-field"><label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Detalles (solo para ofertas)</label><textarea
+                rows={1}
                 value={formProducto.detalles || ''}
                 onChange={(e) => setFormProducto({...formProducto, detalles: e.target.value})}
                 className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-xs font-semibold text-gray-600 resize-none"
-              />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              /></div>
+              <div className="sf-product-taxonomy grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
                 <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Categoría</label>
                 <div className="flex gap-2">
@@ -35101,10 +35101,9 @@ function obtenerCategoriaProducto(producto) {
                 .filter(Boolean);
               const proveedoresUnicos = new Set(proveedoresValidos).size;
               const mostrarPromedio = proveedoresUnicos > 1;
-              return (
+              return mostrarPromedio ? (
                 <div className={`border border-indigo-100 bg-indigo-50/40 rounded-xl p-3 space-y-2 ${formProducto.esProductoCompuesto ? 'hidden' : ''}`}>
-                  {mostrarPromedio ? (
-                    <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                       <label className="inline-flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
@@ -35119,18 +35118,13 @@ function obtenerCategoriaProducto(producto) {
                       <span className="text-[11px] font-black text-indigo-800">
                         Promedio actual: {costoPromedioProveedores > 0 ? formatearDinero(costoPromedioProveedores) : '-'}
                       </span>
-                    </div>
-                  ) : (
-                    <p className="text-[11px] font-bold text-indigo-700">
-                      Cargá más de un proveedor para habilitar el costo promedio automático.
-                    </p>
-                  )}
+                  </div>
 
                   {Boolean(formProducto.usarCostoPromedioProveedores) && costoPromedioProveedores <= 0 && (
                     <p className="text-[10px] font-bold text-amber-700">Cargá costos de proveedores para poder calcular el promedio automático.</p>
                   )}
                 </div>
-              );
+              ) : null;
             })()}
 
             <div className={`sf-product-final-price mt-1.5 ${formProducto.esProductoCompuesto ? 'hidden' : ''}`}>
