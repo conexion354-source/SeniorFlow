@@ -12,7 +12,7 @@ export const COMPANY_RUNTIME_CONFIG = Object.freeze({
   pagoBanco: '',
   pagoDetalle: '',
   logo: '',
-  logoEmpresaFallbackUrl: '',
-  logoReciboPremiumUrl: '',
+  logoEmpresaFallbackUrl: './logo-empresa-mundoled.png',
+  logoReciboPremiumUrl: './logo-ofertas-mundoled-white.png',
   ofertaTemplateBaseUrl: ''
 });
