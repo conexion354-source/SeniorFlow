@@ -14,6 +14,7 @@ import autoTable from 'jspdf-autotable';
 import CompraExcelModal from './CompraExcelModal.jsx';
 import { leerArchivoCompraExcel } from './compra-importacion.js';
 import { COMPANY_RUNTIME_CONFIG } from './company-runtime-config.js';
+import { DOLAR_BLUE_API_URL, DOLAR_BLUE_REFERENCIA_URL, interpretarCotizacionBlue } from './cotizacion-blue.mjs';
 
 // --- INTEGRACIÓN FIREBASE ---
 import { auth, db, storage } from './firebase-config.js?v=seniorflow-online-firestore-20260825-33';
@@ -178,24 +179,12 @@ const BNA_COTIZACION_JINA_URLS = [
   `https://r.jina.ai/http://www.bna.com.ar/Personas/`,
   `https://r.jina.ai/https://www.bna.com.ar/Personas/`
 ];
-const DOLAR_BLUE_COTIZACION_URL = 'https://dolarhoy.com/';
-const DOLAR_HOY_BLUE_WIDGET_URL = 'https://dolarhoy.com/i/cotizaciones/dolar-blue';
 const BNA_CORS_URLS = [
   BNA_COTIZACION_URL,
   ...BNA_COTIZACION_JINA_URLS,
   `https://api.allorigins.win/raw?url=${encodeURIComponent(BNA_COTIZACION_URL)}`,
   `https://corsproxy.io/?url=${encodeURIComponent(BNA_COTIZACION_URL)}`
 ];
-const DOLAR_BLUE_CORS_URLS = [
-  DOLAR_BLUE_COTIZACION_URL,
-  'https://dolarhoy.com/cotizacion-dolar-blue',
-  DOLAR_HOY_BLUE_WIDGET_URL,
-  `https://api.allorigins.win/raw?url=${encodeURIComponent(DOLAR_BLUE_COTIZACION_URL)}`,
-  `https://api.allorigins.win/raw?url=${encodeURIComponent('https://dolarhoy.com/cotizacion-dolar-blue')}`,
-  `https://corsproxy.io/?${encodeURIComponent(DOLAR_BLUE_COTIZACION_URL)}`
-];
-const DOLAR_BLUE_VENTA_MIN = 100;
-const DOLAR_BLUE_VENTA_MAX = 10000;
 const MARGEN_REAL_OBJETIVO_DEFAULT = 35;
 const CLAVE_REINICIO_RANKING_SUGERENCIAS = 'seniorflow.sugerenciasRankingReinicio';
 const PDF_A4_CONFIG = Object.freeze({
@@ -452,78 +441,6 @@ const extraerCotizacionDolarBna = (html = '') => {
   const fecha = textoHtml.match(/class=["']fechaCot["'][^>]*>\s*([^<]+)/i)?.[1]?.trim() || '';
   const hora = textoHtml.match(/Hora\s+Actualizaci[oó]n:\s*([0-9:]+)/i)?.[0]?.trim() || '';
   return { venta, compra: normalizarNumeroCotizacion(match?.[1] || ''), fecha, hora, fuente: BNA_COTIZACION_URL };
-};
-const extraerCotizacionDolarBlue = (html = '') => {
-  const textoOriginal = (html || '').toString();
-  let doc = null;
-  if (typeof DOMParser !== 'undefined') {
-    doc = new DOMParser().parseFromString(textoOriginal, 'text/html');
-  }
-  const texto = doc?.body?.textContent || textoOriginal
-    .replace(/&#xF3;|&oacute;/gi, 'ó')
-    .replace(/&#xED;|&iacute;/gi, 'í')
-    .replace(/&#xFA;|&uacute;/gi, 'ú')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/<[^>]+>/g, ' ');
-  if (!texto) return null;
-
-  const extraerDesdeWidget = (docHtml = null) => {
-    if (!docHtml) return null;
-    const filas = Array.from(docHtml.querySelectorAll('.iframe-cotizaciones__container .data__valores p, .container__data .data__valores p'));
-    if (!filas.length) return null;
-
-    const mapa = {};
-    filas.forEach((fila) => {
-      const etiqueta = normalizarTextoBusqueda(fila.querySelector('span')?.textContent || '');
-      const valorTexto = Array.from(fila.childNodes || [])
-        .filter((nodo) => nodo.nodeType === 3)
-        .map((nodo) => nodo.textContent || '')
-        .join(' ')
-        .trim();
-      const valor = normalizarNumeroCotizacion(valorTexto);
-      if (!etiqueta || valor <= 0) return;
-      mapa[etiqueta] = valor;
-    });
-
-    const venta = mapa.venta || 0;
-    if (venta < DOLAR_BLUE_VENTA_MIN || venta > DOLAR_BLUE_VENTA_MAX) return null;
-    const compra = mapa.compra || 0;
-    const actualizado = docHtml.querySelector('.fecha-container__valor')?.textContent?.trim() || '';
-    return { venta, compra, fecha: actualizado, hora: actualizado, fuente: DOLAR_HOY_BLUE_WIDGET_URL };
-  };
-
-  const datosWidget = extraerDesdeWidget(doc);
-  if (datosWidget) return datosWidget;
-
-  const buscarVentaCercana = (fragmento = '') => {
-    const limpio = fragmento.replace(/\s+/g, ' ');
-    const matchVenta =
-      limpio.match(/Venta\s*\$?\s*([\d.,]+)/i)
-      || limpio.match(/([\d.,]+)\s*(?:\$)?\s*Venta/i);
-    return normalizarNumeroCotizacion(matchVenta?.[1] || '');
-  };
-
-  const idxBlue = texto.search(/D[oó]lar\s*(Blue|Libre)/i);
-  if (idxBlue >= 0) {
-    const fragmento = texto.slice(idxBlue, idxBlue + 1200);
-    const venta = buscarVentaCercana(fragmento);
-    if (venta >= DOLAR_BLUE_VENTA_MIN && venta <= DOLAR_BLUE_VENTA_MAX) {
-      const compraMatch =
-        fragmento.match(/Compra\s*\$?\s*([\d.,]+)/i)
-        || fragmento.match(/([\d.,]+)\s*(?:\$)?\s*Compra/i);
-      const compra = normalizarNumeroCotizacion(compraMatch?.[1] || '');
-      const actualizado = fragmento.match(/Actualizado[^:]*:\s*([^<\n]+)/i)?.[1]?.trim() || '';
-      return { venta, compra, fecha: actualizado, hora: actualizado, fuente: DOLAR_BLUE_COTIZACION_URL };
-    }
-  }
-
-  const tablaMatch = texto.match(/D[oó]lar\s+Libre\s*<\/?[^>]*>?\s*([\d.,]+)\s*<\/?[^>]*>?\s*([\d.,]+)/i);
-  const ventaTabla = normalizarNumeroCotizacion(tablaMatch?.[2] || '');
-  if (ventaTabla >= DOLAR_BLUE_VENTA_MIN && ventaTabla <= DOLAR_BLUE_VENTA_MAX) {
-    return { venta: ventaTabla, compra: normalizarNumeroCotizacion(tablaMatch?.[1] || ''), fecha: '', hora: '', fuente: DOLAR_BLUE_COTIZACION_URL };
-  }
-
-  return null;
 };
 const esRecargoMoraMovimiento = (mov = null) => {
   if (!mov) return false;
@@ -15195,37 +15112,44 @@ const abrirPuntoVenta = () => {
 
     const promesa = (async () => {
       setCotizacionDolarBlueCargando(true);
+      setCotizacionDolarBlue(null);
       setCotizacionDolarBlueEstado('Consultando dólar blue...');
+      setFormProducto((prev) => prev.monedaCosto === 'USD_BLUE' ? {
+        ...prev,
+        cotizacionDolarBlue: '',
+        cotizacionDolarBlueFecha: '',
+        cotizacionDolarBlueHora: ''
+      } : prev);
       try {
-        for (const url of DOLAR_BLUE_CORS_URLS) {
-          try {
-            const response = await fetch(url, { cache: 'no-store' });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const html = await response.text();
-            const datos = extraerCotizacionDolarBlue(html);
-            if (datos?.venta >= DOLAR_BLUE_VENTA_MIN && datos?.venta <= DOLAR_BLUE_VENTA_MAX) {
-              setCotizacionDolarBlue(datos);
-              setCotizacionDolarBlueEstado(`Blue venta ${formatearDinero(datos.venta)}${datos.hora ? ` · ${datos.hora}` : ''}`);
-              setFormProducto((prev) => {
-                if (prev.monedaCosto !== 'USD_BLUE') return prev;
-                return recalcularFormularioProducto({
-                  ...prev,
-                  cotizacionDolarBlue: datos.venta,
-                  cotizacionDolarBlueFecha: datos.fecha || '',
-                  cotizacionDolarBlueHora: datos.hora || ''
-                }, campoPrecioProductoPreferido);
-              });
-              return datos;
-            }
-          } catch (error) {
-            console.warn('No se pudo leer cotización blue desde', url, error);
-          }
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        let datos;
+        try {
+          const response = await fetch(DOLAR_BLUE_API_URL, { cache: 'no-store', signal: controller.signal });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          datos = interpretarCotizacionBlue(await response.json());
+        } finally {
+          clearTimeout(timeout);
         }
-        throw new Error('No se encontró la cotización de dólar blue venta.');
+        if (!datos) throw new Error('Cotización blue inválida o desactualizada.');
+        setCotizacionDolarBlue(datos);
+        setCotizacionDolarBlueEstado(`Blue venta ${formatearDinero(datos.venta)} · ${datos.hora} · DolarAPI`);
+        setFormProducto((prev) => {
+          if (prev.monedaCosto !== 'USD_BLUE') return prev;
+          return recalcularFormularioProducto({
+            ...prev,
+            cotizacionDolarBlue: datos.venta,
+            cotizacionDolarBlueFecha: datos.fecha,
+            cotizacionDolarBlueHora: datos.hora
+          }, campoPrecioProductoPreferido);
+        });
+        return datos;
       } catch (error) {
-        setCotizacionDolarBlueEstado('No se pudo obtener el dólar blue.');
+        console.warn('No se pudo consultar el dólar blue', error);
+        setCotizacionDolarBlue(null);
+        setCotizacionDolarBlueEstado('No se pudo obtener una cotización blue actualizada.');
         if (!silencioso) {
-          await notificarSistema('No se pudo consultar automáticamente la cotización de dólar blue. Probá nuevamente antes de guardar el producto en USD blue.', {
+          await notificarSistema('No se pudo consultar una cotización blue actualizada. Revisá la cotización y volvé a intentar antes de guardar el producto en USD blue.', {
             tipo: 'warning',
             titulo: 'Dólar blue no disponible'
           });
@@ -17840,7 +17764,7 @@ const abrirPuntoVenta = () => {
 
       const monedaCosto = ['USD_BNA', 'USD_BLUE'].includes(formProducto.monedaCosto) ? formProducto.monedaCosto : 'ARS';
       const cotizacionDolar = monedaCosto === 'USD_BNA' ? obtenerTasaDolarProducto(formProducto) : 0;
-      const cotizacionDolarBlueValor = monedaCosto === 'USD_BLUE' ? obtenerTasaDolarProducto(formProducto) : 0;
+      const cotizacionDolarBlueValor = monedaCosto === 'USD_BLUE' ? parseNumeroBasico(cotizacionDolarBlue?.venta) : 0;
       const costoOriginalIngresado = parseNumeroBasico(formProducto.costo);
       if (monedaCosto === 'USD_BNA' && cotizacionDolar <= 0) {
         await notificarSistema('Para guardar un producto en USD oficial hace falta obtener primero la cotización de venta del Banco Nación.', {
@@ -17850,7 +17774,7 @@ const abrirPuntoVenta = () => {
         return;
       }
       if (monedaCosto === 'USD_BLUE' && cotizacionDolarBlueValor <= 0) {
-        await notificarSistema('Para guardar un producto en USD blue hace falta obtener primero la cotización de venta de Dólar Hoy.', {
+        await notificarSistema('Para guardar un producto en USD blue hace falta consultar una cotización de venta actualizada. Usá Actualizar e intentá de nuevo.', {
           tipo: 'warning',
           titulo: 'Cotización requerida'
         });
@@ -34966,8 +34890,10 @@ function obtenerCategoriaProducto(producto) {
                 </span>
               ) : formProducto.monedaCosto === 'USD_BLUE' ? (
                 <span>
-                  {cotizacionDolarBlueCargando ? 'Consultando dólar blue...' : (cotizacionDolarBlueEstado || 'Se usa dólar blue venta de DolarHoy.')}
-                  {formProducto.costo && obtenerTasaDolarProducto(formProducto) > 0 ? ` · Costo en pesos: ${formatearDinero(obtenerCostoProductoEnPesos(formProducto.costo, 'USD_BLUE', obtenerTasaDolarProducto(formProducto)))}` : ''}
+                  {cotizacionDolarBlueCargando ? 'Consultando dólar blue...' : (cotizacionDolarBlueEstado || 'Dólar blue venta pendiente')}
+                  {formProducto.costo && cotizacionDolarBlue?.venta > 0 ? ` · Costo en pesos: ${formatearDinero(obtenerCostoProductoEnPesos(formProducto.costo, 'USD_BLUE', cotizacionDolarBlue.venta))}` : ''}
+                  {' · '}<button type="button" onClick={() => consultarCotizacionDolarBlue({ silencioso: false })} disabled={cotizacionDolarBlueCargando} className="underline disabled:opacity-50">Actualizar</button>
+                  {' · '}<a href={DOLAR_BLUE_REFERENCIA_URL} target="_blank" rel="noopener noreferrer" className="underline">Ver El Cronista</a>
                 </span>
               ) : (
                 formProducto.costo ? numeroALetras(parseFloat(formProducto.costo) || 0) : ''
