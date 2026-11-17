@@ -13,6 +13,8 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import CompraExcelModal from './CompraExcelModal.jsx';
 import { leerArchivoCompraExcel } from './compra-importacion.js';
+import { obtenerCostoUnitarioConfirmadoCompra } from './compra-precios.mjs';
+import { precioUnitarioNetoVenta, precioFinalDesdeNetoVenta, tasaIvaVenta } from './venta-precios.mjs';
 import { COMPANY_RUNTIME_CONFIG } from './company-runtime-config.js';
 
 // --- INTEGRACIÓN FIREBASE ---
@@ -1052,6 +1054,36 @@ const desglosarIvaIncluidoVenta = (importe = 0, iva = 'sin_iva') => {
   const neto = Math.round((total / (1 + Number(tasa) / 100) + Number.EPSILON) * 100) / 100;
   return { neto, iva: total - neto, total };
 };
+const PrecioUnitarioNetoPuntoVenta = ({ precioFinal, iva, readOnly, onChange }) => {
+  const [editando, setEditando] = useState(false);
+  const [borrador, setBorrador] = useState('');
+  const tieneIva = tasaIvaVenta(iva) > 0;
+  const valorVisible = tieneIva
+    ? precioUnitarioNetoVenta(parseNumeroBasico(precioFinal), iva).toFixed(2)
+    : String(precioFinal ?? '');
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      required
+      value={editando ? borrador : valorVisible}
+      readOnly={readOnly}
+      onFocus={() => { if (!readOnly) { setBorrador(valorVisible); setEditando(true); } }}
+      onBlur={() => setEditando(false)}
+      onChange={(event) => {
+        const valor = event.target.value;
+        setBorrador(valor);
+        onChange(valor.trim() === '' ? '' : (tieneIva
+          ? String(precioFinalDesdeNetoVenta(parseNumeroBasico(valor), iva))
+          : valor));
+      }}
+      className="w-full h-6 px-1 bg-transparent border border-transparent rounded-md text-[11px] font-black text-right outline-none hover:bg-white focus:bg-white focus:border-emerald-300 focus:ring-1 focus:ring-emerald-500"
+      placeholder="0.00"
+      aria-label={tieneIva ? 'Precio unitario neto sin IVA' : 'Precio unitario'}
+      title={tieneIva ? 'Precio sin IVA. Al editarlo se recalcula el precio final.' : 'Precio final por unidad'}
+    />
+  );
+};
 const redondearPrecioProducto = (importe = 0, modo = 'ninguno') => {
   const factor = modo === 'cien' ? 100 : (modo === 'mil' ? 1000 : 1);
   const valor = Number.isFinite(Number(importe)) ? Number(importe) : 0;
@@ -1174,6 +1206,7 @@ const normalizarProveedorCosto = (costo = {}, index = 0) => ({
   ivaIncluido: Boolean(costo?.ivaIncluido || costo?.incluyeIva || costo?.costoConIva),
   descuento: costo?.descuento ?? '',
   descuentoProducto: costo?.descuentoProducto ?? '',
+  costoConfirmadoCompra: Boolean(costo?.costoConfirmadoCompra),
   plazo: textoSeguroTrim(costo?.plazo, ''),
   actualizado: costo?.actualizado || obtenerFechaInputLocal(),
   nota: textoSeguroTrim(costo?.nota, ''),
@@ -1203,7 +1236,10 @@ const aplicarCondicionesMaestrasProveedor = (costo = {}, proveedorMaestro = null
     proveedor: proveedorNombre || costo?.proveedor || '',
     descuento: costo?.descuento ?? '',
     descuentoProducto: costo?.descuentoProducto ?? '',
-    gastoCosto: proveedorMaestro ? condiciones.gastoCosto : (costo?.gastoCosto ?? costo?.costoSinIva ?? ''),
+    costoConfirmadoCompra: Boolean(costo?.costoConfirmadoCompra),
+    gastoCosto: costo?.costoConfirmadoCompra
+      ? (costo?.gastoCosto ?? '')
+      : (proveedorMaestro ? condiciones.gastoCosto : (costo?.gastoCosto ?? costo?.costoSinIva ?? '')),
     costoSinIva: '',
     plazo: proveedorMaestro && proveedorMaestro.aceptaCheques
       ? (condiciones.plazo || costo?.plazo || '')
@@ -1216,7 +1252,10 @@ const aplicarCondicionesMaestrasProveedorForzadas = (costo = {}, proveedorMaestr
     ...aplicarCondicionesMaestrasProveedor(costo, proveedorMaestro, proveedorNombre),
     descuento: costo?.descuento ?? '',
     descuentoProducto: costo?.descuentoProducto ?? '',
-    gastoCosto: proveedorMaestro ? condiciones.gastoCosto : (costo?.gastoCosto ?? costo?.costoSinIva ?? ''),
+    costoConfirmadoCompra: Boolean(costo?.costoConfirmadoCompra),
+    gastoCosto: costo?.costoConfirmadoCompra
+      ? (costo?.gastoCosto ?? '')
+      : (proveedorMaestro ? condiciones.gastoCosto : (costo?.gastoCosto ?? costo?.costoSinIva ?? '')),
     plazo: proveedorMaestro && proveedorMaestro.aceptaCheques
       ? (condiciones.plazo || '')
       : (costo?.plazo ?? '')
@@ -2815,6 +2854,7 @@ function AppInterna() {
   const [seleccionSugerenciasPedido, setSeleccionSugerenciasPedido] = useState({});
   const [pedidosCompra, setPedidosCompra] = useState([]);
   const [compraDirectaActiva, setCompraDirectaActiva] = useState(false);
+  const [vistaPreviaPreciosCompra, setVistaPreviaPreciosCompra] = useState(null);
   const [compraDirectaMetodoPago, setCompraDirectaMetodoPago] = useState('cuenta_corriente');
   const [compraDirectaMontoPagado, setCompraDirectaMontoPagado] = useState('');
   const [compraDirectaTipoComprobante, setCompraDirectaTipoComprobante] = useState('');
@@ -14685,6 +14725,12 @@ const abrirPuntoVenta = () => {
   }
 
   function obtenerCostoProveedorNetoMoneda(costo = {}) {
+    if (costo?.costoConfirmadoCompra) {
+      const costoBaseFactura = Math.max(0, parseNumeroBasico(costo?.costo));
+      const descuentoExplicito = Math.min(100, Math.max(0, parseNumeroBasico(costo?.descuentoProducto || 0)));
+      const costoDescontado = costoBaseFactura * (1 - descuentoExplicito / 100);
+      return costoDescontado * (1 + obtenerPorcentajeFleteProveedor(costo?.gastoCosto || 0) / 100);
+    }
     const proveedorKey = normalizarTextoBusqueda(costo?.proveedor || '');
     const proveedorFlexible = normalizarClaveProveedorFlexible(costo?.proveedor || '');
     const proveedorMaestro = (proveedores || []).find((prov) => {
@@ -20710,7 +20756,7 @@ function obtenerCategoriaProducto(producto) {
 
   const convertirCostoProveedorNetoParaPedidoCompra = (costo = {}, producto = {}) => {
     const costoBasePesos = convertirCostoProveedorBrutoParaPedidoCompra(costo, producto);
-    const descuentoProveedor = obtenerDescuentoProveedorParaPedidoCompra(costo?.proveedor || '');
+    const descuentoProveedor = compraDirectaActiva ? 0 : obtenerDescuentoProveedorParaPedidoCompra(costo?.proveedor || '');
     return Math.max(0, costoBasePesos * (1 - (descuentoProveedor / 100)));
   };
 
@@ -21188,7 +21234,7 @@ function obtenerCategoriaProducto(producto) {
     setItemsPedidoCompra((prev) => prev.filter((item) => item.id !== itemId));
   };
 
-  const guardarPedidoCompra = async () => {
+  const guardarPedidoCompra = async (opciones = {}) => {
     const preciosPendientes = (itemsPedidoCompra || []).filter((item) => item?.costoExcelPendiente);
     if (preciosPendientes.length) {
       await notificarSistema(`Completá el precio de ${preciosPendientes.length} ítem(s) importados del Excel antes de guardar.`, { tipo: 'warning', titulo: 'Precios pendientes' });
@@ -21230,6 +21276,51 @@ function obtenerCategoriaProducto(producto) {
     const descuentoPorcentaje = 0;
     const descuentoMonto = Math.max(0, subtotalBruto - subtotalBase);
     const ajusteMonto = (compraDirectaActiva || pedidoCompraEditandoId) ? parseNumeroConSigno(pedidoCompraAjusteMonto) : 0;
+    if (compraDirectaActiva && !opciones?.confirmarPrecios) {
+      const filasParaPrevia = aplicarAjustesAFilasPedidoCompra(filas, descuentoPorcentaje, ajusteMonto);
+      const cambios = filasParaPrevia.map((item) => {
+        const producto = obtenerProductoRelacionadoRecepcionCompra(item);
+        const costoFactura = obtenerCostoUnitarioConfirmadoCompra(item);
+        if (!producto?.id || item?.temporal || costoFactura <= 0) return null;
+        const proveedorKey = normalizarTextoBusqueda(item.proveedor);
+        const costosActuales = obtenerCostosProveedorProducto(producto);
+        const nuevoCosto = normalizarProveedorCosto({
+          ...(costosActuales.find((costo) => normalizarTextoBusqueda(costo.proveedor) === proveedorKey) || {}),
+          proveedor: item.proveedor,
+          costo: costoFactura.toFixed(2),
+          moneda: 'ARS',
+          ivaIncluido: !compraEsFacturaA(compraDirectaTipoComprobante),
+          descuento: '',
+          descuentoProducto: '',
+          gastoCosto: '',
+          costoSinIva: '',
+          costoConfirmadoCompra: true,
+          recomendado: true
+        });
+        const otrosCostos = costosActuales.filter((costo) => normalizarTextoBusqueda(costo.proveedor) !== proveedorKey)
+          .map((costo) => ({ ...costo, recomendado: false }));
+        const calculado = sincronizarCostoNetoFormularioProducto({
+          ...producto,
+          proveedoresCostos: [...otrosCostos, nuevoCosto],
+          usarCostoPromedioProveedores: false
+        }, 'ganancia');
+        const sinGanancia = String(producto.ganancia ?? '').trim() === '';
+        return {
+          productoId: producto.id,
+          descripcion: producto.descripcion || item.descripcion || item.codigo || 'Producto',
+          costoAnterior: Math.max(0, parseNumeroBasico(producto.costo ?? producto.costoOriginal ?? 0)),
+          costoNuevo: Math.max(0, parseNumeroBasico(calculado.costo)),
+          precioAnterior: obtenerPrecioVentaProductoActualizado(producto),
+          precioNuevo: obtenerPrecioVentaProductoActualizado(calculado),
+          sinGanancia,
+          seleccionado: !sinGanancia
+        };
+      }).filter(Boolean);
+      if (cambios.length) {
+        setVistaPreviaPreciosCompra(cambios);
+        return;
+      }
+    }
     const iva21 = compraDirectaActiva && compraEsFacturaA(compraDirectaTipoComprobante)
       ? calcularIvaAutomaticoPedidoCompra(filas, '21')
       : (pedidoCompraEditandoId ? Math.max(0, parseNumeroBasico(pedidoCompraIva21)) : 0);
@@ -21269,8 +21360,8 @@ function obtenerCategoriaProducto(producto) {
     const stockActualizadoAhora = debeActualizarStock
       ? await actualizarStockDesdePedidoCompra(itemsAjustados)
       : false;
-    const costoActualizadoAhora = impactaInventario && estadoPedido === 'recibido'
-      ? await actualizarCostosProveedorDesdeRecepcion(itemsAjustados)
+    const costoActualizadoAhora = compraDirectaActiva && estadoPedido === 'recibido'
+      ? await actualizarCostosProveedorDesdeRecepcion(itemsAjustados.map((item) => ({ ...item, costoIvaIncluido: !compraEsFacturaA(compraDirectaTipoComprobante) })), opciones?.productosSinActualizarPrecio || [])
       : false;
     const comprobanteProveedor = [
       textoSeguroTrim(compraDirectaTipoComprobante, ''),
@@ -21439,7 +21530,7 @@ function obtenerCategoriaProducto(producto) {
           && String(item.costoBaseCompraPesos).trim() !== ''
           ? Math.max(0, parseNumeroPresupuesto(item.costoBaseCompraPesos) || 0)
           : null;
-        const descuentoProveedor = costoBaseCompraPesos !== null
+        const descuentoProveedor = costoBaseCompraPesos !== null && !compraDirectaActiva
           ? obtenerDescuentoProveedorParaPedidoCompra(item?.proveedor || '')
           : 0;
         const costoPesos = costoBaseCompraPesos !== null
@@ -21505,13 +21596,13 @@ function obtenerCategoriaProducto(producto) {
     return true;
   };
 
-  const actualizarCostosProveedorDesdeRecepcion = async (filas = []) => {
+  const actualizarCostosProveedorDesdeRecepcion = async (filas = [], productosSinActualizarPrecio = []) => {
     const filasConProducto = (filas || [])
       .map((item) => ({
         ...item,
         productoRelacionado: obtenerProductoRelacionadoRecepcionCompra(item)
       }))
-      .filter((item) => item?.productoRelacionado?.id && textoSeguroTrim(item?.proveedor, '') && Number(item?.costoPesos || 0) > 0);
+      .filter((item) => !item?.temporal && item?.productoRelacionado?.id && textoSeguroTrim(item?.proveedor, '') && obtenerCostoUnitarioConfirmadoCompra(item) > 0);
     if (!filasConProducto.length) return false;
     await crearRespaldoPreciosPersistente({
       productosObjetivo: filasConProducto.map((item) => item.productoRelacionado),
@@ -21523,6 +21614,7 @@ function obtenerCategoriaProducto(producto) {
     await Promise.all(filasConProducto.map(async (item) => {
       const producto = item.productoRelacionado;
       if (!producto?.id) return;
+      const costoUnitarioFactura = obtenerCostoUnitarioConfirmadoCompra(item);
       const proveedorKey = normalizarTextoBusqueda(item.proveedor);
       const costosBase = obtenerCostosProveedorProducto(producto);
       let existeProveedor = false;
@@ -21534,9 +21626,14 @@ function obtenerCategoriaProducto(producto) {
           ...costo,
           proveedor: item.proveedor || '',
           codigoProveedor: item.codigoProveedor || costo.codigoProveedor || '',
-          costo: Number(item.costoPesos || 0).toFixed(2),
+          costo: costoUnitarioFactura.toFixed(2),
           moneda: 'ARS',
+          ivaIncluido: Boolean(item?.costoIvaIncluido),
           descuento: '',
+          descuentoProducto: '',
+          gastoCosto: '',
+          costoSinIva: '',
+          costoConfirmadoCompra: true,
           actualizado: fechaActualizacion
         }, index);
       });
@@ -21544,29 +21641,45 @@ function obtenerCategoriaProducto(producto) {
         costosActualizados.push(normalizarProveedorCosto({
           proveedor: item.proveedor || '',
           codigoProveedor: item.codigoProveedor || '',
-          costo: Number(item.costoPesos || 0).toFixed(2),
+          costo: costoUnitarioFactura.toFixed(2),
           moneda: 'ARS',
+          ivaIncluido: Boolean(item?.costoIvaIncluido),
+          descuento: '',
+          descuentoProducto: '',
+          gastoCosto: '',
+          costoSinIva: '',
+          costoConfirmadoCompra: true,
           actualizado: fechaActualizacion
         }, costosActualizados.length));
       }
 
+      const costosParaPrecio = costosActualizados.map((costo) => ({
+        ...costo,
+        recomendado: normalizarTextoBusqueda(costo?.proveedor || '') === proveedorKey
+      }));
       const productoRecalculado = sincronizarCostoNetoFormularioProducto({
         ...producto,
-        proveedoresCostos: costosActualizados
-      }, obtenerCampoPreferidoRecalculoProducto(producto));
+        proveedoresCostos: costosParaPrecio,
+        usarCostoPromedioProveedores: false
+      }, 'ganancia');
 
+      const actualizarPrecio = !productosSinActualizarPrecio.includes(producto.id) && String(producto?.ganancia ?? '').trim() !== '';
       await updateDoc(doc(db, 'productos', producto.id), limpiarDatoFirestore({
-        proveedoresCostos: costosActualizados,
-        costo: productoRecalculado.costo,
-        costoOriginal: productoRecalculado.costoOriginal,
-        monedaCosto: productoRecalculado.monedaCosto,
-        proveedor: productoRecalculado.proveedor,
-        codigoProveedor: productoRecalculado.codigoProveedor,
-        precio: productoRecalculado.precio,
-        ganancia: productoRecalculado.ganancia,
+        proveedoresCostos: actualizarPrecio ? costosParaPrecio : costosActualizados,
+        ...(actualizarPrecio ? {
+          usarCostoPromedioProveedores: false,
+          costo: productoRecalculado.costo,
+          costoOriginal: productoRecalculado.costoOriginal,
+          monedaCosto: productoRecalculado.monedaCosto,
+          costoIvaIncluido: productoRecalculado.costoIvaIncluido,
+          proveedor: productoRecalculado.proveedor,
+          codigoProveedor: productoRecalculado.codigoProveedor,
+          precio: productoRecalculado.precio,
+          ganancia: productoRecalculado.ganancia,
+          fechaActualizacionPrecio: fechaActualizacion
+        } : {}),
         fechaActualizacion: fechaActualizacion,
-        fechaActualizacionCostoProveedor: fechaActualizacion,
-        fechaActualizacionPrecio: fechaActualizacion
+        fechaActualizacionCostoProveedor: fechaActualizacion
       }));
     }));
     return true;
@@ -26068,7 +26181,10 @@ function obtenerCategoriaProducto(producto) {
         }
         .sf-enterprise-shell .sf-pv-item-header { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; width:100%; margin-bottom:8px; flex:0 0 auto; }
         .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-panel { flex:0 0 auto !important; }
-        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll { height:min(52dvh,520px) !important; max-height:min(52dvh,520px) !important; min-height:180px !important; flex:0 0 auto !important; overflow-y:scroll !important; scrollbar-gutter:stable; overscroll-behavior:contain; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll,
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-empty { height:min(390px,40dvh) !important; min-height:0 !important; max-height:min(390px,40dvh) !important; flex:0 0 auto !important; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll { overflow-y:auto !important; scrollbar-gutter:stable; overscroll-behavior:contain; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-empty { display:grid; place-items:center; margin:0; }
         .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll::-webkit-scrollbar { width:12px; }
         .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll::-webkit-scrollbar-track { background:#e5e7eb; }
         .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll::-webkit-scrollbar-thumb { background:#94a3b8; border:2px solid #e5e7eb; border-radius:8px; }
@@ -26094,7 +26210,7 @@ function obtenerCategoriaProducto(producto) {
           .sf-enterprise-shell .sf-purchase-modal .sf-purchase-actions-grid > .sf-purchase-action,
           .sf-enterprise-shell .sf-purchase-modal .sf-purchase-action-excel { width:auto !important; min-width:0 !important; height:28px !important; min-height:28px !important; padding:0 9px !important; font-size:11px !important; }
           .sf-enterprise-shell .sf-purchase-modal .sf-purchase-options { gap:5px 12px !important; padding:5px 2px 0 !important; }
-          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll { height:min(54dvh,590px) !important; max-height:min(54dvh,590px) !important; min-height:280px !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll { height:min(390px,40dvh) !important; max-height:min(390px,40dvh) !important; min-height:0 !important; }
           .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll .divide-y > div { padding:4px 8px !important; }
           .sf-enterprise-shell .sf-purchase-modal .sf-purchase-summary { padding:6px 8px !important; gap:6px !important; }
           .sf-enterprise-shell .sf-purchase-modal .sf-purchase-summary .grid { gap:5px !important; }
@@ -34188,7 +34304,7 @@ function obtenerCategoriaProducto(producto) {
                   </div>
                 </div>
                 {itemsPedidoCompra.length === 0 ? (
-                  <p className="p-6 text-sm font-bold text-slate-400 text-center">{compraDirectaActiva ? 'Agrega productos para registrar la compra.' : 'Agrega productos para crear el pedido.'}</p>
+                  <p className="sf-purchase-empty p-6 text-sm font-bold text-slate-400 text-center">{compraDirectaActiva ? 'Agrega productos para registrar la compra.' : 'Agrega productos para crear el pedido.'}</p>
                 ) : (
                   <div className="sf-purchase-items-scroll overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar bg-slate-50/70" style={{ WebkitOverflowScrolling: 'touch' }}>
                     <div className="hidden lg:grid sticky top-0 z-10 grid-cols-[70px_minmax(170px,1.4fr)_86px_58px_68px_88px_60px_86px_108px_32px_32px] gap-1 items-center px-2 py-1.5 bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider">
@@ -38613,7 +38729,7 @@ function obtenerCategoriaProducto(producto) {
                       <th className="px-1.5 py-1 text-left">Detalle</th>
                       <th className="px-1.5 py-1.5 text-center w-[62px]">Cant.</th>
                       <th className="px-1.5 py-1.5 text-center w-[68px]">Unidad</th>
-                      <th className="px-1.5 py-1.5 text-right w-24" title="Precio final, con IVA incluido cuando corresponde">Precio U.</th>
+                      <th className="px-1.5 py-1.5 text-right w-28" title="Precio unitario neto cuando se selecciona IVA">Precio U. neto</th>
                       <th className="px-1.5 py-1.5 text-center w-[62px]">IVA</th>
                       <th className="px-1.5 py-1.5 text-center w-[54px]">Desc.</th>
                       <th className="px-1.5 py-1.5 text-right w-28" title="Importe neto del ítem, sin el IVA incluido en el precio">Subtotal neto</th>
@@ -38703,15 +38819,11 @@ function obtenerCategoriaProducto(producto) {
                             </select>
                           </td>
                           <td className="px-1 py-[2px]">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              required
-                              value={item.precio}
+                            <PrecioUnitarioNetoPuntoVenta
+                              precioFinal={item.precio}
+                              iva={item.iva}
                               readOnly={esItemDevolucionVinculada}
-                              onChange={(e) => actualizarItemPuntoVenta(item.id, 'precio', e.target.value)}
-                              className="w-full h-6 px-1 bg-transparent border border-transparent rounded-md text-[11px] font-black text-right outline-none hover:bg-white focus:bg-white focus:border-emerald-300 focus:ring-1 focus:ring-emerald-500"
-                              placeholder="0.00"
+                              onChange={(precio) => actualizarItemPuntoVenta(item.id, 'precio', precio)}
                             />
                           </td>
                           <td className="px-1 py-[2px]"><select value={item.iva || 'sin_iva'} disabled={esItemDevolucionVinculada} onChange={(e) => actualizarItemPuntoVenta(item.id, 'iva', e.target.value)} className="w-full h-6 px-1 bg-transparent border border-transparent rounded-md text-[10px] font-black text-center outline-none hover:bg-white focus:bg-white focus:border-emerald-300 focus:ring-1 focus:ring-emerald-500"><option value="sin_iva">Sin IVA</option><option value="10.5">10,5%</option><option value="21">21%</option></select></td>
@@ -39862,6 +39974,35 @@ function obtenerCategoriaProducto(producto) {
               </div>
             </div>
             <p className="text-[11px] font-bold text-slate-500">No cierres esta ventana hasta que indique “Completado”.</p>
+          </div>
+        </Modal>
+      )}
+
+      {vistaPreviaPreciosCompra && (
+        <Modal titulo="Revisar precios de la compra" onClose={() => setVistaPreviaPreciosCompra(null)} customWidth="max-w-4xl" extraClases="z-[130]">
+          <div className="space-y-3">
+            <p className="text-sm font-bold text-slate-600">Al registrar la compra se guardará el costo de factura. Elegí qué precios de venta querés actualizar.</p>
+            <div className="max-h-[55vh] overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100">
+              {vistaPreviaPreciosCompra.map((cambio, index) => (
+                <label key={`${cambio.productoId}-${index}`} className="flex items-center gap-3 p-3 hover:bg-slate-50 cursor-pointer">
+                  <input type="checkbox" checked={cambio.seleccionado} disabled={cambio.sinGanancia} onChange={(e) => setVistaPreviaPreciosCompra((prev) => prev.map((fila, filaIndex) => filaIndex === index ? { ...fila, seleccionado: e.target.checked } : fila))} className="h-4 w-4" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-black text-slate-800">{cambio.descripcion}</span>
+                    <span className="block text-[11px] font-bold text-slate-500">Costo: {formatearDinero(cambio.costoAnterior)} → {formatearDinero(cambio.costoNuevo)}</span>
+                    {cambio.sinGanancia && <span className="block text-[11px] font-bold text-amber-700">Sin % de ganancia: revisá el precio manualmente en el producto.</span>}
+                  </span>
+                  <span className="text-right text-xs font-black text-emerald-800 whitespace-nowrap">{formatearDinero(cambio.precioAnterior)} → {formatearDinero(cambio.precioNuevo)}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setVistaPreviaPreciosCompra(null)} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-700">Volver a la compra</button>
+              <button type="button" onClick={() => {
+                const productosSinActualizarPrecio = vistaPreviaPreciosCompra.filter((cambio) => !cambio.seleccionado).map((cambio) => cambio.productoId);
+                setVistaPreviaPreciosCompra(null);
+                guardarPedidoCompra({ confirmarPrecios: true, productosSinActualizarPrecio });
+              }} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-black text-white">Confirmar y registrar</button>
+            </div>
           </div>
         </Modal>
       )}
