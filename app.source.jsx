@@ -26150,7 +26150,10 @@ function obtenerCategoriaProducto(producto) {
         }
         .sf-enterprise-shell .sf-pv-item-header { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; width:100%; margin-bottom:8px; flex:0 0 auto; }
         .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-panel { flex:0 0 auto !important; }
-        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll { height:min(52dvh,520px) !important; max-height:min(52dvh,520px) !important; min-height:180px !important; flex:0 0 auto !important; overflow-y:scroll !important; scrollbar-gutter:stable; overscroll-behavior:contain; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll,
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-empty { height:min(390px,40dvh) !important; min-height:0 !important; max-height:min(390px,40dvh) !important; flex:0 0 auto !important; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll { overflow-y:auto !important; scrollbar-gutter:stable; overscroll-behavior:contain; }
+        .sf-enterprise-shell .sf-purchase-modal .sf-purchase-empty { display:grid; place-items:center; margin:0; }
         .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll::-webkit-scrollbar { width:12px; }
         .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll::-webkit-scrollbar-track { background:#e5e7eb; }
         .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll::-webkit-scrollbar-thumb { background:#94a3b8; border:2px solid #e5e7eb; border-radius:8px; }
@@ -26176,7 +26179,7 @@ function obtenerCategoriaProducto(producto) {
           .sf-enterprise-shell .sf-purchase-modal .sf-purchase-actions-grid > .sf-purchase-action,
           .sf-enterprise-shell .sf-purchase-modal .sf-purchase-action-excel { width:auto !important; min-width:0 !important; height:28px !important; min-height:28px !important; padding:0 9px !important; font-size:11px !important; }
           .sf-enterprise-shell .sf-purchase-modal .sf-purchase-options { gap:5px 12px !important; padding:5px 2px 0 !important; }
-          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll { height:min(54dvh,590px) !important; max-height:min(54dvh,590px) !important; min-height:280px !important; }
+          .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll { height:min(390px,40dvh) !important; max-height:min(390px,40dvh) !important; min-height:0 !important; }
           .sf-enterprise-shell .sf-purchase-modal .sf-purchase-items-scroll .divide-y > div { padding:4px 8px !important; }
           .sf-enterprise-shell .sf-purchase-modal .sf-purchase-summary { padding:6px 8px !important; gap:6px !important; }
           .sf-enterprise-shell .sf-purchase-modal .sf-purchase-summary .grid { gap:5px !important; }
@@ -34270,7 +34273,7 @@ function obtenerCategoriaProducto(producto) {
                   </div>
                 </div>
                 {itemsPedidoCompra.length === 0 ? (
-                  <p className="p-6 text-sm font-bold text-slate-400 text-center">{compraDirectaActiva ? 'Agrega productos para registrar la compra.' : 'Agrega productos para crear el pedido.'}</p>
+                  <p className="sf-purchase-empty p-6 text-sm font-bold text-slate-400 text-center">{compraDirectaActiva ? 'Agrega productos para registrar la compra.' : 'Agrega productos para crear el pedido.'}</p>
                 ) : (
                   <div className="sf-purchase-items-scroll overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar bg-slate-50/70" style={{ WebkitOverflowScrolling: 'touch' }}>
                     <div className="hidden lg:grid sticky top-0 z-10 grid-cols-[70px_minmax(170px,1.4fr)_86px_58px_68px_88px_60px_86px_108px_32px_32px] gap-1 items-center px-2 py-1.5 bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider">
