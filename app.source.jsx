@@ -14,6 +14,7 @@ import autoTable from 'jspdf-autotable';
 import CompraExcelModal from './CompraExcelModal.jsx';
 import { leerArchivoCompraExcel } from './compra-importacion.js';
 import { obtenerCostoUnitarioConfirmadoCompra } from './compra-precios.mjs';
+import { precioUnitarioNetoVenta, precioFinalDesdeNetoVenta, tasaIvaVenta } from './venta-precios.mjs';
 import { COMPANY_RUNTIME_CONFIG } from './company-runtime-config.js';
 
 // --- INTEGRACIÓN FIREBASE ---
@@ -1052,6 +1053,36 @@ const desglosarIvaIncluidoVenta = (importe = 0, iva = 'sin_iva') => {
   if (tasa !== '21' && tasa !== '10.5') return { neto: total, iva: 0, total };
   const neto = Math.round((total / (1 + Number(tasa) / 100) + Number.EPSILON) * 100) / 100;
   return { neto, iva: total - neto, total };
+};
+const PrecioUnitarioNetoPuntoVenta = ({ precioFinal, iva, readOnly, onChange }) => {
+  const [editando, setEditando] = useState(false);
+  const [borrador, setBorrador] = useState('');
+  const tieneIva = tasaIvaVenta(iva) > 0;
+  const valorVisible = tieneIva
+    ? precioUnitarioNetoVenta(parseNumeroBasico(precioFinal), iva).toFixed(2)
+    : String(precioFinal ?? '');
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      required
+      value={editando ? borrador : valorVisible}
+      readOnly={readOnly}
+      onFocus={() => { if (!readOnly) { setBorrador(valorVisible); setEditando(true); } }}
+      onBlur={() => setEditando(false)}
+      onChange={(event) => {
+        const valor = event.target.value;
+        setBorrador(valor);
+        onChange(valor.trim() === '' ? '' : (tieneIva
+          ? String(precioFinalDesdeNetoVenta(parseNumeroBasico(valor), iva))
+          : valor));
+      }}
+      className="w-full h-6 px-1 bg-transparent border border-transparent rounded-md text-[11px] font-black text-right outline-none hover:bg-white focus:bg-white focus:border-emerald-300 focus:ring-1 focus:ring-emerald-500"
+      placeholder="0.00"
+      aria-label={tieneIva ? 'Precio unitario neto sin IVA' : 'Precio unitario'}
+      title={tieneIva ? 'Precio sin IVA. Al editarlo se recalcula el precio final.' : 'Precio final por unidad'}
+    />
+  );
 };
 const redondearPrecioProducto = (importe = 0, modo = 'ninguno') => {
   const factor = modo === 'cien' ? 100 : (modo === 'mil' ? 1000 : 1);
@@ -38698,7 +38729,7 @@ function obtenerCategoriaProducto(producto) {
                       <th className="px-1.5 py-1 text-left">Detalle</th>
                       <th className="px-1.5 py-1.5 text-center w-[62px]">Cant.</th>
                       <th className="px-1.5 py-1.5 text-center w-[68px]">Unidad</th>
-                      <th className="px-1.5 py-1.5 text-right w-24" title="Precio final, con IVA incluido cuando corresponde">Precio U.</th>
+                      <th className="px-1.5 py-1.5 text-right w-28" title="Precio unitario neto cuando se selecciona IVA">Precio U. neto</th>
                       <th className="px-1.5 py-1.5 text-center w-[62px]">IVA</th>
                       <th className="px-1.5 py-1.5 text-center w-[54px]">Desc.</th>
                       <th className="px-1.5 py-1.5 text-right w-28" title="Importe neto del ítem, sin el IVA incluido en el precio">Subtotal neto</th>
@@ -38788,15 +38819,11 @@ function obtenerCategoriaProducto(producto) {
                             </select>
                           </td>
                           <td className="px-1 py-[2px]">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              required
-                              value={item.precio}
+                            <PrecioUnitarioNetoPuntoVenta
+                              precioFinal={item.precio}
+                              iva={item.iva}
                               readOnly={esItemDevolucionVinculada}
-                              onChange={(e) => actualizarItemPuntoVenta(item.id, 'precio', e.target.value)}
-                              className="w-full h-6 px-1 bg-transparent border border-transparent rounded-md text-[11px] font-black text-right outline-none hover:bg-white focus:bg-white focus:border-emerald-300 focus:ring-1 focus:ring-emerald-500"
-                              placeholder="0.00"
+                              onChange={(precio) => actualizarItemPuntoVenta(item.id, 'precio', precio)}
                             />
                           </td>
                           <td className="px-1 py-[2px]"><select value={item.iva || 'sin_iva'} disabled={esItemDevolucionVinculada} onChange={(e) => actualizarItemPuntoVenta(item.id, 'iva', e.target.value)} className="w-full h-6 px-1 bg-transparent border border-transparent rounded-md text-[10px] font-black text-center outline-none hover:bg-white focus:bg-white focus:border-emerald-300 focus:ring-1 focus:ring-emerald-500"><option value="sin_iva">Sin IVA</option><option value="10.5">10,5%</option><option value="21">21%</option></select></td>
