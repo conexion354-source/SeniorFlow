@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="./icons/icon-192.png?v=seniorflow-icon-20260808-02" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
   
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -461,6 +461,7 @@
     })();
   </script>
   <!-- SeniorFlow fixes 22: recordatorios, logos izquierda, carga historica sin doble impacto -->
+  <link rel="stylesheet" href="./sf-fluent.css?v=sf-fluent-20261121-62" />
 </head>
 <body>
   <!-- AQUI CARGA TU APP DE REACT PRINCIPAL -->
@@ -2011,7 +2012,7 @@
   <!-- SCRIPTS ORIGINALES DE TU APLICACION -->
   <script>
     (function () {
-      const CURRENT_BUILD = 'seniorflow-flyer-gestion-20261117-06';
+      const CURRENT_BUILD = 'seniorflow-flyer-gestion-20261121-45';
       window.__SENIORFLOW_BUILD__ = CURRENT_BUILD;
       const BUILD_KEY = 'seniorflow-current-build';
       const isFileProtocol = window.location.protocol === 'file:';
@@ -2050,7 +2051,7 @@
   </script>
   <script>
     (function () {
-          const APP_BUNDLE = './app.js?v=seniorflow-flyer-gestion-20261117-06';
+          const APP_BUNDLE = './app.js?v=seniorflow-flyer-gestion-20261121-45';
       const isFileProtocol = window.location.protocol === 'file:';
 
       if (!isFileProtocol) {
@@ -2117,7 +2118,7 @@
   <script>
     if (window.location.protocol !== 'file:' && 'serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-              navigator.serviceWorker.register('./sw.js?v=seniorflow-flyer-gestion-20261117-06').catch((error) => {
+              navigator.serviceWorker.register('./sw.js?v=seniorflow-flyer-gestion-20261121-45').catch((error) => {
           console.error('SW register error', error);
         });
       });
@@ -2126,7 +2127,7 @@
   <script>
     (() => {
       if (window.location.protocol === 'file:') return;
-      const BUILD_ACTUAL = window.__SENIORFLOW_BUILD__ || 'seniorflow-flyer-gestion-20261117-06';
+      const BUILD_ACTUAL = window.__SENIORFLOW_BUILD__ || 'seniorflow-flyer-gestion-20261121-45';
       const POSPONER_KEY = 'seniorflow-actualizacion-pospuesta-hasta';
       const INTERVALO_CONTROL_MS = 3 * 60 * 1000;
       let aviso = null;
@@ -2172,22 +2173,21 @@
         aviso = document.createElement('aside');
         aviso.setAttribute('role', 'alertdialog');
         aviso.setAttribute('aria-label', 'Actualización disponible');
-        aviso.style.cssText = 'position:fixed;right:20px;bottom:20px;z-index:2147483647;width:min(420px,calc(100vw - 24px));font-family:Inter,system-ui,-apple-system,sans-serif;background:#fff;border:1px solid #bfdbfe;border-radius:16px;box-shadow:0 24px 65px rgba(15,23,42,.28);overflow:hidden;color:#17233c;';
+        aviso.style.cssText = 'position:fixed;right:20px;bottom:20px;z-index:2147483647;width:min(400px,calc(100vw - 24px));font-family:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;background:#fff;border:1px solid #d1d1d1;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.24);overflow:hidden;color:#1a1a1a;';
         aviso.innerHTML = `
-          <div style="height:5px;background:linear-gradient(90deg,#0f766e,#2563eb);"></div>
-          <div style="padding:18px 18px 16px;">
-            <div style="display:flex;align-items:flex-start;gap:12px;">
-              <div style="width:42px;height:42px;flex:0 0 42px;border-radius:12px;background:#ecfdf5;color:#047857;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;">↻</div>
-              <div style="min-width:0;flex:1;">
-                <p style="margin:0;color:#0f172a;font-size:16px;line-height:1.25;font-weight:900;">Nueva actualización disponible</p>
-                <p style="margin:6px 0 0;color:#475569;font-size:13px;line-height:1.45;font-weight:600;">La versión ${versionVisible(nuevoBuild)} está lista. Guardá cualquier operación abierta antes de actualizar.</p>
+            <div style="padding:16px 16px 14px;">
+              <div style="display:flex;align-items:flex-start;gap:12px;">
+                <div style="width:32px;height:32px;flex:0 0 32px;border-radius:50%;background:#e6f0f9;color:#0067c0;display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1;">&#8635;</div>
+                <div style="min-width:0;flex:1;">
+                  <p style="margin:0;color:#1a1a1a;font-size:14px;line-height:20px;font-weight:600;">Nueva actualización disponible</p>
+                  <p style="margin:2px 0 0;color:#5f5f5f;font-size:13px;line-height:18px;font-weight:400;">La versión ${versionVisible(nuevoBuild)} está lista. Guardá cualquier operación abierta antes de actualizar.</p>
+                </div>
               </div>
-            </div>
-            <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:16px;">
-              <button type="button" data-accion="despues" style="min-height:40px;padding:9px 13px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#334155;font-size:12px;font-weight:800;cursor:pointer;">Recordarme más tarde</button>
-              <button type="button" data-accion="actualizar" style="min-height:40px;padding:9px 15px;border:0;border-radius:9px;background:#0f766e;color:#fff;font-size:12px;font-weight:900;cursor:pointer;">Actualizar ahora</button>
-            </div>
-          </div>`;
+              <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:14px;">
+                <button type="button" data-accion="despues" style="height:32px;padding:0 14px;border:1px solid #d1d1d1;border-radius:4px;background:#fff;color:#1a1a1a;font:inherit;font-size:13px;font-weight:400;cursor:pointer;">Más tarde</button>
+                <button type="button" data-accion="actualizar" style="height:32px;padding:0 16px;border:1px solid #0067c0;border-radius:4px;background:#0067c0;color:#fff;font:inherit;font-size:13px;font-weight:600;cursor:pointer;">Actualizar ahora</button>
+              </div>
+            </div>`;
         aviso.querySelector('[data-accion="despues"]').addEventListener('click', () => {
           sessionStorage.setItem(POSPONER_KEY, String(Date.now() + (30 * 60 * 1000)));
           ocultarAviso();
