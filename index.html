@@ -461,7 +461,7 @@
     })();
   </script>
   <!-- SeniorFlow fixes 22: recordatorios, logos izquierda, carga historica sin doble impacto -->
-  <link rel="stylesheet" href="./sf-fluent.css?v=sf-fluent-20261121-62" />
+  <link rel="stylesheet" href="./sf-fluent.css?v=sf-fluent-20261121-63" />
 </head>
 <body>
   <!-- AQUI CARGA TU APP DE REACT PRINCIPAL -->
@@ -2012,7 +2012,7 @@
   <!-- SCRIPTS ORIGINALES DE TU APLICACION -->
   <script>
     (function () {
-      const CURRENT_BUILD = 'seniorflow-flyer-gestion-20261121-45';
+      const CURRENT_BUILD = 'seniorflow-flyer-gestion-20261121-47';
       window.__SENIORFLOW_BUILD__ = CURRENT_BUILD;
       const BUILD_KEY = 'seniorflow-current-build';
       const isFileProtocol = window.location.protocol === 'file:';
@@ -2051,7 +2051,7 @@
   </script>
   <script>
     (function () {
-          const APP_BUNDLE = './app.js?v=seniorflow-flyer-gestion-20261121-45';
+          const APP_BUNDLE = './app.js?v=seniorflow-flyer-gestion-20261121-47';
       const isFileProtocol = window.location.protocol === 'file:';
 
       if (!isFileProtocol) {
@@ -2118,7 +2118,7 @@
   <script>
     if (window.location.protocol !== 'file:' && 'serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-              navigator.serviceWorker.register('./sw.js?v=seniorflow-flyer-gestion-20261121-45').catch((error) => {
+              navigator.serviceWorker.register('./sw.js?v=seniorflow-flyer-gestion-20261121-47').catch((error) => {
           console.error('SW register error', error);
         });
       });
@@ -2127,7 +2127,7 @@
   <script>
     (() => {
       if (window.location.protocol === 'file:') return;
-      const BUILD_ACTUAL = window.__SENIORFLOW_BUILD__ || 'seniorflow-flyer-gestion-20261121-45';
+      const BUILD_ACTUAL = window.__SENIORFLOW_BUILD__ || 'seniorflow-flyer-gestion-20261121-47';
       const POSPONER_KEY = 'seniorflow-actualizacion-pospuesta-hasta';
       const INTERVALO_CONTROL_MS = 3 * 60 * 1000;
       let aviso = null;

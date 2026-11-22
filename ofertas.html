@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;900&family=Poppins:wght@600;900&family=Oswald:wght@500;700&display=swap" rel="stylesheet" />
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
   <style>
@@ -302,11 +303,38 @@
                 <strong>Story Venta</strong>
                 <span>WhatsApp CTA</span>
               </button>
+              <button type="button" data-theme="blackFriday" class="theme-option bg-gradient-to-br from-black via-neutral-900 to-yellow-500">
+                <strong>Black Friday</strong>
+                <span>Negro y amarillo</span>
+              </button>
+              <button type="button" data-theme="hotSale" class="theme-option bg-gradient-to-br from-red-600 via-orange-500 to-amber-400">
+                <strong>Hot Sale</strong>
+                <span>Rojo fuego</span>
+              </button>
+              <button type="button" data-theme="ecoLed" class="theme-option bg-gradient-to-br from-emerald-100 via-white to-emerald-300 text-slate-950">
+                <strong>Eco Led</strong>
+                <span>Verde ahorro</span>
+              </button>
+              <button type="button" data-theme="luxeGold" class="theme-option bg-gradient-to-br from-neutral-950 via-stone-800 to-yellow-700">
+                <strong>Luxe Gold</strong>
+                <span>Premium dorado</span>
+              </button>
+              <button type="button" data-theme="navidad" class="theme-option bg-gradient-to-br from-green-900 via-green-700 to-red-700">
+                <strong>Navidad</strong>
+                <span>Fiestas</span>
+              </button>
+              <button type="button" data-theme="azulCorporativo" class="theme-option bg-gradient-to-br from-blue-900 via-blue-700 to-sky-500">
+                <strong>Azul Corporativo</strong>
+                <span>Institucional</span>
+              </button>
             </div>
             <select id="font-family-select" class="field-dark">
               <option value="Inter">Inter profesional</option>
               <option value="Arial">Arial limpio</option>
               <option value="Georgia">Georgia editorial</option>
+              <option value="Montserrat">Montserrat moderna</option>
+              <option value="Poppins">Poppins redondeada</option>
+              <option value="Oswald">Oswald impacto</option>
               <option value="Trebuchet MS">Trebuchet comercial</option>
             </select>
             <div class="grid grid-cols-3 gap-2">
@@ -464,11 +492,15 @@
       </div>
 
       <header class="h-16 shrink-0 border-b border-slate-800 bg-slate-900/70 backdrop-blur-md px-6 flex items-center justify-end gap-3">
+        <p class="mr-auto text-xs font-bold text-slate-400 hidden md:block">Formato historia 9:16 · exporta en 2160×3840</p>
         <button id="delete-item-btn" class="hidden w-11 h-11 rounded-2xl bg-rose-500/10 text-rose-300 hover:bg-rose-500 hover:text-white transition flex items-center justify-center" title="Eliminar elemento seleccionado">
           <i class="fas fa-trash"></i>
         </button>
-        <button id="download-btn" class="w-11 h-11 rounded-2xl bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500 hover:text-slate-950 transition flex items-center justify-center" title="Descargar flyer 4K">
-          <i class="fas fa-download"></i>
+        <button id="download-png-btn" class="h-11 px-4 rounded-2xl bg-slate-800 text-slate-200 hover:bg-slate-700 transition flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wide" title="Descargar PNG (alta calidad)">
+          <i class="fas fa-file-image"></i> PNG
+        </button>
+        <button id="download-btn" class="h-11 px-4 rounded-2xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 transition flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wide" title="Descargar JPG 4K">
+          <i class="fas fa-download"></i> Descargar JPG
         </button>
       </header>
 
@@ -586,6 +618,7 @@
       selectedProductMeta: document.getElementById('selected-product-meta'),
       deleteItemBtn: document.getElementById('delete-item-btn'),
       downloadBtn: document.getElementById('download-btn'),
+      downloadPngBtn: document.getElementById('download-png-btn'),
       toast: document.getElementById('toast'),
       toastMsg: document.getElementById('toast-msg'),
       toastIcon: document.getElementById('toast-icon'),
@@ -779,7 +812,84 @@
       }
     };
 
-    const THEME_MAP = DESIGN_PRESETS;
+    // --- Diseños adicionales (derivados de las estructuras base) ---
+    const derivePreset = (base, over) => ({ ...DESIGN_PRESETS[base], ...over });
+    const P0 = DESIGN_PRESETS.premiumDark;
+    const O0 = DESIGN_PRESETS.ofertaImpacto;
+    const A0 = DESIGN_PRESETS.argentinaComercial;
+    const M0 = DESIGN_PRESETS.minimalPro;
+    const I0 = DESIGN_PRESETS.instagramStory;
+    DESIGN_PRESETS.blackFriday = derivePreset('ofertaImpacto', {
+      shell: ['#000000', '#111111', '#1c1917'], logo: COMPANY_LOGO_WHITE,
+      footerText: '#ffffff', footerIconColor: '#facc15',
+      dotColor: 'rgba(250,204,21,0.10)', accentColor: 'rgba(250,204,21,0.14)', lineColor: 'rgba(250,204,21,0.30)',
+      diagonals: [
+        { left: 90, top: 154, width: 520, height: 42, fill: '#facc15', angle: -12 },
+        { left: 438, top: 620, width: 360, height: 54, fill: '#facc15', angle: -12 },
+        { left: 472, top: 676, width: 320, height: 34, fill: '#ef4444', angle: -12 }
+      ],
+      productBorder: ['#facc15', '#f59e0b', '#fde047'],
+      title: { ...O0.title, fill: '#ffffff' }, description: { ...O0.description, fill: '#d4d4d8' },
+      price: { ...O0.price, fill: '#facc15', labelFill: '#111111', valueFill: '#000000' },
+      discount: { ...O0.discount, colors: ['#ef4444', '#b91c1c'], fill: '#ffffff' },
+      flash: { ...O0.flash, colors: ['#ef4444', '#b91c1c'] }
+    });
+    DESIGN_PRESETS.hotSale = derivePreset('instagramStory', {
+      shell: ['#dc2626', '#ea580c', '#f59e0b'], footerIconColor: '#fef08a',
+      accentColor: 'rgba(255,255,255,0.14)', lineColor: 'rgba(255,255,255,0.30)',
+      glows: [{ left: 270, top: 390, radius: 190, fill: 'rgba(255,255,255,0.18)' }],
+      productBorder: ['#ffffff', '#fef08a', '#ffffff'],
+      discount: { ...I0.discount, colors: ['#111827', '#0f172a'], fill: '#fde047' },
+      flash: { ...I0.flash, colors: ['#111827', '#1f2937'] },
+      newBadge: { ...I0.newBadge, colors: ['#111827', '#334155'] },
+      price: { ...I0.price, labelFill: '#dc2626', valueFill: '#111827' }
+    });
+    DESIGN_PRESETS.ecoLed = derivePreset('argentinaComercial', {
+      shell: ['#ecfdf5', '#ffffff', '#bbf7d0'], footerIconColor: '#059669',
+      dotColor: 'rgba(5,150,105,0.16)', accentColor: 'rgba(16,185,129,0.10)', lineColor: 'rgba(5,150,105,0.20)',
+      productBorder: ['#6ee7b7', '#ffffff', '#10b981'],
+      title: { ...A0.title, fill: '#064e3b' },
+      discount: { ...A0.discount, colors: ['#d1fae5', '#34d399'], fill: '#064e3b' },
+      flash: { ...A0.flash, colors: ['#10b981', '#047857'] },
+      newBadge: { ...A0.newBadge, colors: ['#f59e0b', '#d97706'] },
+      price: { ...A0.price, labelFill: '#059669', valueFill: '#064e3b' }
+    });
+    DESIGN_PRESETS.luxeGold = derivePreset('premiumDark', {
+      shell: ['#0a0a0a', '#1c1917', '#292524'], footerIconColor: '#facc15',
+      dotColor: 'rgba(250,204,21,0.10)', accentColor: 'rgba(250,204,21,0.10)', lineColor: 'rgba(250,204,21,0.30)',
+      glows: [{ left: 330, top: 230, radius: 170, fill: 'rgba(250,204,21,0.12)' }],
+      productBorder: ['#fde68a', '#d4a017', '#92400e'],
+      title: { ...P0.title, fill: '#fef3c7' }, description: { ...P0.description, fill: '#d6d3d1' },
+      price: { ...P0.price, fill: '#1c1917', labelFill: '#facc15', valueFill: '#fef3c7' },
+      discount: { ...P0.discount, colors: ['#facc15', '#b45309'], fill: '#1c1917' },
+      flash: { ...P0.flash, colors: ['#b45309', '#78350f'] },
+      newBadge: { ...P0.newBadge, colors: ['#d4a017', '#92400e'] }
+    });
+    DESIGN_PRESETS.navidad = derivePreset('premiumDark', {
+      shell: ['#14532d', '#166534', '#7f1d1d'], footerIconColor: '#fde047',
+      dotColor: 'rgba(255,255,255,0.18)', accentColor: 'rgba(255,255,255,0.10)', lineColor: 'rgba(255,255,255,0.28)',
+      glows: [
+        { left: 90, top: 210, radius: 120, fill: 'rgba(239,68,68,0.20)' },
+        { left: 450, top: 520, radius: 130, fill: 'rgba(250,204,21,0.14)' }
+      ],
+      productBorder: ['#ef4444', '#ffffff', '#16a34a'],
+      discount: { ...P0.discount, colors: ['#dc2626', '#991b1b'], fill: '#ffffff' },
+      flash: { ...P0.flash, colors: ['#dc2626', '#991b1b'] },
+      newBadge: { ...P0.newBadge, colors: ['#16a34a', '#15803d'] },
+      price: { ...P0.price, labelFill: '#b91c1c', valueFill: '#14532d' }
+    });
+    DESIGN_PRESETS.azulCorporativo = derivePreset('minimalPro', {
+      shell: ['#0b2a6f', '#1d4ed8', '#2563eb'], logo: COMPANY_LOGO_WHITE,
+      footerText: '#ffffff', footerIconColor: '#bfdbfe',
+      dotColor: 'rgba(255,255,255,0.12)', accentColor: 'rgba(255,255,255,0.10)', lineColor: 'rgba(255,255,255,0.28)',
+      productBorder: ['#ffffff', '#bfdbfe', '#ffffff'],
+      title: { ...M0.title, fill: '#ffffff' }, description: { ...M0.description, fill: '#dbeafe' },
+      price: { ...M0.price, fill: '#ffffff', labelFill: '#1d4ed8', valueFill: '#0f172a' },
+      discount: { ...M0.discount, colors: ['#f59e0b', '#d97706'], fill: '#111827' },
+      flash: { ...M0.flash, colors: ['#0ea5e9', '#0369a1'] },
+      newBadge: { ...M0.newBadge, colors: ['#10b981', '#059669'] }
+    });
+
 
     const BASE_TYPES = ['studio-shell', 'studio-pattern', 'studio-accent', 'product-frame-border', 'product-shell'];
     const DYNAMIC_TYPES = [
@@ -988,24 +1098,22 @@
         customType: 'studio-shell'
       });
 
-      const patternItems = [];
-      for (let y = 118; y <= 860; y += 32) {
-        for (let x = 28; x <= 512; x += 32) {
-          patternItems.push(new fabric.Circle({
-            left: x,
-            top: y,
-            radius: 1.15,
-            fill: theme.dotColor || 'rgba(14,165,233,0.12)',
-            originX: 'center',
-            originY: 'center'
-          }));
-        }
-      }
-      const pattern = new fabric.Group(patternItems, {
-        left: 270,
-        top: 480,
-        originX: 'center',
-        originY: 'center',
+      const dotTile = document.createElement('canvas');
+      dotTile.width = 32;
+      dotTile.height = 32;
+      const dotCtx = dotTile.getContext('2d');
+      dotCtx.fillStyle = theme.dotColor || 'rgba(14,165,233,0.12)';
+      dotCtx.beginPath();
+      dotCtx.arc(16, 16, 1.15, 0, Math.PI * 2);
+      dotCtx.fill();
+      const pattern = new fabric.Rect({
+        left: 12,
+        top: 102,
+        originX: 'left',
+        originY: 'top',
+        width: 512,
+        height: 768,
+        fill: new fabric.Pattern({ source: dotTile, repeat: 'repeat' }),
         selectable: false,
         evented: false,
         customType: 'studio-pattern'
@@ -1116,6 +1224,45 @@
       productShell.moveTo(21);
     };
 
+    let companyName = '';
+    let systemLogoSrc = '';
+    const whiteLogoCache = new Map();
+    const isDarkTheme = (theme = {}) => {
+      const hex = String((theme.shell || [])[0] || '#ffffff').replace('#', '');
+      const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex.padEnd(6, 'f');
+      const [r, g, b] = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) || 0);
+      return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.5;
+    };
+    const tintLogoWhite = async (src) => {
+      try {
+        const img = await loadFabricImage(src);
+        const el = img.getElement();
+        const c = document.createElement('canvas');
+        c.width = el.naturalWidth || el.width;
+        c.height = el.naturalHeight || el.height;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(el, 0, 0);
+        ctx.globalCompositeOperation = 'source-in';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, c.width, c.height);
+        return c.toDataURL('image/png');
+      } catch {
+        return src;
+      }
+    };
+    const resolveThemeLogo = async (theme) => {
+      if (theme.logo) return theme.logo;
+      if (!systemLogoSrc) return '';
+      if (!isDarkTheme(theme)) return systemLogoSrc;
+      if (!whiteLogoCache.has(systemLogoSrc)) whiteLogoCache.set(systemLogoSrc, await tintLogoWhite(systemLogoSrc));
+      return whiteLogoCache.get(systemLogoSrc);
+    };
+    const applyCompanyIdentity = (config = {}) => {
+      systemLogoSrc = config.logo || config.logoCorporativo || '';
+      companyName = (config.nombre || '').toString().trim();
+      setCompanyLogo(COMPANY_LOGO_LIGHT || systemLogoSrc, 'Logo automático del sistema');
+    };
+
     const buildBrandFooterLines = () => ([
       { icon: '\uf0ac', text: els.brandWeb.value.trim() },
       { icon: '\uf095', text: els.brandWa.value.trim() },
@@ -1126,7 +1273,7 @@
     const renderBrand = async () => {
       removeByTypes(['brand-logo', 'brand-footer']);
       const theme = getActiveTheme();
-      companyLogoSrc = theme.logo || COMPANY_LOGO_LIGHT;
+      companyLogoSrc = await resolveThemeLogo(theme);
       const logoLayout = theme.logoLayout || { left: 270, top: 104, maxWidth: 160, maxHeight: 58 };
 
       if (companyLogoSrc) {
@@ -1148,27 +1295,17 @@
           mostrarToast('No pude usar el logo del negocio en el lienzo.', 'error');
         }
       } else {
-        const mundo = new fabric.Text('MUNDO', {
-          left: -42,
+        const nameText = new fabric.Text((companyName || 'Mi negocio').toUpperCase(), {
+          left: 0,
           top: 0,
           originX: 'center',
           originY: 'center',
-          fontFamily: 'Inter',
+          fontFamily: flyerStyle.fontFamily,
           fontWeight: '900',
           fontSize: 28,
-          fill: '#0f172a',
+          fill: isDarkTheme(theme) ? '#ffffff' : '#0f172a'
         });
-        const led = new fabric.Text('LED', {
-          left: 58,
-          top: 0,
-          originX: 'center',
-          originY: 'center',
-          fontFamily: 'Inter',
-          fontWeight: '900',
-          fontSize: 28,
-          fill: '#5ee0e6',
-        });
-        const fallback = new fabric.Group([mundo, led], {
+        const fallback = new fabric.Group([nameText], {
           left: logoLayout.left,
           top: logoLayout.top,
           originX: 'center',
@@ -1195,7 +1332,7 @@
       const hasFooterData = footerColumns.some((column) => column.length);
       const columns = hasFooterData
         ? footerColumns
-        : [[{ icon: '\uf05a', text: 'Completá los datos del negocio.' }], []];
+        : [[], []];
 
       columns.forEach((column, columnIndex) => {
         const columnLeft = columnIndex === 0 ? -182 : 26;
@@ -2208,24 +2345,29 @@
       canvas.renderAll();
     };
 
-    const renderPremiumDark = () => applyDesignPreset('premiumDark');
-    const renderOfertaImpacto = () => applyDesignPreset('ofertaImpacto');
-    const renderTechNeon = () => applyDesignPreset('techNeon');
-    const renderArgentinaComercial = () => applyDesignPreset('argentinaComercial');
-    const renderMinimalPro = () => applyDesignPreset('minimalPro');
-    const renderInstagramStory = () => applyDesignPreset('instagramStory');
-
-    const renderFlyer = async () => {
-      const renderers = {
-        premiumDark: renderPremiumDark,
-        ofertaImpacto: renderOfertaImpacto,
-        techNeon: renderTechNeon,
-        argentinaComercial: renderArgentinaComercial,
-        minimalPro: renderMinimalPro,
-        instagramStory: renderInstagramStory
-      };
-      await (renderers[normalizePresetKey(selectedTheme)] || renderPremiumDark)();
+    // Render serializado y con debounce: evita objetos duplicados cuando se
+    // tipea rápido mientras las imágenes todavía se están cargando.
+    const renderFlyerNow = async () => {
+      try {
+        await Promise.all([`900 20px "${flyerStyle.fontFamily}"`, `600 16px "${flyerStyle.fontFamily}"`].map((f) => document.fonts.load(f)));
+      } catch { /* fuente del sistema */ }
+      await applyDesignPreset(selectedTheme);
     };
+    let renderChain = Promise.resolve();
+    let renderTimer = null;
+    let renderWaiters = [];
+    const renderFlyer = () => new Promise((resolve) => {
+      renderWaiters.push(resolve);
+      window.clearTimeout(renderTimer);
+      renderTimer = window.setTimeout(() => {
+        const waiters = renderWaiters;
+        renderWaiters = [];
+        renderChain = renderChain
+          .then(() => renderFlyerNow())
+          .catch((error) => console.error('Error al renderizar el flyer', error))
+          .then(() => waiters.forEach((done) => done()));
+      }, 90);
+    });
 
     const fillProductForm = (product) => {
       selectedProduct = product;
@@ -2264,22 +2406,22 @@
 
       els.inventoryGrid.innerHTML = filteredProducts.map((product) => {
         const image = product.imagen
-          ? `<img src="${product.imagen}" alt="${product.descripcion || 'Producto'}" class="h-full w-full object-contain" loading="lazy" />`
+          ? `<img src="${escapeHtml(product.imagen)}" alt="${escapeHtml(product.descripcion || 'Producto')}" class="h-full w-full object-contain" loading="lazy" />`
           : '<div class="flex h-full w-full items-center justify-center text-slate-500 text-xs font-bold">Sin imagen</div>';
         const code = product.codigo || product.codigoInterno || product.codigoBarras || 'Sin código';
         const meta = [product.marca, product.categoria].filter(Boolean).join(' · ');
         return `
           <button
             type="button"
-            data-product-id="${product.id}"
+            data-product-id="${escapeHtml(product.id)}"
             class="inventory-item rounded-[26px] border border-slate-800 bg-slate-950/80 p-4 text-left transition hover:border-blue-500 hover:bg-slate-900"
           >
             <div class="flex gap-4">
               <div class="h-20 w-20 shrink-0 rounded-2xl border border-slate-800 bg-white overflow-hidden">${image}</div>
               <div class="min-w-0 flex-1">
-                <p class="text-sm font-black text-white leading-tight">${product.descripcion || 'Producto'}</p>
-                <p class="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">${code}</p>
-                <p class="mt-2 text-xs font-medium text-slate-400">${meta || 'Sin marca / categoría'}</p>
+                <p class="text-sm font-black text-white leading-tight">${escapeHtml(product.descripcion || 'Producto')}</p>
+                <p class="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">${escapeHtml(code)}</p>
+                <p class="mt-2 text-xs font-medium text-slate-400">${escapeHtml(meta || 'Sin marca / categoría')}</p>
                 <p class="mt-3 text-sm font-black text-emerald-300">${formatearDinero(product.precio || 0)}</p>
               </div>
             </div>
@@ -2296,6 +2438,8 @@
         });
       });
     };
+
+    const escapeHtml = (valor = '') => String(valor).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
     const filterProducts = () => {
       const query = normalizarTexto(els.inventorySearch.value);
@@ -2346,7 +2490,7 @@
       els.brandWeb.value = config.web || '';
       els.brandEmail.value = config.correo || '';
       els.brandLocation.value = config.direccion || config.ubicacion || config.localidad || '';
-      setCompanyLogo(COMPANY_LOGO_LIGHT, 'Logo automatico del repositorio');
+      applyCompanyIdentity(config);
 
       brandLogos = new Map();
       (Array.isArray(payload.marcas) ? payload.marcas : []).forEach((brand) => {
@@ -2392,257 +2536,6 @@
         : 'Todavía no hay logo de negocio cargado.';
     };
 
-    const addManualTexts = () => {
-      const title = new fabric.IText('NOMBRE DEL PRODUCTO', {
-        left: 270,
-        top: 610,
-        originX: 'center',
-        originY: 'center',
-        width: 360,
-        textAlign: 'center',
-        fontFamily: 'Inter',
-        fontWeight: '900',
-        fontSize: 30,
-        fill: '#0f172a'
-      });
-      const desc = new fabric.IText('Descripción breve del producto', {
-        left: 270,
-        top: 664,
-        originX: 'center',
-        originY: 'center',
-        width: 320,
-        textAlign: 'center',
-        fontFamily: 'Inter',
-        fontWeight: '600',
-        fontSize: 16,
-        fill: '#475569'
-      });
-      canvas.add(title, desc);
-      canvas.setActiveObject(title);
-      canvas.renderAll();
-    };
-
-    const addPriceBadge = () => {
-      const valueText = formatearDinero(getNumeric(els.priceNormal.value) || 9999);
-      const style = getDiscountStyle();
-      let parts = [];
-      if (style === 'ticket') {
-        const bg = new fabric.Rect({
-          width: 158,
-          height: 58,
-          rx: 14,
-          ry: 14,
-          fill: makeLinearGradient(['#fef08a', '#facc15', '#f59e0b'], 158, 58),
-          shadow: new fabric.Shadow({ color: 'rgba(245,158,11,0.24)', blur: 14, offsetY: 6 }),
-          originX: 'center',
-          originY: 'center'
-        });
-        const label = new fabric.Text('PRECIO', {
-          top: -12,
-          originX: 'center',
-          originY: 'center',
-          fontFamily: 'Inter',
-          fontWeight: '900',
-          fontSize: 10,
-          fill: '#78350f'
-        });
-        const text = new fabric.IText(valueText, {
-          top: 12,
-          originX: 'center',
-          originY: 'center',
-          fontFamily: 'Inter',
-          fontWeight: '900',
-          fontSize: 20,
-          fill: '#111827'
-        });
-        parts = [bg, label, text];
-      } else if (style === 'compact') {
-        const bg = new fabric.Rect({
-          width: 150,
-          height: 54,
-          rx: 18,
-          ry: 18,
-          fill: '#111827',
-          shadow: new fabric.Shadow({ color: 'rgba(15,23,42,0.24)', blur: 14, offsetY: 6 }),
-          originX: 'center',
-          originY: 'center'
-        });
-        const text = new fabric.IText(valueText, {
-          originX: 'center',
-          originY: 'center',
-          fontFamily: 'Inter',
-          fontWeight: '900',
-          fontSize: 21,
-          fill: '#fef08a'
-        });
-        parts = [bg, text];
-      } else {
-        const bg = new fabric.Rect({
-          width: 154,
-          height: 56,
-          rx: 18,
-          ry: 18,
-          fill: '#2563eb',
-          shadow: new fabric.Shadow({ color: 'rgba(37,99,235,0.28)', blur: 14, offsetY: 6 }),
-          originX: 'center',
-          originY: 'center'
-        });
-        const text = new fabric.IText(valueText, {
-          originX: 'center',
-          originY: 'center',
-          fontFamily: 'Inter',
-          fontWeight: '900',
-          fontSize: 21,
-          fill: '#ffffff'
-        });
-        parts = [bg, text];
-      }
-      const group = new fabric.Group(parts, {
-        left: 392,
-        top: 768,
-        originX: 'center',
-        originY: 'center'
-      });
-      canvas.add(group);
-      canvas.setActiveObject(group);
-      canvas.renderAll();
-    };
-
-    const addNewSticker = () => {
-      const style = getNewStyle();
-      let parts = [];
-      if (style === 'tag') {
-        const bg = new fabric.Rect({
-          width: 124,
-          height: 42,
-          rx: 14,
-          ry: 14,
-          fill: makeLinearGradient(['#34d399', '#10b981'], 124, 42),
-          originX: 'center',
-          originY: 'center',
-          shadow: new fabric.Shadow({ color: 'rgba(16,185,129,0.25)', blur: 14, offsetY: 6 })
-        });
-        const notch = new fabric.Triangle({
-          width: 16,
-          height: 16,
-          left: -52,
-          top: 0,
-          angle: 90,
-          fill: '#065f46',
-          originX: 'center',
-          originY: 'center'
-        });
-        const text = new fabric.Text('NUEVO', {
-          left: 8,
-          originX: 'center',
-          originY: 'center',
-          fontFamily: 'Inter',
-          fontWeight: '900',
-          fontSize: 15,
-          fill: '#ffffff'
-        });
-        parts = [bg, notch, text];
-      } else if (style === 'minimal') {
-        const bg = new fabric.Rect({
-          width: 132,
-          height: 40,
-          rx: 20,
-          ry: 20,
-          fill: '#0f172a',
-          originX: 'center',
-          originY: 'center',
-          shadow: new fabric.Shadow({ color: 'rgba(15,23,42,0.22)', blur: 12, offsetY: 5 })
-        });
-        const line = new fabric.Rect({
-          width: 22,
-          height: 3,
-          rx: 2,
-          ry: 2,
-          left: -40,
-          top: 0,
-          fill: '#34d399',
-          originX: 'center',
-          originY: 'center'
-        });
-        const text = new fabric.Text('NUEVO INGRESO', {
-          left: 12,
-          originX: 'center',
-          originY: 'center',
-          fontFamily: 'Inter',
-          fontWeight: '900',
-          fontSize: 11,
-          fill: '#dcfce7'
-        });
-        parts = [bg, line, text];
-      } else {
-        const bg = new fabric.Rect({
-          width: 126,
-          height: 44,
-          rx: 22,
-          ry: 22,
-          fill: '#10b981',
-          originX: 'center',
-          originY: 'center',
-          shadow: new fabric.Shadow({ color: 'rgba(16,185,129,0.25)', blur: 14, offsetY: 6 })
-        });
-        const text = new fabric.Text('NUEVO INGRESO', {
-          originX: 'center',
-          originY: 'center',
-          fontFamily: 'Inter',
-          fontWeight: '900',
-          fontSize: 12,
-          fill: '#ffffff'
-        });
-        parts = [bg, text];
-      }
-      const group = new fabric.Group(parts, {
-        left: 384,
-        top: 282,
-        originX: 'center',
-        originY: 'center'
-      });
-      canvas.add(group);
-      canvas.setActiveObject(group);
-      canvas.renderAll();
-    };
-
-    const addSaleSticker = () => {
-      const circle = new fabric.Circle({
-        radius: 48,
-        fill: '#e11d48',
-        shadow: new fabric.Shadow({ color: 'rgba(225,29,72,0.28)', blur: 14, offsetY: 6 }),
-        originX: 'center',
-        originY: 'center'
-      });
-      const top = new fabric.Text('MEGA', {
-        top: -12,
-        originX: 'center',
-        originY: 'center',
-        fontFamily: 'Inter',
-        fontWeight: '900',
-        fontSize: 12,
-        fill: '#fde047'
-      });
-      const bottom = new fabric.Text('OFERTA', {
-        top: 14,
-        originX: 'center',
-        originY: 'center',
-        fontFamily: 'Inter',
-        fontWeight: '900',
-        fontSize: 18,
-        fill: '#ffffff'
-      });
-      const group = new fabric.Group([circle, top, bottom], {
-        left: 410,
-        top: 228,
-        originX: 'center',
-        originY: 'center'
-      });
-      canvas.add(group);
-      canvas.setActiveObject(group);
-      canvas.renderAll();
-    };
-
     const deleteSelected = () => {
       const activeObjects = canvas.getActiveObjects();
       if (!activeObjects.length) return;
@@ -2656,22 +2549,26 @@
       mostrarToast('Elemento extra eliminado.', 'success');
     };
 
-    const handleDownload = () => {
+    const handleDownload = (format = 'jpeg') => {
       try {
         canvas.discardActiveObject();
         canvas.renderAll();
+        const esPng = format === 'png';
         const dataUrl = canvas.toDataURL({
-          format: 'jpeg',
-          quality: 1,
+          format: esPng ? 'png' : 'jpeg',
+          quality: 0.95,
           multiplier: 4
         });
+        const base = (els.flyerTitle.value || 'flyer')
+          .toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'flyer';
         const link = document.createElement('a');
         link.href = dataUrl;
-        link.download = `flyer-${Date.now()}.jpg`;
+        link.download = `flyer-${base}.${esPng ? 'png' : 'jpg'}`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        mostrarToast('Descarga iniciada en 4K.', 'success');
+        mostrarToast(`Descarga iniciada (${esPng ? 'PNG' : 'JPG'} 2160×3840).`, 'success');
       } catch (error) {
         console.error(error);
         mostrarToast('No pude exportar. Revisá si alguna imagen externa bloqueó el lienzo.', 'error');
@@ -2687,8 +2584,19 @@
       }
     };
 
+    // Devuelve la cantidad realmente guardada. Si no entra en el almacenamiento
+    // del navegador, descarta los más viejos en lugar de fallar en silencio.
     const setSavedFlyers = (items) => {
-      localStorage.setItem(SAVED_FLYERS_KEY, JSON.stringify(items.slice(0, 30)));
+      let list = items.slice(0, 30);
+      while (list.length) {
+        try {
+          localStorage.setItem(SAVED_FLYERS_KEY, JSON.stringify(list));
+          return list.length;
+        } catch {
+          list = list.slice(0, -1);
+        }
+      }
+      return 0;
     };
 
     const buildSavedFlyerPayload = () => {
@@ -2777,9 +2685,16 @@
 
     const saveCurrentFlyer = () => {
       const flyers = getSavedFlyers();
-      setSavedFlyers([buildSavedFlyerPayload(), ...flyers]);
+      const total = flyers.length + 1;
+      const guardados = setSavedFlyers([buildSavedFlyerPayload(), ...flyers]);
       renderSavedFlyers();
-      mostrarToast('Flyer guardado.', 'success');
+      if (!guardados) {
+        mostrarToast('No hay espacio en el navegador para guardar este flyer.', 'error');
+      } else if (guardados < Math.min(total, 30)) {
+        mostrarToast('Flyer guardado. Se quitaron los más viejos por falta de espacio.', 'info');
+      } else {
+        mostrarToast('Flyer guardado.', 'success');
+      }
     };
 
     const applySavedForm = (flyer) => {
@@ -2906,7 +2821,7 @@
         els.brandWeb.value = config.web || '';
         els.brandEmail.value = config.correo || '';
         els.brandLocation.value = config.direccion || config.ubicacion || config.localidad || '';
-        setCompanyLogo(COMPANY_LOGO_LIGHT, 'Logo automatico del repositorio');
+        applyCompanyIdentity(config);
         cardPlans = (Array.isArray(config.tarjetasPlanes) ? config.tarjetasPlanes : [])
           .map(normalizeCardPlan)
           .filter((plan) => plan.activo !== false);
@@ -2933,7 +2848,7 @@
         console.error(error);
         if (receivedSystemData) return;
         mostrarToast('No pude cargar inventario o configuración.', 'error');
-        setCompanyLogo(COMPANY_LOGO_LIGHT, 'Logo automatico del repositorio');
+        applyCompanyIdentity({});
         ensureBaseLayout();
         await renderFlyer();
       }
@@ -2973,7 +2888,7 @@
         try {
           const src = await readFileAsDataUrl(event.target.files?.[0]);
           setCompanyLogo(src, 'Logo cargado manualmente');
-          await renderBrand();
+          await renderFlyer();
           mostrarToast('Logo del negocio actualizado.', 'success');
         } catch {
           mostrarToast('No pude leer el logo del negocio.', 'error');
@@ -2983,7 +2898,7 @@
       els.brandUpload.addEventListener('change', async (event) => {
         try {
           productBrandLogoSrc = await readFileAsDataUrl(event.target.files?.[0]);
-          await renderBrandBadge();
+          await renderFlyer();
           mostrarToast('Logo de marca listo.', 'success');
         } catch {
           mostrarToast('No pude leer el logo de marca.', 'error');
@@ -2996,14 +2911,14 @@
           selectedProduct = null;
           els.selectedProductTitle.textContent = 'Imagen manual cargada';
           els.selectedProductMeta.textContent = 'Podés combinarla con título, descripción y precio desde el panel.';
-          await renderProductImage();
+          await renderFlyer();
           mostrarToast('Imagen del producto cargada.', 'success');
         } catch {
           mostrarToast('No pude leer la imagen del producto.', 'error');
         }
       });
 
-      els.btnApplyBrand.addEventListener('click', renderBrand);
+      els.btnApplyBrand.addEventListener('click', renderFlyer);
       els.btnOpenInventory.addEventListener('click', openInventoryModal);
       els.btnCloseInventory.addEventListener('click', closeInventoryModal);
       els.inventoryModal.addEventListener('click', (event) => {
@@ -3050,10 +2965,10 @@
       els.priceOffer.addEventListener('input', renderFlyer);
       els.flyerTitle.addEventListener('input', renderFlyer);
       els.flyerDescription.addEventListener('input', renderFlyer);
-      els.brandWa.addEventListener('input', renderBrand);
-      els.brandWeb.addEventListener('input', renderBrand);
-      els.brandEmail.addEventListener('input', renderBrand);
-      els.brandLocation.addEventListener('input', renderBrand);
+      els.brandWa.addEventListener('input', renderFlyer);
+      els.brandWeb.addEventListener('input', renderFlyer);
+      els.brandEmail.addEventListener('input', renderFlyer);
+      els.brandLocation.addEventListener('input', renderFlyer);
 
       els.btnApplyProduct.addEventListener('click', async () => {
         if (els.toggleDiscount.checked) computeOfferPrice();
@@ -3061,7 +2976,8 @@
         mostrarToast('Datos aplicados al lienzo.', 'success');
       });
 
-      els.downloadBtn.addEventListener('click', handleDownload);
+      els.downloadBtn.addEventListener('click', () => handleDownload('jpeg'));
+      els.downloadPngBtn.addEventListener('click', () => handleDownload('png'));
       els.deleteItemBtn.addEventListener('click', deleteSelected);
 
       canvas.on('selection:created', () => els.deleteItemBtn.classList.remove('hidden'));

@@ -2743,6 +2743,44 @@ html body .sf-login-brand h2 { margin-top: 12px; }
 html body .sf-login-panel { padding: 24px; }
 }
 
+@media screen {
+html body .sf-app-shell .sf-remr-modal .sf-modal-panel { width: 1120px; max-width: calc(100vw - 32px); height: min(740px, calc(100dvh - 32px)); max-height: none; border-radius: 8px; }
+html body .sf-app-shell .sf-remr-modal .sf-modal-body { padding: 0 !important; overflow: hidden !important; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+html body .sf-app-shell .sf-remr-modal .sf-modal-footer { padding: 10px 20px; background: var(--sfw-bg); border-top: 1px solid var(--sfw-border); }
+html body .sf-app-shell .sf-rr { display: flex; flex-direction: column; gap: 14px; padding: 16px 20px 0; flex: 1 1 auto; min-height: 0; }
+html body .sf-app-shell .sf-rr-top { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 14px; flex: none; }
+html body .sf-app-shell .sf-rr-card { background: #fff !important; border: 1px solid var(--sfw-border) !important; border-radius: 6px !important; padding: 12px 14px !important; display: flex; flex-direction: column; gap: 8px; }
+html body .sf-app-shell .sf-rr-card > .space-y-2 > * + * { margin-top: 0; }
+html body .sf-app-shell .sf-rr-card label:not(.cursor-pointer) { font-size: 12px !important; font-weight: 600 !important; color: var(--sfw-text) !important; text-transform: none !important; letter-spacing: 0 !important; margin: 0 0 3px !important; }
+html body .sf-app-shell .sf-rr-card input:not([type=checkbox]), html body .sf-app-shell .sf-rr-card textarea { border: 1px solid var(--sfw-border-strong) !important; border-bottom-color: #8a8a8a !important; border-radius: 4px !important; background: #fff !important; font-size: 13px !important; font-weight: 400 !important; color: var(--sfw-text) !important; box-shadow: none !important; }
+html body .sf-app-shell .sf-rr-card input:not([type=checkbox]) { height: 34px; padding-top: 0 !important; padding-bottom: 0 !important; }
+html body .sf-app-shell .sf-rr-card textarea { resize: none; min-height: 52px; }
+html body .sf-app-shell .sf-rr-card input:focus, html body .sf-app-shell .sf-rr-card textarea:focus { border-bottom-color: var(--sfw-accent) !important; outline: none !important; box-shadow: none !important; }
+html body .sf-app-shell .sf-rr-meta .flex.items-center.gap-2 > button { flex: none; width: auto; min-width: 52px; height: 34px !important; padding: 0 12px !important; white-space: nowrap !important; border: 1px solid var(--sfw-border-strong) !important; border-radius: 4px !important; background: #fff !important; color: var(--sfw-text) !important; font-size: 12px !important; font-weight: 500 !important; text-transform: none !important; letter-spacing: 0 !important; }
+html body .sf-app-shell .sf-rr-meta label.cursor-pointer { border: 1px solid var(--sfw-border) !important; border-radius: 4px !important; background: var(--sfw-bg) !important; padding: 7px 10px !important; }
+html body .sf-app-shell .sf-rr-meta label.cursor-pointer span { font-size: 12.5px !important; font-weight: 400 !important; text-transform: none !important; letter-spacing: 0 !important; color: var(--sfw-text) !important; }
+html body .sf-app-shell .sf-rr-items { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--sfw-border); border-radius: 6px; background: #fff; overflow: hidden; margin-bottom: 14px; }
+html body .sf-app-shell .sf-rr-items-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--sfw-border); background: var(--sfw-bg); }
+html body .sf-app-shell .sf-rr-title { margin: 0; font-size: 13px; font-weight: 600; color: var(--sfw-text); }
+html body .sf-app-shell .sf-rr-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+html body .sf-app-shell .sf-rr-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+html body .sf-app-shell .sf-rr-table thead th { position: sticky; top: 0; z-index: 2; height: 34px; background: #fff; color: var(--sfw-text-2); font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; border-bottom: 1px solid var(--sfw-border-strong); }
+html body .sf-app-shell .sf-rr-table tbody td { height: 48px; padding: 6px 8px; border-bottom: 1px solid var(--sfw-border); vertical-align: middle; }
+html body .sf-app-shell .sf-rr-table tbody tr:hover { background: var(--sfw-bg); }
+html body .sf-app-shell .sf-rr-idx { color: var(--sfw-text-2); font-size: 12px; }
+html body .sf-app-shell .sf-rr-table input, html body .sf-app-shell .sf-rr-table select { height: 34px !important; padding: 0 8px !important; border: 1px solid var(--sfw-border-strong) !important; border-bottom-color: #8a8a8a !important; border-radius: 4px !important; background-color: #fff !important; font-size: 13px !important; font-weight: 400 !important; color: var(--sfw-text) !important; text-transform: none !important; box-shadow: none !important; }
+html body .sf-app-shell .sf-rr-table input:focus, html body .sf-app-shell .sf-rr-table select:focus { border-bottom: 2px solid var(--sfw-accent) !important; outline: none !important; }
+html body .sf-app-shell .sf-rr-table td button { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; padding: 0 !important; flex: none; }
+html body .sf-app-shell .sf-rr-foot { display: flex; align-items: center; gap: 8px; width: 100%; }
+html body .sf-app-shell .sf-rr-note { margin-right: auto; font-size: 12px; color: var(--sfw-text-2); }
+html body .sf-app-shell .sf-rr-count { font-size: 12.5px; font-weight: 600; color: var(--sfw-text); margin-right: 8px; white-space: nowrap; }
+}
+@media screen and (max-width: 820px) {
+html body .sf-app-shell .sf-rr-top { grid-template-columns: 1fr; }
+html body .sf-app-shell .sf-rr { overflow-y: auto; }
+html body .sf-app-shell .sf-rr-items { flex: none; min-height: 300px; }
+}
+
 } /* fin @media screen */
 
 /* ==========================================================================
