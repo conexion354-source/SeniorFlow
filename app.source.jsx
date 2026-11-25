@@ -648,6 +648,55 @@ const MOTIVOS_DEVOLUCION = ['Arrepentimiento', 'Producto fallado', 'Error en el 
 const DESCRIPCIONES_VENTA_PREESTABLECIDAS = ['Remito X', 'Factura A', 'Factura B'];
 const ACTUALIZACIONES_SISTEMA = [
   {
+    version: '2026.11.25-79',
+    fecha: '2026-11-25',
+    titulo: 'Menú simplificado, Ayuda tutorial y botones corregidos',
+    cambios: [
+      'Se quitaron del menú Tarjetas y planes (ahora en Ajustes > Tarjetas), Sugerencias y Comparativa.',
+      'Ayuda rediseñada como tutorial: para qué sirve cada módulo y cómo hacer cada tarea paso a paso.',
+      'Botones de acción (ver, editar, descargar, eliminar, comparar) con un mismo diseño en todas las listas; detalle de cuenta corriente sin textos superpuestos.',
+      'Importador de Excel rediseñado en 4 pasos (archivo, columnas, revisión de cambios e importación con barra de progreso), con respaldo para deshacer y detalle de errores por fila.',
+      'Corregidos botones con texto que se achicaban y se superponían en varias pantallas.',
+    ],
+  },
+  {
+    version: '2026.11.25-77',
+    fecha: '2026-11-25',
+    titulo: 'Cuenta corriente: descarga en PDF',
+    cambios: [
+      'Cuenta corriente: el botón CSV ahora es "Descargar" y ofrece Resumen en PDF o Planilla CSV (Excel). Antes el PDF quedaba escondido en el menú de tres puntos.',
+    ],
+  },
+  {
+    version: '2026.11.24-76',
+    fecha: '2026-11-24',
+    titulo: 'Modificación masiva: filtros y precios',
+    cambios: [
+      'Modificación masiva: filtros iguales en las cuatro herramientas (proveedor, marca, categoría) y atajos: sin proveedor, sin precio, precio bajo el costo, sin stock y con stock.',
+      'Actualizar precios: ajuste por porcentaje o por monto fijo, redondeo hacia arriba ($10, $50, $100, $500 o $1.000) y aviso de variaciones mayores al 25%.',
+      'La confirmación permite excluir productos puntuales antes de aplicar.',
+    ],
+  },
+  {
+    version: '2026.11.24-75',
+    fecha: '2026-11-24',
+    titulo: 'Modificación masiva: confirmación y deshacer',
+    cambios: [
+      'Modificación masiva: antes de aplicar se muestra una vista previa completa con antes y después de cada producto, el resumen de cambios y avisos (por ejemplo, precios por debajo del costo).',
+      'Respaldo automático antes de Multiplicar artículos, Asignar proveedor y Reemplazar datos, igual que en Actualizar precios.',
+      'Nuevo botón "Historial y deshacer" en Modificación masiva. Restaurar una duplicación también elimina los productos que se crearon.',
+    ],
+  },
+  {
+    version: '2026.11.24-74',
+    fecha: '2026-11-24',
+    titulo: 'Modificación masiva rediseñada',
+    cambios: [
+      'Modificación masiva: nuevo diseño igual al resto del sistema, con pestañas limpias, controles abiertos por defecto y barra fija de selección con Seleccionar filtrados, Limpiar y Aplicar.',
+      'Corregido: "Seleccionar todos" en Actualizar precios tomaba la lista equivocada.',
+    ],
+  },
+  {
     version: '2026.11.24-73',
     fecha: '2026-11-24',
     titulo: 'Devoluciones',
@@ -853,109 +902,154 @@ const PERMISOS_USUARIO_OPCIONES = [
 
 const AYUDA_SECCIONES = [
   {
-    id: 'inicio', titulo: 'Cómo empezar', resumen: 'Recorrido general para trabajar de forma segura y ordenada.', icono: 'BookOpen',
-    pasos: ['Iniciá sesión con tu usuario personal.', 'Verificá que estés trabajando en la empresa correcta y que los datos del negocio sean los esperados.', 'Abrí la caja antes de registrar ventas o gastos del turno.', 'Usá el menú superior para entrar a cada módulo.'],
-    claves: ['Cada usuario tiene permisos propios.', 'Los datos de cada empresa permanecen separados.', 'Los cambios se guardan automáticamente en la base de datos de la empresa.']
+    id: 'inicio', titulo: 'Primeros pasos', icono: 'BookOpen',
+    resumen: 'Para qué sirve el sistema y cómo organizar tu día de trabajo.',
+    paraQue: 'SeniorFlow junta en un solo lugar la caja, las ventas, los clientes, el stock y las compras. Lo que cargues en un módulo se refleja automáticamente en los demás: una venta descuenta stock, suma a la caja y actualiza los reportes.',
+    tareas: [
+      { titulo: 'Cómo arrancar el día', pasos: ['Ingresá con tu usuario y contraseña.', 'Mirá arriba a la izquierda que figure el nombre de tu empresa.', 'Entrá a Caja diaria y tocá "Abrir caja" con el efectivo con el que arrancás.', 'Ya podés cargar ventas desde el menú Ventas.'] },
+      { titulo: 'Cómo moverme por el sistema', pasos: ['Usá el menú de la izquierda: Ventas e Inventario se despliegan con sus secciones.', 'Más abajo están Notificaciones, Proveedores, Flyer, Logística, Rastreo y Buscador avanzado.', 'Reportes, Ajustes y Ayuda están al final del menú.', 'Tocá la lupa o el buscador de cada pantalla para encontrar rápido lo que necesitás.'] },
+      { titulo: 'Cómo cerrar el día', pasos: ['Entrá a Caja diaria.', 'Contá el efectivo real y compará con el total del sistema.', 'Tocá "Cerrar caja" y guardá la diferencia si la hay.', 'Cerrá sesión desde el menú cuando termines.'] }
+    ],
+    claves: ['Cada usuario ve solo lo que su administrador le permitió.', 'Los datos de cada empresa están separados.', 'Todo se guarda solo: no hace falta un botón "guardar todo".']
   },
   {
-    id: 'caja', titulo: 'Caja diaria', resumen: 'Apertura, movimientos, gastos, ingresos y cierre del turno.', icono: 'Wallet',
-    pasos: ['Abrí la caja indicando el efectivo inicial.', 'Registrá ventas, gastos, ingresos extra y retiros desde sus botones correspondientes.', 'Revisá los movimientos y filtrá por fecha o tipo.', 'Al finalizar el turno, compará el efectivo real y cerrá la caja.'],
-    claves: ['Los retiros afectan el efectivo disponible, pero no representan un gasto del negocio.', 'Los pagos reales a proveedores también se reflejan como gastos en reportes.', 'El historial de caja puede quedar restringido al administrador desde Ajustes.']
+    id: 'caja', titulo: 'Caja diaria', icono: 'Wallet',
+    resumen: 'Controla el efectivo y todos los movimientos de plata del turno.',
+    paraQue: 'Sirve para saber cuánta plata hay en caja, de dónde vino y a dónde fue. Al cerrar el turno te muestra si el efectivo real coincide con lo que debería haber.',
+    tareas: [
+      { titulo: 'Cómo abrir la caja', pasos: ['Entrá a Caja diaria.', 'Tocá "Abrir caja".', 'Escribí el efectivo con el que empezás y confirmá.'] },
+      { titulo: 'Cómo registrar un gasto o un ingreso extra', pasos: ['Con la caja abierta, tocá el botón de gasto o de ingreso.', 'Completá concepto, importe y medio de pago.', 'Guardá: el movimiento queda en el listado y en los reportes.'] },
+      { titulo: 'Cómo retirar dinero de la caja', pasos: ['Tocá "Retiro".', 'Indicá el importe y el motivo.', 'Confirmá. El retiro baja el efectivo disponible pero no cuenta como gasto del negocio.'] },
+      { titulo: 'Cómo cerrar la caja', pasos: ['Tocá "Cerrar caja".', 'Ingresá el efectivo que contaste.', 'Revisá la diferencia y confirmá el cierre.', 'El cierre queda guardado en el historial de cierres.'] }
+    ],
+    claves: ['Sin caja abierta no se pueden registrar movimientos.', 'Las devoluciones en efectivo salen de la caja abierta.']
   },
   {
-    id: 'ventas', titulo: 'Ventas', resumen: 'Carga de comprobantes, productos, clientes y formas de pago.', icono: 'ClipboardList',
-    pasos: ['Seleccioná cliente existente o cargá uno nuevo.', 'Elegí tipo y número de comprobante.', 'Agregá productos, cantidades, descuentos y observaciones.', 'Seleccioná la forma de pago y guardá la venta.'],
-    claves: ['Las ventas a cuenta corriente generan saldo del cliente.', 'El número de comprobante puede ser automático o manual.', 'La pantalla cliente puede abrirse en un segundo monitor cuando está configurada.']
+    id: 'ventas', titulo: 'Ventas y devoluciones', icono: 'ClipboardList',
+    resumen: 'Cargar ventas, cobrarlas y resolver devoluciones.',
+    paraQue: 'Registra cada venta con su cliente, productos y forma de pago. Descuenta el stock, impacta en la caja o en la cuenta corriente y deja el comprobante para consultar o reimprimir.',
+    tareas: [
+      { titulo: 'Cómo hacer una venta', pasos: ['Entrá a Ventas y tocá "Nueva venta".', 'Elegí el cliente (o consumidor final).', 'Buscá los productos y agregalos con su cantidad.', 'Elegí la forma de pago (efectivo, transferencia, tarjeta o cuenta corriente).', 'Revisá el total y confirmá.'] },
+      { titulo: 'Cómo vender con tarjeta y cuotas', pasos: ['En la venta elegí pago con tarjeta.', 'Seleccioná la tarjeta y el plan de cuotas.', 'El sistema calcula el recargo o descuento según lo configurado en Ajustes > Tarjetas.'] },
+      { titulo: 'Cómo hacer una devolución', pasos: ['En el listado de Ventas buscá el comprobante original.', 'Abrí sus acciones y elegí devolución (Nota de crédito).', 'Marcá los productos y cantidades que vuelven y el motivo.', 'Elegí qué pasa con el dinero (efectivo, cuenta corriente, etc.) y si vuelve al stock.', 'Confirmá: se genera la nota de crédito y se ajusta stock y caja.'] },
+      { titulo: 'Cómo buscar o reimprimir una venta', pasos: ['En Ventas usá el buscador o los filtros de fecha.', 'Abrí la venta para ver el detalle.', 'Descargá o imprimí el comprobante desde sus acciones.'] }
+    ],
+    claves: ['Las ventas a cuenta corriente suman saldo al cliente.', 'La nota de crédito se registra con fecha de hoy.']
   },
   {
-    id: 'clientes', titulo: 'Clientes y cuentas corrientes', resumen: 'Seguimiento de saldos, cobros, vencimientos y recargos.', icono: 'CreditCard',
-    pasos: ['Buscá el cliente por nombre, teléfono o identificación.', 'Consultá saldo, remitos pendientes, vencimientos y movimientos.', 'Registrá cobros y asigná el pago a uno o varios comprobantes.', 'Cuando el saldo llega a cero, el ciclo de recargos y recordatorios vuelve a comenzar.'],
-    claves: ['Los recargos históricos no se borran, pero dejan de contarse cuando la cuenta queda al día.', 'Los clientes especiales pueden estar limitados según permisos.', 'El PDF de resumen muestra la situación de la cuenta.']
+    id: 'clientes', titulo: 'Cuentas corrientes', icono: 'CreditCard',
+    resumen: 'Saldos de clientes, cobros y resúmenes de cuenta.',
+    paraQue: 'Sirve para saber quién te debe, cuánto y desde cuándo, y para registrar los cobros aplicándolos a los comprobantes que corresponden.',
+    tareas: [
+      { titulo: 'Cómo crear un cliente', pasos: ['Entrá a Cuentas corrientes.', 'Tocá "Nuevo cliente".', 'Completá nombre y datos de contacto; el resto es opcional.', 'Guardá.'] },
+      { titulo: 'Cómo registrar un cobro', pasos: ['Buscá al cliente y abrí su cuenta.', 'Tocá "Registrar cobro".', 'Escribí el monto o usá los atajos y elegí el medio de pago.', 'Mirá la vista previa de a qué remitos se aplica y confirmá.', 'Podés descargar el recibo de pago.'] },
+      { titulo: 'Cómo enviarle el resumen de cuenta al cliente', pasos: ['Abrí la cuenta del cliente.', 'Tocá "Descargar".', 'Elegí "Resumen en PDF" para mandárselo, o "Planilla CSV" para abrirlo en Excel.'] }
+    ],
+    claves: ['Cuando el saldo llega a cero, el ciclo de recargos vuelve a empezar.', 'El PDF muestra cómo se aplicó cada pago.']
   },
   {
-    id: 'presupuestos', titulo: 'Presupuestos', resumen: 'Creación, seguimiento, entregas y conversión de presupuestos.', icono: 'FileText',
-    pasos: ['Creá un presupuesto con cliente, productos, cantidades y precios.', 'Guardalo como pendiente, enviado o aprobado según tu circuito.', 'Registrá entregas parciales desde el seguimiento.', 'Imprimí o descargá el PDF cuando necesites enviarlo.'],
-    claves: ['Los presupuestos pendientes de entrega permanecen visibles para su seguimiento.', 'Podés reutilizar un presupuesto para crear una venta o un pedido de compra.']
+    id: 'presupuestos', titulo: 'Presupuestos y combos', icono: 'FileText',
+    resumen: 'Cotizar a clientes y hacer seguimiento hasta la entrega.',
+    paraQue: 'Te permite armar una cotización profesional, enviarla y seguir su estado. Cuando el cliente acepta, la convertís en venta sin volver a cargar todo.',
+    tareas: [
+      { titulo: 'Cómo crear un presupuesto', pasos: ['Entrá a Presupuestos y tocá "Nuevo presupuesto".', 'Elegí el cliente.', 'Agregá productos, cantidades y ajustá precios o descuentos.', 'Guardá con el estado que corresponda.'] },
+      { titulo: 'Cómo enviarlo al cliente', pasos: ['Abrí el presupuesto desde el listado.', 'Descargá el PDF o imprimilo.', 'Mandalo por el medio que uses con el cliente.'] },
+      { titulo: 'Cómo registrar una entrega', pasos: ['Abrí el presupuesto aprobado.', 'Registrá lo entregado, total o parcial.', 'Lo pendiente de entrega sigue visible para el seguimiento.'] },
+      { titulo: 'Cómo armar un presupuesto combo', pasos: ['Entrá a Presupuesto combo.', 'Elegí los productos que forman el combo y su precio.', 'Previsualizá y descargá el resultado.'] }
+    ],
+    claves: ['Un presupuesto no descuenta stock hasta que se convierte en venta.']
   },
   {
-    id: 'inventario', titulo: 'Inventario', resumen: 'Productos, precios, costos, proveedores, stock y stock mínimo.', icono: 'Package',
-    pasos: ['Creá o editá productos con código, descripción, categoría, unidad e imagen.', 'Cargá costo, precio, IVA, margen y proveedores.', 'Definí el stock mínimo para cada producto.', 'Usá la búsqueda, filtros y acciones rápidas para mantener actualizado el inventario.'],
-    claves: ['El stock mínimo alimenta el menú Stock bajo.', 'Los costos por proveedor permiten comparar y elegir el mejor costo.', 'Las modificaciones masivas deben revisarse antes de confirmarlas.']
+    id: 'inventario', titulo: 'Inventario y productos', icono: 'Package',
+    resumen: 'Catálogo de productos, precios, costos y stock.',
+    paraQue: 'Es el corazón del sistema: acá viven todos tus productos con su costo, precio, proveedores y stock. De acá salen las ventas, los pedidos y los reportes.',
+    tareas: [
+      { titulo: 'Cómo crear un producto', pasos: ['Entrá a Inventario y tocá "Nuevo Producto".', 'En General completá descripción, categoría y marca.', 'En Precios y costos cargá el costo y el precio final; el sistema calcula ganancia e IVA.', 'En Stock indicá la cantidad y el stock mínimo.', 'Guardá el producto.'] },
+      { titulo: 'Cómo cambiar el precio de un producto', pasos: ['Buscá el producto en el listado.', 'Tocá el lápiz para editarlo.', 'Modificá costo o precio final y guardá. El cambio queda en el historial de variación de precio.'] },
+      { titulo: 'Cómo actualizar precios con un Excel', pasos: ['Tocá "Importar" en Inventario.', 'Paso 1: elegí el proveedor de la lista y arrastrá el Excel (o tocá para elegirlo).', 'Paso 2: confirmá qué columna es el código, el costo, el precio y el stock. El sistema ya detecta las más probables.', 'Paso 3: revisá la lista de cambios (precio anterior → nuevo) y destildá los que no quieras aplicar.', 'Paso 4: tocá "Aplicar" y mirá el avance. Al terminar queda un respaldo para deshacer.'] },
+      { titulo: 'Cómo armar un producto compuesto', pasos: ['Tocá "Producto compuesto".', 'Agregá los componentes y la mano de obra.', 'El sistema calcula el costo total y el margen.'] },
+      { titulo: 'Cómo saber qué se está por acabar', pasos: ['Cargá el stock mínimo en cada producto.', 'Entrá a Stock bajo: ahí aparecen los que llegaron al mínimo.', 'Armá un pedido desde Pedidos.'] }
+    ],
+    claves: ['Un producto sin stock mínimo no aparece en Stock bajo.', 'Podés ver el historial de precios de cada producto desde sus acciones.']
   },
   {
-    id: 'stock_bajo', titulo: 'Stock bajo', resumen: 'Control de productos que alcanzaron o están por debajo del mínimo configurado.', icono: 'AlertCircle',
-    pasos: ['Entrá a Stock bajo desde el menú.', 'Revisá stock actual, mínimo, código y proveedor.', 'Actualizá el stock desde Inventario, una compra o el ajuste rápido.', 'Cuando el stock supere el mínimo, el producto deja de aparecer automáticamente.'],
-    claves: ['Un producto sin stock mínimo configurado no se considera en este listado.', 'El cálculo usa el stock actual guardado en el producto.']
+    id: 'mod_masiva', titulo: 'Modificación masiva', icono: 'Edit2',
+    resumen: 'Cambiar muchos productos de una sola vez, con respaldo.',
+    paraQue: 'Sirve cuando un proveedor te sube los precios o necesitás cambiar proveedor, categoría o descripciones de muchos productos juntos, sin editarlos uno por uno.',
+    tareas: [
+      { titulo: 'Cómo subir precios de un proveedor', pasos: ['Entrá a Modificación masiva y elegí "Actualizar precios".', 'Filtrá por proveedor, marca o categoría.', 'Elegí el ajuste: porcentaje o monto fijo, y el redondeo.', 'Revisá la vista previa y excluí los productos que no quieras tocar.', 'Confirmá: el sistema guarda un respaldo automático.'] },
+      { titulo: 'Cómo deshacer un cambio masivo', pasos: ['Entrá al historial de respaldos.', 'Buscá el cambio que querés revertir.', 'Tocá restaurar y confirmá: los precios vuelven a como estaban.'] }
+    ],
+    claves: ['Siempre revisá la vista previa antes de confirmar.', 'Usá los atajos de filtro: sin precio, bajo el costo, sin proveedor o sin stock.']
   },
   {
-    id: 'compras', titulo: 'Pedidos', resumen: 'Pedidos, compras directas, recepción y comprobantes.', icono: 'FileSpreadsheet',
-    pasos: ['Elegí el proveedor del pedido o de la compra directa.', 'Agregá cualquier producto del inventario, aunque todavía no tenga costo cargado para ese proveedor.', 'Completá cantidades, costos, descuentos y transporte.', 'Si es una factura, indicá tipo y número de comprobante.', 'Guardá el pedido o registrá la compra y luego confirmá la recepción.'],
-    claves: ['Si no existe costo específico, se propone el costo general o se puede completar manualmente.', 'La recepción puede actualizar stock y costos del proveedor.', 'Los pagos reales a proveedores aparecen como gasto en caja y reportes.']
+    id: 'compras', titulo: 'Pedidos y compras', icono: 'FileSpreadsheet',
+    resumen: 'Pedir mercadería a proveedores y recibirla.',
+    paraQue: 'Ordena lo que le comprás a cada proveedor. Al recibir la mercadería, actualiza el stock y los costos automáticamente.',
+    tareas: [
+      { titulo: 'Cómo hacer un pedido a un proveedor', pasos: ['Entrá a Pedidos y creá uno nuevo.', 'Elegí el proveedor.', 'Agregá productos con cantidad y costo.', 'Guardá el pedido.'] },
+      { titulo: 'Cómo recibir la mercadería', pasos: ['Abrí el pedido pendiente.', 'Confirmá la recepción y cargá el comprobante si corresponde.', 'El stock sube y el costo se actualiza.'] }
+    ],
+    claves: ['Podés agregar productos aunque todavía no tengan costo para ese proveedor.']
   },
   {
-    id: 'proveedores', titulo: 'Proveedores', resumen: 'Maestro de proveedores, costos, cuenta corriente y pagos.', icono: 'Users',
-    pasos: ['Cargá datos comerciales, contacto y condiciones del proveedor.', 'Consultá su cuenta corriente y compras relacionadas.', 'Registrá pagos con medio, comprobante, banco y adjuntos.', 'Descargá el recibo de pago o el estado de cuenta.'],
-    claves: ['Editar un pago actualiza su gasto vinculado sin duplicarlo.', 'Eliminar un pago también elimina el gasto que se generó para el balance.', 'Pendiente y cuenta corriente no se consideran pagos efectivamente realizados.']
+    id: 'proveedores', titulo: 'Proveedores y pagos', icono: 'Users',
+    resumen: 'Datos de proveedores, deuda y pagos realizados.',
+    paraQue: 'Sirve para saber cuánto le debés a cada proveedor y registrar tus pagos con su comprobante.',
+    tareas: [
+      { titulo: 'Cómo cargar un proveedor', pasos: ['Entrá a Proveedores y tocá para crear uno nuevo.', 'Completá nombre, CUIT y contacto.', 'Guardá.'] },
+      { titulo: 'Cómo registrar un pago a un proveedor', pasos: ['Abrí el proveedor y entrá a su cuenta corriente.', 'Cargá importe, medio de pago y comprobante.', 'Confirmá: queda registrado también como gasto en caja y reportes.', 'Descargá el recibo si lo necesitás.'] }
+    ],
+    claves: ['Si editás un pago, el gasto asociado se actualiza sin duplicarse.']
   },
   {
-    id: 'comparativa', titulo: 'Comparativa y logística', resumen: 'Análisis de costos y condiciones para elegir proveedores.', icono: 'BarChart2',
-    pasos: ['Seleccioná productos para comparar proveedores.', 'Revisá costo de origen, conversión a pesos, descuentos y flete.', 'Consultá condiciones, transporte y ruta logística cuando estén cargadas.', 'Usá el resultado para decidir el proveedor del pedido.'],
-    claves: ['Las cotizaciones en dólares pueden influir en el costo final.', 'La comparativa no modifica productos hasta que confirmes una acción.']
+    id: 'logistica', titulo: 'Logística', icono: 'BarChart2',
+    resumen: 'Comparar costos de varios productos entre proveedores.',
+    paraQue: 'Te ayuda a decidir a quién comprarle cada cosa mirando costo, flete y condiciones de varios productos a la vez.',
+    tareas: [
+      { titulo: 'Cómo comparar proveedores', pasos: ['Entrá a Logística.', 'Buscá y marcá hasta 5 productos.', 'Elegí el proveedor de cada uno.', 'Compará el costo final y usá el resultado para armar el pedido.'] }
+    ],
+    claves: ['Es solo para comparar: no modifica ningún producto.']
   },
   {
-    id: 'mod_masiva', titulo: 'Modificación masiva', resumen: 'Actualización controlada de muchos productos a la vez.', icono: 'Edit2',
-    pasos: ['Filtrá por descripción, categoría, marca o proveedor.', 'Seleccioná los productos a modificar.', 'Elegí la operación: precios, datos, proveedor o descripciones.', 'Revisá el resumen y confirmá solo cuando los valores sean correctos.'],
-    claves: ['El sistema genera respaldos antes de cambios masivos de precios.', 'Trabajá con filtros pequeños cuando la modificación sea específica.']
+    id: 'reportes', titulo: 'Reportes', icono: 'BarChart2',
+    resumen: 'Cuánto vendiste, cuánto gastaste y cómo viene el negocio.',
+    paraQue: 'Resume ingresos, egresos y resultado de un período para que puedas tomar decisiones con números reales.',
+    tareas: [
+      { titulo: 'Cómo ver las ventas de un período', pasos: ['Entrá a Reportes.', 'Elegí hoy, semana, mes o un rango de fechas.', 'Mirá los indicadores y tocá cada uno para ver su detalle.'] }
+    ],
+    claves: ['Los pagos a proveedores cuentan como egreso.', 'Los retiros no reducen la ganancia, solo el efectivo.']
   },
   {
-    id: 'sugerencias', titulo: 'Sugerencias de compra', resumen: 'Ranking basado en ventas para preparar pedidos.', icono: 'TrendingUp',
-    pasos: ['Elegí el período de análisis.', 'Revisá los productos más vendidos y la cantidad sugerida.', 'Seleccioná los productos y generá un pedido de compra.', 'Ajustá proveedor, cantidades y costos antes de guardarlo.'],
-    claves: ['El ranking puede reiniciarse sin borrar ventas históricas.', 'Las sugerencias son una ayuda para decidir, no una compra automática.']
+    id: 'rastreo', titulo: 'Rastreo y buscador', icono: 'Search',
+    resumen: 'Encontrar cualquier comprobante o movimiento rápido.',
+    paraQue: 'Cuando no sabés en qué menú está algo, lo buscás acá por número, cliente, proveedor o descripción.',
+    tareas: [
+      { titulo: 'Cómo encontrar un comprobante', pasos: ['Entrá a Rastreo.', 'Escribí número, nombre o descripción.', 'Abrí el resultado para ver el detalle o descargar el documento.'] }
+    ],
+    claves: ['Sirve para ventas, compras, pagos y cheques.']
   },
   {
-    id: 'reportes', titulo: 'Reportes y balance', resumen: 'Ingresos, egresos, cobros, retiros y flujo por medio de pago.', icono: 'BarChart2',
-    pasos: ['Elegí hoy, semana, mes o un rango personalizado.', 'Consultá ingresos, egresos, cobros, retiros y resultado neto.', 'Abrí cada indicador para ver su detalle.', 'Usá el listado de movimientos para auditar el período.'],
-    claves: ['Los pagos reales a proveedores se muestran como egresos.', 'Los retiros no reducen la ganancia neta, pero sí el efectivo disponible.', 'El rango seleccionado se aplica a todos los indicadores del reporte.']
+    id: 'materiales', titulo: 'Flyer y ofertas', icono: 'ImageIcon',
+    resumen: 'Material comercial listo para compartir.',
+    paraQue: 'Genera imágenes de ofertas con tus productos para mandar por WhatsApp o redes.',
+    tareas: [
+      { titulo: 'Cómo armar un flyer', pasos: ['Entrá a Flyer.', 'Elegí los productos y el diseño.', 'Revisá la vista previa.', 'Descargá la imagen en JPG o PNG.'] }
+    ],
+    claves: ['Usa el logo de tu empresa.']
   },
   {
-    id: 'rastreo', titulo: 'Rastreo', resumen: 'Búsqueda transversal de comprobantes y operaciones.', icono: 'Search',
-    pasos: ['Ingresá código, número, cliente, proveedor o descripción.', 'Revisá el origen del movimiento encontrado.', 'Abrí el registro para consultar su detalle o descargar documentos.'],
-    claves: ['Es útil para encontrar rápidamente una venta, compra, pago o comprobante sin recorrer cada menú.']
-  },
-  {
-    id: 'materiales', titulo: 'Flyer, ofertas y combos', resumen: 'Herramientas comerciales para preparar material de venta.', icono: 'ImageIcon',
-    pasos: ['Creá ofertas o combos seleccionando productos y precios.', 'Configurá título, vigencia, descuentos, imágenes y aclaraciones.', 'Previsualizá el material.', 'Descargá o imprimí el resultado.'],
-    claves: ['Estas herramientas trabajan sobre la información comercial y no reemplazan la carga de ventas.']
-  },
-  {
-    id: 'ajustes', titulo: 'Ajustes, usuarios y permisos', resumen: 'Configuración del negocio, seguridad y acceso por usuario.', icono: 'Settings',
-    pasos: ['Editá los datos propios de la empresa desde Ajustes.', 'Administrá usuarios, nombres, contraseñas y niveles de acceso.', 'Configurá historial de caja, recargos automáticos, datos de pago y preferencias.', 'Guardá cada cambio y verificá la cuenta con la que estás trabajando.'],
-    claves: ['Solo el administrador accede a la configuración general.', 'Cada empresa conserva sus propios datos y configuración.', 'No elimines el administrador principal sin crear antes un reemplazo seguro.']
+    id: 'ajustes', titulo: 'Ajustes, tarjetas y usuarios', icono: 'Settings',
+    resumen: 'Configurar tu negocio, tarjetas y quién puede hacer qué.',
+    paraQue: 'Acá se define cómo funciona el sistema para tu empresa: datos del negocio, medios de cobro, tarjetas y permisos de cada usuario.',
+    tareas: [
+      { titulo: 'Cómo configurar las tarjetas y cuotas', pasos: ['Entrá a Ajustes y elegí la sección Tarjetas.', 'Tocá Editar.', 'Cargá cada tarjeta con sus planes de cuotas y recargo o descuento.', 'Guardá: ya se usan en el punto de venta.'] },
+      { titulo: 'Cómo crear un usuario y darle permisos', pasos: ['Entrá a Ajustes > Accesos.', 'Creá el usuario con su nombre y contraseña.', 'Marcá qué módulos puede ver.', 'Guardá y probá ingresando con ese usuario.'] },
+      { titulo: 'Cómo hacer una copia de seguridad', pasos: ['Entrá a Ajustes > Backup.', 'Descargá la copia y guardala en un lugar seguro.'] }
+    ],
+    claves: ['Solo el administrador entra a Ajustes.', 'No borres al administrador principal sin crear otro antes.']
   }
 ];
-
-const obtenerDetallePasoAyuda = (seccion, paso, index) => {
-  const accionesPorModulo = {
-    inicio: 'Usá el menú principal para entrar al módulo correspondiente y verificá que el nombre de la empresa sea el correcto antes de guardar cambios.',
-    caja: 'Abrí el módulo Caja, completá los campos solicitados, revisá el resumen de importes y confirmá. Antes de cerrar el turno compará el efectivo físico con el total informado.',
-    ventas: 'Completá los datos de la venta, revisá cliente, comprobante, cantidades, precios y forma de pago. Guardá solo después de controlar el total final.',
-    clientes: 'Buscá el cliente, abrí su ficha y revisá el saldo antes de registrar cualquier operación. Después del cobro verificá que el saldo y los comprobantes pendientes sean correctos.',
-    presupuestos: 'Cargá primero el cliente y luego los ítems. Revisá precios, descuentos, notas y estado; finalmente guardá o descargá el comprobante desde las acciones del presupuesto.',
-    inventario: 'Desde Inventario elegí Nuevo producto o Editar. Completá código, descripción, unidad, costos, precios, stock y stock mínimo; guardá y confirmá que el producto aparezca en el listado.',
-    stock_bajo: 'Compará el stock actual con el mínimo indicado. Actualizá el producto desde Inventario o registrá una compra y volvé a revisar el listado cuando termine la operación.',
-    compras: 'Seleccioná proveedor, agregá los productos y completá cantidades y costos. Confirmá la recepción cuando corresponda.',
-    proveedores: 'Abrí el proveedor, completá sus datos y guardá. Para pagar, entrá a su cuenta corriente, cargá medio, importe y comprobante, y revisá que el saldo y el gasto queden registrados.',
-    comparativa: 'Elegí los productos y proveedores que querés comparar. Revisá costos, descuentos, flete y moneda antes de tomar una decisión o crear el pedido.',
-    mod_masiva: 'Aplicá filtros antes de seleccionar productos. Revisá la vista previa y el respaldo disponible; confirmá únicamente cuando los valores nuevos sean los esperados.',
-    sugerencias: 'Elegí el período, revisá el ranking y ajustá las cantidades sugeridas según el stock actual. Luego pasá los seleccionados a un pedido y controlá el resultado.',
-    reportes: 'Elegí el período y revisá cada indicador. Abrí el detalle para comprobar los movimientos que forman el balance antes de usarlo para una decisión.',
-    rastreo: 'Usá el campo de búsqueda con número, cliente, proveedor o descripción. Abrí el resultado encontrado para consultar su detalle y descargar el documento disponible.',
-    materiales: 'Seleccioná los productos, configurá título, fechas, precios e imágenes, y usá la vista previa antes de descargar o imprimir el material.',
-    ajustes: 'Entrá a la sección correspondiente, modificá solo los campos necesarios y guardá. Cerrá sesión y verificá con el usuario afectado cuando cambies permisos.'
-  };
-  const accion = accionesPorModulo[seccion?.id] || 'Seguí las indicaciones de este paso, revisá la información antes de guardar y confirmá que el resultado aparezca en el listado correspondiente.';
-  return `Paso ${index + 1}: ${paso} ${accion}`;
-};
 const FORM_PROVEEDOR_VACIO = {
   nombre: '',
   cuit: '',
@@ -2290,6 +2384,22 @@ const usarPerfilPantalla = () => {
   const [perfil, setPerfil] = useState(() => obtenerPerfilPantalla());
 
   useEffect(() => {
+    // Un botón con ícono + texto + title no es un botón "solo ícono": se marca para que el CSS no lo achique.
+    if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return undefined;
+    let frame = 0;
+    const marcar = () => {
+      frame = 0;
+      document.querySelectorAll('button[title]:not(.sf-has-text)').forEach((boton) => {
+        if ((boton.textContent || '').trim()) boton.classList.add('sf-has-text');
+      });
+    };
+    const observador = new MutationObserver(() => { if (!frame) frame = window.requestAnimationFrame(marcar); });
+    observador.observe(document.body, { childList: true, subtree: true, characterData: true });
+    marcar();
+    return () => { observador.disconnect(); if (frame) window.cancelAnimationFrame(frame); };
+  }, []);
+
+  useEffect(() => {
     const actualizar = () => {
       const siguiente = obtenerPerfilPantalla();
       aplicarPerfilPantallaDocumento(siguiente);
@@ -3318,6 +3428,13 @@ function AppInterna() {
     crearProductosNuevos: false
   });
   const [importandoInventario, setImportandoInventario] = useState(false);
+  const [pasoImportacionInventario, setPasoImportacionInventario] = useState(1);
+  const [vistaPreviaImportacionInventario, setVistaPreviaImportacionInventario] = useState(null);
+  const [filtroVistaImportacionInventario, setFiltroVistaImportacionInventario] = useState('cambios');
+  const [erroresImportacionInventario, setErroresImportacionInventario] = useState([]);
+  const [analizandoImportacionInventario, setAnalizandoImportacionInventario] = useState(false);
+  const [arrastrandoImportacionInventario, setArrastrandoImportacionInventario] = useState(false);
+  const cancelarImportacionInventarioRef = useRef(false);
   const [resumenImportacionInventario, setResumenImportacionInventario] = useState(null);
   const [progresoImportacionInventario, setProgresoImportacionInventario] = useState({ activo: false, total: 0, procesadas: 0, actualizados: 0, creados: 0, sinCambios: 0, variaciones: 0 });
   const [variacionesPrecios, setVariacionesPrecios] = useState([]);
@@ -3539,6 +3656,11 @@ function AppInterna() {
   const [modMasivaPreciosIndividuales, setModMasivaPreciosIndividuales] = useState({});
   const [ultimoCambioPreciosMasivo, setUltimoCambioPreciosMasivo] = useState(null);
   const [respaldosPrecios, setRespaldosPrecios] = useState([]);
+  const [confirmacionMasiva, setConfirmacionMasiva] = useState(null);
+  const [modMasivaFiltroEstado, setModMasivaFiltroEstado] = useState('');
+  const [modMasivaAjusteModo, setModMasivaAjusteModo] = useState('porcentaje');
+  const [modMasivaAjusteMonto, setModMasivaAjusteMonto] = useState('');
+  const [modMasivaRedondeo, setModMasivaRedondeo] = useState('');
   const [cargandoRespaldosPrecios, setCargandoRespaldosPrecios] = useState(false);
   const [restaurandoRespaldoPrecios, setRestaurandoRespaldoPrecios] = useState('');
   const [operacionPreciosEnCurso, setOperacionPreciosEnCurso] = useState({ activo: false, titulo: '', fase: '', total: 0, procesadas: 0, detalle: '' });
@@ -6008,40 +6130,19 @@ function AppInterna() {
             costo: producto.costoOriginal ?? producto.costo ?? 0,
             moneda: producto.monedaCosto || 'ARS'
           }] : []);
-      const proveedorOk = !filtroProveedorModMasiva
-        || costos.some((costo) => normalizarTextoBusqueda(costo?.proveedor || '') === normalizarTextoBusqueda(filtroProveedorModMasiva));
-      if (!proveedorOk) return false;
-      return coincideBusquedaCompuesta([
-        producto?.descripcion,
-        producto?.codigo,
-        producto?.codigoInterno,
-        producto?.codigoBarras,
-        producto?.categoria,
-        producto?.marca,
-        ...costos.flatMap((costo) => [costo?.proveedor, costo?.codigoProveedor])
-      ], busquedaModMasivaDiferida);
-    });
-  }, [productos, busquedaModMasivaDiferida, filtroProveedorModMasiva]);
-
-  const productosActualizacionPreciosVisualizados = useMemo(() => {
-    return (productos || []).filter((producto) => {
-      const costos = (Array.isArray(producto?.proveedoresCostos) && producto.proveedoresCostos.length)
-        ? producto.proveedoresCostos
-        : (producto?.proveedor ? [{
-            proveedor: producto.proveedor,
-            codigoProveedor: producto.codigoProveedor || '',
-            costo: producto.costoOriginal ?? producto.costo ?? 0,
-            moneda: producto.monedaCosto || 'ARS'
-          }] : []);
-      const proveedorOk = !modMasivaFiltroProveedorPrecio
-        || costos.some((costo) => normalizarTextoBusqueda(costo?.proveedor || '') === normalizarTextoBusqueda(modMasivaFiltroProveedorPrecio));
-      if (!proveedorOk) return false;
-      const marcaOk = !modMasivaFiltroMarcaPrecio
-        || normalizarTextoBusqueda(producto?.marca || '') === normalizarTextoBusqueda(modMasivaFiltroMarcaPrecio);
-      if (!marcaOk) return false;
-      const categoriaOk = !modMasivaFiltroCategoriaPrecio
-        || normalizarTextoBusqueda(obtenerCategoriaProducto(producto)) === normalizarTextoBusqueda(modMasivaFiltroCategoriaPrecio);
-      if (!categoriaOk) return false;
+      if (modMasivaFiltroProveedorPrecio && !costos.some((costo) => normalizarTextoBusqueda(costo?.proveedor || '') === normalizarTextoBusqueda(modMasivaFiltroProveedorPrecio))) return false;
+      if (modMasivaFiltroMarcaPrecio && normalizarTextoBusqueda(producto?.marca || '') !== normalizarTextoBusqueda(modMasivaFiltroMarcaPrecio)) return false;
+      if (modMasivaFiltroCategoriaPrecio && normalizarTextoBusqueda(obtenerCategoriaProducto(producto)) !== normalizarTextoBusqueda(modMasivaFiltroCategoriaPrecio)) return false;
+      if (modMasivaFiltroEstado) {
+        const precio = parseNumeroBasico(producto?.precio) || 0;
+        const costo = parseNumeroBasico(producto?.costo) || 0;
+        const stock = parseNumeroBasico(producto?.cantidad ?? producto?.stock ?? 0) || 0;
+        if (modMasivaFiltroEstado === 'sin_proveedor' && costos.length > 0) return false;
+        if (modMasivaFiltroEstado === 'sin_precio' && precio > 0) return false;
+        if (modMasivaFiltroEstado === 'bajo_costo' && !(precio > 0 && costo > 0 && precio < costo)) return false;
+        if (modMasivaFiltroEstado === 'sin_stock' && stock > 0) return false;
+        if (modMasivaFiltroEstado === 'con_stock' && stock <= 0) return false;
+      }
       return coincideBusquedaCompuesta([
         producto?.descripcion,
         producto?.codigo,
@@ -6057,8 +6158,10 @@ function AppInterna() {
     busquedaModMasivaDiferida,
     modMasivaFiltroProveedorPrecio,
     modMasivaFiltroMarcaPrecio,
-    modMasivaFiltroCategoriaPrecio
+    modMasivaFiltroCategoriaPrecio,
+    modMasivaFiltroEstado
   ]);
+  const productosActualizacionPreciosVisualizados = productosModMasivaVisualizados;
 
   const variacionesPreciosDelMes = useMemo(() => {
     const busqueda = normalizarTextoBusqueda(busquedaVariacionPrecios);
@@ -19351,7 +19454,8 @@ const abrirPuntoVenta = () => {
   };
 
   const toggleSeleccionTodosModMasiva = () => {
-    const idsVisibles = productosModMasivaVisualizados.map((producto) => producto.id);
+    const listaActiva = modMasivaSubvista === 'actualizar_precios' ? productosActualizacionPreciosVisualizados : productosModMasivaVisualizados;
+    const idsVisibles = listaActiva.map((producto) => producto.id);
     if (!idsVisibles.length) return;
     const todosSeleccionados = idsVisibles.every((id) => seleccionProductosModMasiva.includes(id));
     setSeleccionProductosModMasiva((prev) => (
@@ -19442,6 +19546,9 @@ const abrirPuntoVenta = () => {
     ganancia: producto?.ganancia ?? '',
     iva: producto?.iva || '',
     costoIvaIncluido: Boolean(producto?.costoIvaIncluido),
+    ...(producto?.descripcion !== undefined ? { descripcion: producto.descripcion } : {}),
+    ...(producto?.marca !== undefined ? { marca: producto.marca } : {}),
+    ...(producto?.logoMarca !== undefined ? { logoMarca: producto.logoMarca } : {}),
     proveedoresCostos: (Array.isArray(producto?.proveedoresCostos) ? producto.proveedoresCostos : []).map((costo, index) => ({
       proveedor: costo?.proveedor || '',
       codigoProveedor: costo?.codigoProveedor || '',
@@ -19498,14 +19605,19 @@ const abrirPuntoVenta = () => {
   const crearControlRespaldoPreciosPersistente = ({
     tipo = 'actualizacion_precios',
     titulo = 'Respaldo de precios',
-    detalle = ''
+    detalle = '',
+    diferirCantidad = false
   } = {}) => {
     let respaldoRef = null;
+    let cabeceraPromesa = null;
     let cantidad = 0;
     const idsRespaldados = new Set();
 
-    const asegurarCabecera = async () => {
-      if (respaldoRef) return respaldoRef;
+    const asegurarCabecera = () => {
+      if (!cabeceraPromesa) cabeceraPromesa = crearCabeceraRespaldo();
+      return cabeceraPromesa;
+    };
+    const crearCabeceraRespaldo = async () => {
       respaldoRef = await addDoc(collection(db, 'respaldos_precios'), limpiarDatoFirestore({
         tipo,
         titulo,
@@ -19519,6 +19631,7 @@ const abrirPuntoVenta = () => {
     };
 
     return {
+      finalizar: async () => { if (respaldoRef) await updateDoc(respaldoRef, { cantidad }); },
       respaldar: async (producto = null) => {
         if (!producto?.id || idsRespaldados.has(producto.id)) return null;
         const refRespaldo = await asegurarCabecera();
@@ -19529,7 +19642,7 @@ const abrirPuntoVenta = () => {
         }));
         idsRespaldados.add(producto.id);
         cantidad += 1;
-        await updateDoc(refRespaldo, { cantidad });
+        if (!diferirCantidad) await updateDoc(refRespaldo, { cantidad });
         return refRespaldo.id;
       },
       obtenerId: () => respaldoRef?.id || ''
@@ -19565,6 +19678,15 @@ const abrirPuntoVenta = () => {
       textoAceptar: 'Restaurar respaldo'
     });
     if (!confirmar) return;
+    const idsCreadosRespaldo = Array.isArray(respaldo.idsCreados) ? respaldo.idsCreados : [];
+    if (idsCreadosRespaldo.length) {
+      const confirmarBorrado = await confirmarSistema(`Esta operación creó ${idsCreadosRespaldo.length} producto(s) nuevo(s).\n\nAl restaurar se eliminarán esos productos nuevos.`, {
+        tipo: 'warning',
+        titulo: 'Eliminar productos creados',
+        textoAceptar: 'Restaurar y eliminar'
+      });
+      if (!confirmarBorrado) return;
+    }
 
     setRestaurandoRespaldoPrecios(respaldo.id);
     try {
@@ -19591,6 +19713,9 @@ const abrirPuntoVenta = () => {
         actualizarOperacionPrecios((prev) => ({ procesadas: prev.procesadas + 1 }));
       });
 
+      for (const idCreado of idsCreadosRespaldo) {
+        try { await deleteDoc(doc(db, 'productos', idCreado)); } catch (errorBorrado) { console.error('No se pudo eliminar producto creado', errorBorrado); }
+      }
       await updateDoc(doc(db, 'respaldos_precios', respaldo.id), {
         estado: 'restaurado',
         fechaRestauracion: new Date().toISOString(),
@@ -19614,10 +19739,20 @@ const abrirPuntoVenta = () => {
     }
   };
 
-  const aplicarActualizacionPreciosMasivo = async () => {
-    const idsObjetivo = seleccionProductosModMasiva.length
-      ? seleccionProductosModMasiva
-      : productosActualizacionPreciosVisualizados.map((producto) => producto.id);
+  const calcularValorAjusteMasivo = (valor = 0, { modoMonto = false, factor = 1, monto = 0, redondeo = '', esPrecio = false } = {}) => {
+    let nuevo = modoMonto ? (Number(valor) || 0) + (Number(monto) || 0) : (Number(valor) || 0) * factor;
+    nuevo = Math.max(0, nuevo);
+    const paso = parseNumeroBasico(redondeo) || 0;
+    if (esPrecio && paso > 0) nuevo = Math.ceil((nuevo / paso) - 1e-9) * paso;
+    return Number(nuevo.toFixed(2));
+  };
+
+  const aplicarActualizacionPreciosMasivo = async (idsOverride = null) => {
+    const idsObjetivo = Array.isArray(idsOverride) && idsOverride.length
+      ? idsOverride
+      : (seleccionProductosModMasiva.length
+        ? seleccionProductosModMasiva
+        : productosActualizacionPreciosVisualizados.map((producto) => producto.id));
     const productosObjetivo = (productos || []).filter((producto) => idsObjetivo.includes(producto.id));
     if (!productosObjetivo.length) {
       await notificarSistema('No hay productos seleccionados para ajustar.', {
@@ -19701,15 +19836,19 @@ const abrirPuntoVenta = () => {
       return;
     }
 
-    const porcentaje = parseNumeroBasico(modMasivaAjustePrecioPct);
-    if (!Number.isFinite(porcentaje) || porcentaje === 0) {
-      await notificarSistema('Ingresa un porcentaje válido distinto de 0 para ajustar precios.', {
+    const modoMonto = modMasivaAjusteModo === 'monto' && modoAjuste === 'venta';
+    const montoAjuste = parseNumeroBasico(modMasivaAjusteMonto);
+    const porcentaje = modoMonto ? 0 : parseNumeroBasico(modMasivaAjustePrecioPct);
+    if (modoMonto ? (!Number.isFinite(montoAjuste) || montoAjuste === 0) : (!Number.isFinite(porcentaje) || porcentaje === 0)) {
+      await notificarSistema(modoMonto ? 'Ingresá un monto válido distinto de 0 para ajustar precios.' : 'Ingresa un porcentaje válido distinto de 0 para ajustar precios.', {
         tipo: 'warning',
         titulo: 'Ajuste inválido'
       });
       return;
     }
     const factor = 1 + (porcentaje / 100);
+    const etiquetaAjuste = modoMonto ? `${montoAjuste > 0 ? '+' : ''}${formatearDinero(montoAjuste)}` : `${formatearPorcentaje(porcentaje)}%`;
+    const ajustarValor = (valor, esPrecio = false) => calcularValorAjusteMasivo(valor, { modoMonto, factor, monto: montoAjuste, redondeo: modMasivaRedondeo, esPrecio });
     const proveedorFiltroPrecio = textoSeguroTrim(modMasivaFiltroProveedorPrecio, '');
     const snapshotsPrevios = productosObjetivo.map((producto) => ({
       id: producto.id,
@@ -19720,7 +19859,7 @@ const abrirPuntoVenta = () => {
       productosObjetivo,
       tipo: modoAjuste === 'costo' ? 'modificacion_masiva_costos' : 'modificacion_masiva_precios',
       titulo: modoAjuste === 'costo' ? 'Antes de ajustar costos masivos' : 'Antes de ajustar precios masivos',
-      detalle: `${productosObjetivo.length} producto(s), ajuste ${formatearPorcentaje(porcentaje)}%`,
+      detalle: `${productosObjetivo.length} producto(s), ajuste ${etiquetaAjuste}`,
       onProgreso: (procesadas, total) => actualizarOperacionPrecios({ procesadas, total, detalle: `Respaldo: ${procesadas} de ${total}` })
     });
     const updates = productosObjetivo.map((producto) => {
@@ -19730,7 +19869,7 @@ const abrirPuntoVenta = () => {
       if (ivaNuevo) payload.iva = ivaNuevo;
       if (modoAjuste === 'venta') {
         const precioActual = Math.max(0, parseNumeroBasico(producto?.precio));
-        payload.precio = Math.max(0, Number((precioActual * factor).toFixed(2)));
+        payload.precio = ajustarValor(precioActual, true);
       } else {
         payload.fechaActualizacionCostoProveedor = fechaActualizacionPrecios;
         const costosActuales = obtenerCostosProveedorProducto(producto).map((costo, index) => normalizarProveedorCosto(costo, index));
@@ -19739,7 +19878,7 @@ const abrirPuntoVenta = () => {
           if (idxCosto >= 0) {
             const costoPrevio = costosActuales[idxCosto];
             const costoActual = Math.max(0, parseNumeroBasico(costoPrevio?.costo || 0));
-            const costoNuevo = Math.max(0, Number((costoActual * factor).toFixed(2)));
+            const costoNuevo = ajustarValor(costoActual);
             const costoActualizado = { ...costoPrevio, costo: String(costoNuevo), actualizado: obtenerFechaInputLocal() };
             const costosSiguientes = costosActuales.map((costo, index) => (index === idxCosto ? costoActualizado : costo));
             payload.proveedoresCostos = costosSiguientes;
@@ -19761,13 +19900,13 @@ const abrirPuntoVenta = () => {
             }
           } else {
             const costoBase = Math.max(0, parseNumeroBasico(producto?.costoOriginal ?? producto?.costo ?? 0));
-            payload.costoOriginal = Number((costoBase * factor).toFixed(2));
-            payload.costo = Number((Math.max(0, parseNumeroBasico(producto?.costo ?? 0)) * factor).toFixed(2));
+            payload.costoOriginal = ajustarValor(costoBase);
+            payload.costo = ajustarValor(Math.max(0, parseNumeroBasico(producto?.costo ?? 0)));
           }
         } else {
           const costoBase = Math.max(0, parseNumeroBasico(producto?.costoOriginal ?? producto?.costo ?? 0));
-          payload.costoOriginal = Number((costoBase * factor).toFixed(2));
-          payload.costo = Number((Math.max(0, parseNumeroBasico(producto?.costo ?? 0)) * factor).toFixed(2));
+          payload.costoOriginal = ajustarValor(costoBase);
+          payload.costo = ajustarValor(Math.max(0, parseNumeroBasico(producto?.costo ?? 0)));
         }
       }
       return Promise.all([
@@ -19788,7 +19927,7 @@ const abrirPuntoVenta = () => {
       productos: snapshotsPrevios
     });
     await finalizarOperacionPrecios(`Se ajustaron ${productosObjetivo.length} producto(s).`);
-    await notificarSistema(`Se ajustaron ${productosObjetivo.length} producto(s) en ${formatearPorcentaje(porcentaje)}%.`, {
+    await notificarSistema(`Se ajustaron ${productosObjetivo.length} producto(s) (${etiquetaAjuste}).`, {
       tipo: 'success',
       titulo: 'Precios actualizados'
     });
@@ -19845,14 +19984,19 @@ const abrirPuntoVenta = () => {
     setModMasivaIvaDuplicado('21');
     setModMasivaCodigosProveedorManual({});
     setModMasivaAjustePrecioPct('');
+    setModMasivaAjusteMonto('');
+    setModMasivaRedondeo('');
+    setModMasivaFiltroEstado('');
     setModMasivaPreciosIndividuales({});
     setSeleccionProductosModMasiva([]);
   };
 
-  const aplicarProveedorMasivo = async () => {
-    const idsObjetivo = seleccionProductosModMasiva.length
-      ? seleccionProductosModMasiva
-      : productosModMasivaVisualizados.map((producto) => producto.id);
+  const aplicarProveedorMasivo = async (idsOverride = null) => {
+    const idsObjetivo = Array.isArray(idsOverride) && idsOverride.length
+      ? idsOverride
+      : (seleccionProductosModMasiva.length
+        ? seleccionProductosModMasiva
+        : productosModMasivaVisualizados.map((producto) => producto.id));
     const productosObjetivo = (productos || []).filter((producto) => idsObjetivo.includes(producto.id));
     if (!productosObjetivo.length) {
       await notificarSistema('Selecciona al menos un producto para aplicar cambios masivos.', {
@@ -19941,6 +20085,14 @@ const abrirPuntoVenta = () => {
       });
     };
 
+    const tituloRespaldoMasivo = esMultiplicar ? 'Antes de multiplicar artículos' : (esReemplazoDatos ? 'Antes de reemplazar datos' : 'Antes de asignar proveedor');
+    const respaldoMasivo = await crearRespaldoPreciosPersistente({
+      productosObjetivo,
+      tipo: `modificacion_masiva_${modMasivaSubvista}`,
+      titulo: tituloRespaldoMasivo,
+      detalle: `${productosObjetivo.length} producto(s)${esMultiplicar && modMasivaDuplicar ? ' · se crearon productos nuevos' : ''}`
+    });
+    const idsProductosCreadosMasivo = [];
     const updates = [];
     for (const producto of productosObjetivo) {
       const costoIndividualRaw = modMasivaCostosIndividuales?.[producto.id];
@@ -20031,7 +20183,7 @@ const abrirPuntoVenta = () => {
           fechaActualizacion: new Date().toISOString()
         };
         delete payloadNuevo.id;
-        updates.push(addDoc(collection(db, 'productos'), payloadNuevo));
+        updates.push(addDoc(collection(db, 'productos'), payloadNuevo).then((refNuevo) => { idsProductosCreadosMasivo.push(refNuevo.id); return refNuevo; }));
       } else {
         const updatePayload = {
           proveedoresCostos: costosSiguientes,
@@ -20078,6 +20230,9 @@ const abrirPuntoVenta = () => {
     }
 
     await Promise.all(updates);
+    if (respaldoMasivo?.id && idsProductosCreadosMasivo.length) {
+      try { await updateDoc(doc(db, 'respaldos_precios', respaldoMasivo.id), { idsCreados: idsProductosCreadosMasivo }); } catch (errorRespaldo) { console.error('No se pudo registrar los productos creados en el respaldo', errorRespaldo); }
+    }
     limpiarModificacionMasiva();
     await notificarSistema(
       modMasivaDuplicar
@@ -20386,81 +20541,100 @@ function obtenerCategoriaProducto(producto) {
     }
   };
 
-  const procesarImportacionInventario = async () => {
-    if (!archivoImportacionInventario || !filasImportacionInventario.length) {
-      await notificarSistema('Selecciona primero un archivo Excel o CSV.', {
-        tipo: 'warning',
-        titulo: 'Archivo requerido'
-      });
+  const PASOS_IMPORTACION_INVENTARIO = ['Archivo', 'Columnas', 'Revisión', 'Importación'];
+
+  const validarConfigImportacionInventario = (configImport = configImportacionInventario) => {
+    const proveedorNombre = textoSeguroTrim(configImport?.proveedor, '');
+    if (!filasImportacionInventario.length) return 'Cargá primero un archivo con filas para importar.';
+    if (!configImport.columnaCodigoProducto && !configImport.columnaCodigoProveedor && !configImport.columnaDescripcion) return 'Indicá al menos una columna de código o de descripción para identificar los productos.';
+    if (proveedorNombre && !configImport.columnaCodigoProveedor) return 'Elegiste un proveedor: indicá cuál columna es el "Código proveedor", porque el cruce se hace por ese código.';
+    if (configImport.columnaCodigoProveedor && !proveedorNombre) return 'Para cruzar por código de proveedor tenés que elegir el proveedor de la lista (paso 1).';
+    if (!configImport.columnaCosto && !configImport.columnaPrecio && !configImport.columnaStock && !configImport.columnaDescripcion && !configImport.columnaMarca && !configImport.columnaCategoria) return 'Indicá qué querés actualizar: costo, precio de venta, stock u otro dato.';
+    return '';
+  };
+
+  const reiniciarImportacionInventario = (proveedor = '') => {
+    setArchivoImportacionInventario(null);
+    setFilasImportacionInventario([]);
+    setColumnasArchivoImportacionInventario([]);
+    setConfigImportacionInventario({ ...crearConfigImportacionInventarioVacia(), proveedor });
+    setResumenImportacionInventario(null);
+    setVistaPreviaImportacionInventario(null);
+    setErroresImportacionInventario([]);
+    setFiltroVistaImportacionInventario('todos');
+    setPasoImportacionInventario(1);
+    setImportandoInventario(false);
+    setProgresoImportacionInventario({ activo: false, total: 0, procesadas: 0, actualizados: 0, creados: 0, sinCambios: 0, variaciones: 0, errores: 0, cancelado: false, inicio: 0 });
+  };
+
+  const abrirImportacionInventario = () => {
+    reiniciarImportacionInventario(filtroProveedorInventario || '');
+    setModalActivo('importar_inventario');
+  };
+
+  const descargarPlantillaImportacionInventario = () => {
+    const filas = [
+      ['Código proveedor', 'Código producto', 'Descripción', 'Costo', 'Precio venta', 'Stock'],
+      ['ABC-123', '', 'Producto de ejemplo', 1500.5, '', 10]
+    ];
+    const libro = XLSX.utils.book_new();
+    const hoja = XLSX.utils.aoa_to_sheet(filas);
+    hoja['!cols'] = [{ wch: 18 }, { wch: 16 }, { wch: 36 }, { wch: 12 }, { wch: 14 }, { wch: 8 }];
+    XLSX.utils.book_append_sheet(libro, hoja, 'Lista');
+    XLSX.writeFile(libro, 'plantilla-importacion.xlsx');
+  };
+
+  const descargarErroresImportacionInventario = () => {
+    const filas = [['Fila', 'Código', 'Descripción', 'Motivo'], ...erroresImportacionInventario.map((e) => [e.filaNumero, e.codigo, e.descripcion, e.mensaje])];
+    const csv = filas.map((f) => f.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+    const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'errores-importacion.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const analizarImportacionInventario = async () => {
+    const problema = validarConfigImportacionInventario();
+    if (problema) {
+      await notificarSistema(problema, { tipo: 'warning', titulo: 'Revisá la configuración' });
       return;
     }
-    setImportandoInventario(true);
-    setResumenImportacionInventario(null);
-    setProgresoImportacionInventario({ activo: true, total: filasImportacionInventario.length, procesadas: 0, actualizados: 0, creados: 0, sinCambios: 0, variaciones: 0 });
+    setAnalizandoImportacionInventario(true);
+    setVistaPreviaImportacionInventario(null);
     try {
-      const filas = filasImportacionInventario;
-      const configImport = configImportacionInventario || crearConfigImportacionInventarioVacia();
+      await new Promise((resolver) => window.setTimeout(resolver, 30));
+      const configImport = configImportacionInventario;
       const proveedorNombre = textoSeguroTrim(configImport.proveedor, '');
       const proveedorKey = normalizarTextoBusqueda(proveedorNombre);
       const proveedorMaestro = proveedorKey ? obtenerProveedorMaestroPorNombre(proveedorNombre) : null;
-      const importacionConProveedorRiguroso = Boolean(proveedorNombre);
-      const fechaActualizacionImportacion = new Date().toISOString();
-      const fechaActualizacionImportacionDia = obtenerFechaInputLocal();
-      const permiteCrearProductosNuevos = Boolean(configImport.crearProductosNuevos);
+      const riguroso = Boolean(proveedorNombre);
+      const permiteCrear = Boolean(configImport.crearProductosNuevos);
       const colCodigoProducto = configImport.columnaCodigoProducto;
       const colCodigoProveedor = configImport.columnaCodigoProveedor;
       const colDescripcion = configImport.columnaDescripcion;
       const colCosto = configImport.columnaCosto;
       const colPrecio = configImport.columnaPrecio;
+      const fechaIso = new Date().toISOString();
+      const fechaDia = obtenerFechaInputLocal();
 
-      if (!colCodigoProducto && !colCodigoProveedor && !colDescripcion) {
-        await notificarSistema('Indicá al menos una columna de código o descripción para poder importar.', {
-          tipo: 'warning',
-          titulo: 'Columnas requeridas'
-        });
-        return;
-      }
-      if (importacionConProveedorRiguroso && !colCodigoProveedor) {
-        await notificarSistema('Cuando elegís un proveedor, la importación solo puede cruzar por la columna Código proveedor.', {
-          tipo: 'warning',
-          titulo: 'Código de proveedor requerido'
-        });
-        return;
-      }
-      if (colCodigoProveedor && !proveedorNombre) {
-        await notificarSistema('Para buscar por código de proveedor, seleccioná primero el proveedor de la lista.', {
-          tipo: 'warning',
-          titulo: 'Proveedor requerido'
-        });
-        return;
-      }
-      if (!colCosto && !colPrecio && !colDescripcion) {
-        await notificarSistema('Indicá al menos una columna de costo, precio o descripción.', {
-          tipo: 'warning',
-          titulo: 'Datos requeridos'
-        });
-        return;
-      }
-
-      const codigosUsadosImportacion = obtenerCodigosInventarioUsados();
-      const generarCodigoInternoImportacion = () => {
+      const codigosUsados = obtenerCodigosInventarioUsados();
+      const generarCodigoInterno = () => {
         for (let i = 1; i <= 999999; i += 1) {
           const candidato = String(i).padStart(6, '0');
           const clave = normalizarCodigoParaComparar(candidato);
-          if (!codigosUsadosImportacion.has(clave)) {
-            codigosUsadosImportacion.add(clave);
-            return candidato;
-          }
+          if (!codigosUsados.has(clave)) { codigosUsados.add(clave); return candidato; }
         }
-        const fallback = Date.now().toString().slice(-6);
-        codigosUsadosImportacion.add(normalizarCodigoParaComparar(fallback));
-        return fallback;
+        const alternativo = Date.now().toString().slice(-6);
+        codigosUsados.add(normalizarCodigoParaComparar(alternativo));
+        return alternativo;
       };
       const porCodigo = new Map();
       const porCodigoNumerico = new Map();
       const porCodigoProveedor = new Map();
       const porCodigoProveedorEstricto = new Map();
-      productos.forEach((p) => {
+      (productos || []).forEach((p) => {
         const codigo = normalizarCodigoProducto(p.codigo);
         if (codigo) porCodigo.set(codigo, p);
         const codigoNum = normalizarCodigoNumerico(p.codigo);
@@ -20468,32 +20642,28 @@ function obtenerCategoriaProducto(producto) {
         obtenerCostosProveedorProducto(p).forEach((costo, index) => {
           if (!proveedorKey || normalizarTextoBusqueda(costo?.proveedor || '') !== proveedorKey) return;
           if (!textoSeguroTrim(costo?.codigoProveedor, '')) return;
-          const codigoProveedorEstricto = normalizarCodigoProveedorImportacion(costo.codigoProveedor);
-          if (codigoProveedorEstricto) {
-            if (!porCodigoProveedorEstricto.has(codigoProveedorEstricto)) porCodigoProveedorEstricto.set(codigoProveedorEstricto, []);
-            porCodigoProveedorEstricto.get(codigoProveedorEstricto).push({ producto: p, index });
+          const estricto = normalizarCodigoProveedorImportacion(costo.codigoProveedor);
+          if (estricto) {
+            if (!porCodigoProveedorEstricto.has(estricto)) porCodigoProveedorEstricto.set(estricto, []);
+            porCodigoProveedorEstricto.get(estricto).push({ producto: p, index });
           }
           registrarProductoEnMapaProveedor(porCodigoProveedor, costo.codigoProveedor, { producto: p, index });
         });
       });
 
-      let actualizados = 0;
-      let creados = 0;
-      let sinCoincidencia = 0;
-      let sinCodigo = 0;
-      let filasInvalidas = 0;
-      let sinCambios = 0;
-      let omitidosPorExistentes = 0;
-      const marcarFilaProcesada = () => setProgresoImportacionInventario((prev) => ({ ...prev, procesadas: prev.procesadas + 1, actualizados, creados, sinCambios }));
-      const respaldoImportacion = crearControlRespaldoPreciosPersistente({
-        tipo: 'importacion_inventario',
-        titulo: proveedorNombre ? `Antes de importar lista ${proveedorNombre}` : 'Antes de importar inventario',
-        detalle: archivoImportacionInventario?.name || ''
-      });
+      const distinto = (a, b) => {
+        const na = Number(a); const nb = Number(b);
+        if (Number.isFinite(na) && Number.isFinite(nb)) return Math.abs(na - nb) > 0.004;
+        return textoSeguroTrim(a, '') !== textoSeguroTrim(b, '');
+      };
 
-      for (let inicioFila = 0; inicioFila < filas.length; inicioFila += 25) {
-        const loteFilas = filas.slice(inicioFila, inicioFila + 25);
-        for (const fila of loteFilas) {
+      const filasVista = [];
+      const productosVistos = new Set();
+      const filas = filasImportacionInventario;
+      for (let filaIndex = 0; filaIndex < filas.length; filaIndex += 1) {
+        if (filaIndex > 0 && filaIndex % 400 === 0) await new Promise((resolver) => window.setTimeout(resolver, 0));
+        const fila = filas[filaIndex];
+        const base = { id: `imp-${filaIndex}`, filaNumero: filaIndex + 2, seleccionado: false };
         const codigoRaw = obtenerValorColumnaImportacion(fila, colCodigoProducto);
         const codigoProveedorRaw = obtenerValorColumnaImportacion(fila, colCodigoProveedor);
         const descripcion = textoSeguroTrim(obtenerValorColumnaImportacion(fila, colDescripcion), '');
@@ -20501,22 +20671,27 @@ function obtenerCategoriaProducto(producto) {
         const codigoNumerico = normalizarCodigoNumerico(codigoRaw);
         const codigoProveedor = normalizarCodigoProveedorImportacion(codigoProveedorRaw);
         const codigoProveedorNumerico = normalizarCodigoNumerico(codigoProveedorRaw);
-        if (!codigo && !codigoProveedor && !descripcion) { sinCodigo += 1; marcarFilaProcesada(); return; }
-        if (importacionConProveedorRiguroso && !codigoProveedor) { sinCodigo += 1; marcarFilaProcesada(); return; }
+        const etiqueta = { codigo: textoSeguroTrim(codigoProveedorRaw, '') || textoSeguroTrim(codigoRaw, ''), descripcionArchivo: descripcion };
 
+        if ((!codigo && !codigoProveedor && !descripcion) || (riguroso && !codigoProveedor)) {
+          filasVista.push({ ...base, ...etiqueta, estado: 'sin_codigo', motivo: riguroso ? 'La fila no tiene código de proveedor.' : 'La fila no tiene código ni descripción.' });
+          continue;
+        }
         const coincidenciasProveedor = codigoProveedor
-          ? (importacionConProveedorRiguroso
+          ? (riguroso
             ? porCodigoProveedorEstricto.get(codigoProveedor)
             : (porCodigoProveedor.get(codigoProveedor) || (codigoProveedorNumerico ? porCodigoProveedor.get(codigoProveedorNumerico) : null)))
           : null;
-        const producto = importacionConProveedorRiguroso
+        const producto = riguroso
           ? coincidenciasProveedor?.[0]?.producto
-          : (coincidenciasProveedor?.[0]?.producto || porCodigo.get(codigo) || (codigoNumerico ? porCodigoNumerico.get(codigoNumerico) : null));
-        if (!producto && !permiteCrearProductosNuevos) {
-          sinCoincidencia += 1;
-          omitidosPorExistentes += 1;
-          marcarFilaProcesada();
-          return;
+          : (coincidenciasProveedor?.[0]?.producto || (codigo ? porCodigo.get(codigo) : null) || (codigoNumerico ? porCodigoNumerico.get(codigoNumerico) : null));
+        if (!producto && !permiteCrear) {
+          filasVista.push({ ...base, ...etiqueta, estado: 'sin_coincidencia', motivo: riguroso ? 'Ese código no existe para el proveedor elegido.' : 'No existe en el inventario.' });
+          continue;
+        }
+        if (producto && productosVistos.has(producto.id)) {
+          filasVista.push({ ...base, ...etiqueta, producto, productoId: producto.id, descripcion: producto.descripcion, codigoProducto: producto.codigo, estado: 'duplicado', motivo: 'Este producto ya aparece antes en la lista.' });
+          continue;
         }
 
         const precio = parseNumeroImportacion(obtenerValorColumnaImportacion(fila, colPrecio));
@@ -20528,15 +20703,14 @@ function obtenerCategoriaProducto(producto) {
         const unidad = textoSeguroTrim(obtenerValorColumnaImportacion(fila, configImport.columnaUnidad), '');
         const ivaRaw = textoSeguroTrim(obtenerValorColumnaImportacion(fila, configImport.columnaIva), '');
         const monedaRaw = normalizarTextoBusqueda(obtenerValorColumnaImportacion(fila, configImport.columnaMoneda));
-        const moneda = monedaRaw.includes('blue') ? 'USD_BLUE' : (monedaRaw.includes('usd') || monedaRaw.includes('dolar') || monedaRaw.includes('dólar') ? 'USD_BNA' : 'ARS');
+        const moneda = monedaRaw.includes('blue') ? 'USD_BLUE' : (monedaRaw.includes('usd') || monedaRaw.includes('dolar') ? 'USD_BNA' : 'ARS');
         const iva = ivaRaw ? (ivaRaw.includes('10') ? '10.5' : (ivaRaw.includes('21') ? '21' : ivaRaw)) : '21';
         const costoValido = costo !== null && costo >= 0;
         const precioValido = precio !== null && precio >= 0;
         const gananciaValida = ganancia !== null && ganancia >= 0;
-        if (!producto && !descripcion && !codigo) {
-          filasInvalidas += 1;
-          marcarFilaProcesada();
-          return;
+        if ((colCosto || colPrecio) && !costoValido && !precioValido && cantidad === null && !categoria && !marca && !unidad && !ivaRaw) {
+          filasVista.push({ ...base, ...etiqueta, producto, productoId: producto?.id, estado: 'invalida', motivo: 'El costo y el precio están vacíos o no son números.' });
+          continue;
         }
 
         const updates = {};
@@ -20545,7 +20719,8 @@ function obtenerCategoriaProducto(producto) {
         if (cantidad !== null && cantidad >= 0) updates.cantidad = cantidad;
         if (categoria) updates.categoria = categoria;
         if (marca) updates.marca = marca;
-        if (descripcion) updates.descripcion = descripcion;
+        if (descripcion && !producto) updates.descripcion = descripcion;
+        if (descripcion && producto && colDescripcion && !riguroso) updates.descripcion = descripcion;
         if (unidad) updates.unidad = unidad;
         if (ivaRaw) updates.iva = ivaRaw;
         if (costoValido) {
@@ -20556,21 +20731,14 @@ function obtenerCategoriaProducto(producto) {
         }
 
         let proveedoresCostosSiguientes = null;
-        let proveedorPrincipal = null;
         let costoAnteriorProveedor = null;
         let costoNuevoProveedor = null;
         const debeActualizarProveedor = Boolean(proveedorNombre && (codigoProveedor || costoValido));
         if (debeActualizarProveedor) {
-          const costosActuales = producto
-            ? obtenerCostosProveedorProducto(producto).map((item, index) => normalizarProveedorCosto(item, index))
-            : [];
+          const costosActuales = producto ? obtenerCostosProveedorProducto(producto).map((item, index) => normalizarProveedorCosto(item, index)) : [];
           let idxCosto = costosActuales.findIndex((item) => (
             normalizarTextoBusqueda(item?.proveedor || '') === proveedorKey
-            && (
-              !codigoProveedor
-              || normalizarCodigoProveedorImportacion(item?.codigoProveedor) === codigoProveedor
-              || (!importacionConProveedorRiguroso && codigoProveedorNumerico && normalizarCodigoNumerico(item?.codigoProveedor) === codigoProveedorNumerico)
-            )
+            && (!codigoProveedor || normalizarCodigoProveedorImportacion(item?.codigoProveedor) === codigoProveedor)
           ));
           if (idxCosto < 0 && coincidenciasProveedor?.[0]?.index >= 0) idxCosto = coincidenciasProveedor[0].index;
           const costoBase = idxCosto >= 0 ? costosActuales[idxCosto] : { recomendado: costosActuales.length === 0 };
@@ -20582,7 +20750,7 @@ function obtenerCategoriaProducto(producto) {
             costo: costoValido ? String(Number(costo.toFixed(2))) : (costoBase?.costo ?? ''),
             moneda,
             ivaIncluido: Boolean(configImport.ivaIncluido),
-            actualizado: fechaActualizacionImportacionDia,
+            actualizado: fechaDia,
             recomendado: Boolean(costoBase?.recomendado || costosActuales.length === 0)
           };
           costoNuevoProveedor = costoValido ? Number(costo.toFixed(2)) : null;
@@ -20592,125 +20760,170 @@ function obtenerCategoriaProducto(producto) {
           if (!proveedoresCostosSiguientes.some((item) => item.recomendado) && proveedoresCostosSiguientes[0]) {
             proveedoresCostosSiguientes = proveedoresCostosSiguientes.map((item, index) => ({ ...item, recomendado: index === 0 }));
           }
-          proveedorPrincipal = proveedoresCostosSiguientes.find((item) => item.recomendado) || proveedoresCostosSiguientes[0] || null;
+          const proveedorPrincipal = proveedoresCostosSiguientes.find((item) => item.recomendado) || proveedoresCostosSiguientes[0] || null;
           updates.proveedoresCostos = proveedoresCostosSiguientes;
           updates.proveedor = proveedorPrincipal?.proveedor || proveedorNombre;
           updates.codigoProveedor = proveedorPrincipal?.codigoProveedor || textoSeguroTrim(codigoProveedorRaw, '');
           updates.costoIvaIncluido = Boolean(proveedorPrincipal?.ivaIncluido);
-          const costoProveedorPesos = proveedorPrincipal ? convertirCostoProveedorAPesos(proveedorPrincipal) : 0;
-          if (costoProveedorPesos > 0) {
-            updates.costo = costoProveedorPesos;
+          const costoEnPesos = proveedorPrincipal ? convertirCostoProveedorAPesos(proveedorPrincipal) : 0;
+          if (costoEnPesos > 0) {
+            updates.costo = costoEnPesos;
             updates.costoOriginal = obtenerCostoProveedorNetoMoneda(proveedorPrincipal);
             updates.monedaCosto = proveedorPrincipal?.moneda || moneda;
           }
         }
-
         if (!precioValido && costoValido && gananciaValida) {
-          updates.precio = parseNumeroBasico(calcularPrecioVenta(
-            costo,
-            ganancia,
-            iva,
-            moneda,
-            obtenerCotizacionParaMoneda(moneda),
-            null,
-            Boolean(configImport.ivaIncluido)
-          ));
+          updates.precio = parseNumeroBasico(calcularPrecioVenta(costo, ganancia, iva, moneda, obtenerCotizacionParaMoneda(moneda), null, Boolean(configImport.ivaIncluido)));
+        }
+        if (!precioValido && !gananciaValida && costoValido && producto && Number(producto.ganancia) >= 0 && updates.costo > 0) {
+          const recalculado = parseNumeroBasico(calcularPrecioVenta(updates.costo, producto.ganancia, producto.iva || '21', 'ARS', 1, updates.costo, Boolean(updates.costoIvaIncluido)));
+          if (recalculado > 0) updates.precio = recalculado;
         }
 
         if (producto) {
-          if (Object.keys(updates).length === 0) {
-            sinCambios += 1;
-            marcarFilaProcesada();
-            return;
+          const costoAntes = costoAnteriorProveedor !== null && costoAnteriorProveedor !== undefined ? costoAnteriorProveedor : parseNumeroBasico(producto.costoOriginal ?? producto.costo);
+          const costoDespues = costoNuevoProveedor !== null ? costoNuevoProveedor : (costoValido ? costo : null);
+          const precioAntes = parseNumeroBasico(producto.precio);
+          const precioDespues = updates.precio !== undefined ? parseNumeroBasico(updates.precio) : null;
+          const stockAntes = parseNumeroBasico(producto.cantidad);
+          const cambios = [];
+          if (costoDespues !== null && (distinto(costoAntes, costoDespues))) cambios.push('costo');
+          if (precioDespues !== null && distinto(precioAntes, precioDespues)) cambios.push('precio');
+          if (updates.cantidad !== undefined && distinto(stockAntes, updates.cantidad)) cambios.push('stock');
+          ['categoria', 'marca', 'descripcion', 'unidad', 'iva'].forEach((campo) => { if (updates[campo] !== undefined && distinto(producto[campo], updates[campo])) cambios.push(campo); });
+          if (updates.ganancia !== undefined && distinto(producto.ganancia, updates.ganancia)) cambios.push('ganancia');
+          if (proveedoresCostosSiguientes && !cambios.length && costoAnteriorProveedor === null) cambios.push('proveedor');
+          productosVistos.add(producto.id);
+          const porcentajeCosto = costoDespues !== null && costoAntes > 0 ? ((costoDespues - costoAntes) / costoAntes) * 100 : null;
+          const porcentajePrecio = precioDespues !== null && precioAntes > 0 ? ((precioDespues - precioAntes) / precioAntes) * 100 : null;
+          const final = { ...base, ...etiqueta, producto, productoId: producto.id, descripcion: producto.descripcion, codigoProducto: producto.codigo, cambios, costoAntes, costoDespues, precioAntes, precioDespues, stockAntes, stockDespues: updates.cantidad ?? null, porcentajeCosto, porcentajePrecio, variacionAlta: Math.max(Math.abs(porcentajeCosto || 0), Math.abs(porcentajePrecio || 0)) > 25 };
+          if (!cambios.length) {
+            filasVista.push({ ...final, estado: 'sin_cambios', motivo: 'Los valores ya están actualizados.' });
+          } else {
+            updates.imagen = producto.imagen || '';
+            updates.fechaActualizacion = fechaIso;
+            if (updates.precio !== undefined || updates.costo !== undefined || updates.ganancia !== undefined) updates.fechaActualizacionPrecio = fechaIso;
+            if (updates.costo !== undefined || debeActualizarProveedor) updates.fechaActualizacionCostoProveedor = fechaIso;
+            filasVista.push({ ...final, estado: 'actualizar', motivo: `Se actualiza: ${cambios.join(', ')}.`, updates, seleccionado: true, variacionCosto: costoAnteriorProveedor > 0 && costoNuevoProveedor !== null ? { anterior: costoAnteriorProveedor, nuevo: costoNuevoProveedor } : null });
           }
-          updates.imagen = producto.imagen || '';
-          updates.fechaActualizacion = fechaActualizacionImportacion;
-          if (precioValido || costoValido || gananciaValida) {
-            updates.fechaActualizacionPrecio = fechaActualizacionImportacion;
-          }
-          if (costoValido || debeActualizarProveedor) {
-            updates.fechaActualizacionCostoProveedor = fechaActualizacionImportacion;
-          }
-          await respaldoImportacion.respaldar(producto);
-          await updateDoc(doc(db, 'productos', producto.id), limpiarDatoFirestore(updates));
-          const variacionRegistrada = costoAnteriorProveedor > 0 && costoNuevoProveedor !== null
-            ? await registrarVariacionPrecio({
-                producto,
-                precioAnterior: costoAnteriorProveedor,
-                precioNuevo: costoNuevoProveedor,
-                proveedor: proveedorNombre,
-                origen: 'lista_proveedor',
-                tipoVariacion: 'costo_proveedor',
-                archivo: archivoImportacionInventario?.name || ''
-              })
-            : false;
-          actualizados += 1;
-          if (variacionRegistrada) setProgresoImportacionInventario((prev) => ({ ...prev, variaciones: prev.variaciones + 1 }));
-          marcarFilaProcesada();
         } else {
           if (!descripcion && !codigo) {
-            sinCoincidencia += 1;
-            marcarFilaProcesada();
-            return;
+            filasVista.push({ ...base, ...etiqueta, estado: 'sin_codigo', motivo: 'Para crear un producto hace falta código o descripción.' });
+            continue;
           }
-          const codigoFinal = textoSeguroTrim(codigoRaw, '') || generarCodigoInternoImportacion();
+          const codigoFinal = textoSeguroTrim(codigoRaw, '') || generarCodigoInterno();
           const codigoNormalizado = normalizarCodigoParaComparar(codigoFinal);
-          if (codigoNormalizado) codigosUsadosImportacion.add(codigoNormalizado);
-          const precioFinal = precioValido
-            ? precio
-            : parseNumeroBasico(updates.precio || 0);
-          const gananciaFinal = gananciaValida ? ganancia : 0;
+          if (codigoNormalizado) codigosUsados.add(codigoNormalizado);
+          const precioFinal = precioValido ? precio : parseNumeroBasico(updates.precio || 0);
           const payloadNuevo = limpiarDatoFirestore({
-            codigo: codigoFinal,
-            codigoInterno: codigoFinal,
-            codigoBarras: '',
-            codigoTipoPrincipal: 'interno',
-            generarCodigoAutomatico: !textoSeguroTrim(codigoRaw, ''),
-            categoria,
-            marca,
-            descripcion: descripcion || codigoFinal,
-            detalles: '',
-            costo: parseNumeroBasico(updates.costo || costo || 0),
-            costoOriginal: parseNumeroBasico(updates.costoOriginal || costo || 0),
-            monedaCosto: updates.monedaCosto || moneda,
-            proveedor: updates.proveedor || proveedorNombre,
-            codigoProveedor: updates.codigoProveedor || textoSeguroTrim(codigoProveedorRaw, ''),
-            costoIvaIncluido: Boolean(updates.costoIvaIncluido || configImport.ivaIncluido),
-            proveedoresCostos: proveedoresCostosSiguientes || [],
-            usarCostoPromedioProveedores: false,
-            costoPromedioProveedores: 0,
-            aplicarGananciaObjetivoReal: false,
-            objetivoMargenReal: MARGEN_REAL_OBJETIVO_DEFAULT,
-            ganancia: gananciaFinal,
-            iva,
-            precio: precioFinal,
-            unidad: unidad || 'unid',
-            cantidad: cantidad !== null && cantidad >= 0 ? cantidad : 0,
-            imagen: '',
-            logoMarca: '',
-            fechaCreacion: fechaActualizacionImportacion,
-            fechaActualizacion: fechaActualizacionImportacion,
-            fechaActualizacionPrecio: fechaActualizacionImportacion,
-            fechaActualizacionCostoProveedor: fechaActualizacionImportacion
+            codigo: codigoFinal, codigoInterno: codigoFinal, codigoBarras: '', codigoTipoPrincipal: 'interno', generarCodigoAutomatico: !textoSeguroTrim(codigoRaw, ''),
+            categoria, marca, descripcion: descripcion || codigoFinal, detalles: '',
+            costo: parseNumeroBasico(updates.costo || costo || 0), costoOriginal: parseNumeroBasico(updates.costoOriginal || costo || 0), monedaCosto: updates.monedaCosto || moneda,
+            proveedor: updates.proveedor || proveedorNombre, codigoProveedor: updates.codigoProveedor || textoSeguroTrim(codigoProveedorRaw, ''),
+            costoIvaIncluido: Boolean(updates.costoIvaIncluido || configImport.ivaIncluido), proveedoresCostos: proveedoresCostosSiguientes || [],
+            usarCostoPromedioProveedores: false, costoPromedioProveedores: 0, aplicarGananciaObjetivoReal: false, objetivoMargenReal: MARGEN_REAL_OBJETIVO_DEFAULT,
+            ganancia: gananciaValida ? ganancia : 0, iva, precio: precioFinal, unidad: unidad || 'unid', cantidad: cantidad !== null && cantidad >= 0 ? cantidad : 0,
+            imagen: '', logoMarca: '', fechaCreacion: fechaIso, fechaActualizacion: fechaIso, fechaActualizacionPrecio: fechaIso, fechaActualizacionCostoProveedor: fechaIso
           });
-          await addDoc(collection(db, 'productos'), payloadNuevo);
-          creados += 1;
-          marcarFilaProcesada();
-        }
+          filasVista.push({ ...base, ...etiqueta, estado: 'crear', motivo: 'Producto nuevo.', descripcion: descripcion || codigoFinal, codigoProducto: codigoFinal, payloadNuevo, costoAntes: null, costoDespues: costoValido ? costo : null, precioAntes: null, precioDespues: precioFinal || null, stockAntes: null, stockDespues: cantidad, seleccionado: true });
         }
       }
 
-      setResumenImportacionInventario({ total: filas.length, actualizados, creados, sinCoincidencia, sinCodigo, filasInvalidas, sinCambios, omitidosPorExistentes });
-      await notificarSistema(`Importación lista: ${actualizados} actualizado(s) y ${creados} creado(s).`, {
-        tipo: 'success',
-        titulo: 'Inventario importado'
+      const contar = (estado) => filasVista.filter((f) => f.estado === estado).length;
+      const resumen = {
+        total: filas.length,
+        actualizar: contar('actualizar'),
+        crear: contar('crear'),
+        sinCambios: contar('sin_cambios'),
+        sinCoincidencia: contar('sin_coincidencia'),
+        problemas: contar('sin_codigo') + contar('invalida') + contar('duplicado'),
+        variacionAlta: filasVista.filter((f) => f.variacionAlta && f.estado === 'actualizar').length
+      };
+      setVistaPreviaImportacionInventario({ filas: filasVista, resumen, proveedor: proveedorNombre, archivo: archivoImportacionInventario?.name || '' });
+      setFiltroVistaImportacionInventario(resumen.actualizar + resumen.crear > 0 ? 'cambios' : 'todos');
+      setPasoImportacionInventario(3);
+    } catch (error) {
+      console.error('Error analizando la lista de importación', error);
+      await notificarSistema(`No se pudo analizar el archivo. ${textoSeguroTrim(error?.message, 'Revisá las columnas elegidas e intentá de nuevo.')}`, { tipo: 'error', titulo: 'Error al analizar' });
+    } finally {
+      setAnalizandoImportacionInventario(false);
+    }
+  };
+
+  const alternarFilaImportacionInventario = (filaId) => {
+    setVistaPreviaImportacionInventario((prev) => prev ? { ...prev, filas: prev.filas.map((f) => (f.id === filaId && ['actualizar', 'crear'].includes(f.estado) ? { ...f, seleccionado: !f.seleccionado } : f)) } : prev);
+  };
+  const alternarTodasImportacionInventario = (valor) => {
+    setVistaPreviaImportacionInventario((prev) => prev ? { ...prev, filas: prev.filas.map((f) => (['actualizar', 'crear'].includes(f.estado) ? { ...f, seleccionado: valor } : f)) } : prev);
+  };
+
+  const aplicarImportacionInventario = async () => {
+    const seleccionadas = (vistaPreviaImportacionInventario?.filas || []).filter((f) => f.seleccionado && ['actualizar', 'crear'].includes(f.estado));
+    if (!seleccionadas.length) {
+      await notificarSistema('No hay cambios seleccionados para aplicar.', { tipo: 'warning', titulo: 'Sin selección' });
+      return;
+    }
+    cancelarImportacionInventarioRef.current = false;
+    setPasoImportacionInventario(4);
+    setImportandoInventario(true);
+    setResumenImportacionInventario(null);
+    setErroresImportacionInventario([]);
+    setProgresoImportacionInventario({ activo: true, total: seleccionadas.length, procesadas: 0, actualizados: 0, creados: 0, sinCambios: 0, variaciones: 0, errores: 0, cancelado: false, inicio: Date.now() });
+    const proveedorNombre = vistaPreviaImportacionInventario?.proveedor || '';
+    const nombreArchivo = archivoImportacionInventario?.name || '';
+    const respaldo = crearControlRespaldoPreciosPersistente({
+      tipo: 'importacion_inventario',
+      titulo: proveedorNombre ? `Antes de importar lista ${proveedorNombre}` : 'Antes de importar inventario',
+      detalle: nombreArchivo,
+      diferirCantidad: true
+    });
+    const errores = [];
+    let actualizados = 0; let creados = 0; let variaciones = 0; let procesadas = 0; let siguiente = 0;
+    const publicar = () => setProgresoImportacionInventario((prev) => ({ ...prev, procesadas, actualizados, creados, variaciones, errores: errores.length }));
+    const trabajar = async () => {
+      while (siguiente < seleccionadas.length) {
+        if (cancelarImportacionInventarioRef.current) return;
+        const item = seleccionadas[siguiente]; siguiente += 1;
+        try {
+          if (item.estado === 'crear') {
+            await addDoc(collection(db, 'productos'), item.payloadNuevo);
+            creados += 1;
+          } else {
+            await respaldo.respaldar(item.producto);
+            await updateDoc(doc(db, 'productos', item.producto.id), limpiarDatoFirestore(item.updates));
+            actualizados += 1;
+            if (item.variacionCosto) {
+              const guardada = await registrarVariacionPrecio({ producto: item.producto, precioAnterior: item.variacionCosto.anterior, precioNuevo: item.variacionCosto.nuevo, proveedor: proveedorNombre, origen: 'lista_proveedor', tipoVariacion: 'costo_proveedor', archivo: nombreArchivo });
+              if (guardada) variaciones += 1;
+            }
+          }
+        } catch (error) {
+          console.error('Fila no importada', item.filaNumero, error);
+          errores.push({ filaNumero: item.filaNumero, codigo: item.codigo, descripcion: item.descripcion || item.descripcionArchivo || '', mensaje: textoSeguroTrim(error?.message, 'No se pudo guardar en la base de datos.') });
+        }
+        procesadas += 1;
+        if (procesadas % 3 === 0 || procesadas === seleccionadas.length) publicar();
+      }
+    };
+    try {
+      await Promise.all(Array.from({ length: Math.min(6, seleccionadas.length) }, () => trabajar()));
+      publicar();
+      await respaldo.finalizar();
+      const cancelado = cancelarImportacionInventarioRef.current;
+      setErroresImportacionInventario(errores);
+      setResumenImportacionInventario({
+        total: vistaPreviaImportacionInventario?.resumen?.total || seleccionadas.length,
+        actualizados, creados, errores: errores.length, cancelado, pendientes: seleccionadas.length - procesadas,
+        sinCambios: vistaPreviaImportacionInventario?.resumen?.sinCambios || 0,
+        omitidas: (vistaPreviaImportacionInventario?.resumen?.sinCoincidencia || 0) + (vistaPreviaImportacionInventario?.resumen?.problemas || 0),
+        respaldoId: respaldo.obtenerId(), variaciones
       });
+      await notificarSistema(`${cancelado ? 'Importación detenida' : 'Importación lista'}: ${actualizados} actualizado(s), ${creados} creado(s)${errores.length ? ` y ${errores.length} con error` : ''}.`, { tipo: errores.length ? 'warning' : 'success', titulo: cancelado ? 'Importación detenida' : 'Inventario importado' });
     } catch (error) {
       console.error('Error importando inventario', error);
-      await notificarSistema('No se pudo procesar el archivo. Revisa el formato y vuelve a intentar.', {
-        tipo: 'error',
-        titulo: 'Error de importación'
-      });
+      setErroresImportacionInventario(errores);
+      setResumenImportacionInventario({ total: seleccionadas.length, actualizados, creados, errores: errores.length + 1, cancelado: true, pendientes: seleccionadas.length - procesadas, sinCambios: 0, omitidas: 0, respaldoId: respaldo.obtenerId(), variaciones, falloGeneral: textoSeguroTrim(error?.message, 'Error inesperado.') });
+      await notificarSistema('La importación se interrumpió. Los cambios ya aplicados quedaron guardados y respaldados.', { tipo: 'error', titulo: 'Error de importación' });
     } finally {
       setImportandoInventario(false);
       setProgresoImportacionInventario((prev) => ({ ...prev, activo: false }));
@@ -26499,7 +26712,6 @@ function obtenerCategoriaProducto(producto) {
     { visible: puedeVerCaja, vista: 'caja', etiqueta: 'Caja diaria', Icono: Wallet, color: 'blue' },
     { visible: puedeVerVentas, vista: 'ventas', etiqueta: 'Ventas', Icono: ClipboardList, color: 'emerald' },
     { visible: puedeVerVendedores, vista: 'vendedores', etiqueta: 'Vendedores', Icono: UserCog, color: 'teal' },
-    { visible: puedeVerAjustes && usuarioActualSeguro.rol === 'admin', vista: 'tarjetas_planes', etiqueta: 'Tarjetas y planes', Icono: CreditCard, color: 'indigo' },
     { visible: puedeVerClientes || puedeVerCuentasCorrientes, vista: 'clientes', etiqueta: 'Cuentas corrientes', Icono: CreditCard, color: 'purple' },
     { visible: puedeVerPresupuestos, vista: 'presupuestos', etiqueta: 'Presupuestos', Icono: FileText, color: 'teal' },
     { visible: puedeUsarCombos, vista: 'combos', etiqueta: 'Presupuesto combo', Icono: FileText, color: 'indigo' },
@@ -26510,8 +26722,6 @@ function obtenerCategoriaProducto(producto) {
     { visible: puedeVerProveedores, vista: 'proveedores', etiqueta: 'Proveedores', Icono: Users, color: 'sky' },
     { visible: puedeVerModMasiva, vista: 'mod_masiva', etiqueta: 'Modificación masiva', Icono: Edit2, color: 'fuchsia' },
     { visible: puedeVerVariacionPrecios, vista: 'variacion_precios', etiqueta: 'Variación de precio', Icono: History, color: 'amber' },
-    { visible: puedeVerSugerencias, vista: 'sugerencias', etiqueta: 'Sugerencias', Icono: TrendingUp, color: 'amber' },
-    { visible: puedeVerComparativa, vista: 'comparativa', etiqueta: 'Comparativa', Icono: BarChart2, color: 'cyan' },
     { visible: puedeVerComparativa, vista: 'comparativa_paralela', etiqueta: 'Logística', Icono: Truck, color: 'violet' },
     { visible: puedeVerRastreo, vista: 'rastreo', etiqueta: 'Rastreo', Icono: Search, color: 'slate' },
     { visible: puedeVerBuscadorAvanzado, vista: 'buscador_avanzado', etiqueta: 'Buscador avanzado', Icono: Search, color: 'indigo' },
@@ -26522,8 +26732,8 @@ function obtenerCategoriaProducto(producto) {
   const opcionesNavegacionVisibles = opcionesNavegacion.filter((opcion) => opcion.visible);
   const obtenerRutaSidebar = (vistaRuta) => opcionesNavegacionVisibles.find((opcion) => opcion.vista === vistaRuta);
   const gruposSidebar = [
-    { id: 'ventas', etiqueta: 'Ventas', Icono: ShoppingCart, rutas: ['ventas', 'vendedores', 'tarjetas_planes', 'caja', 'clientes', 'presupuestos', 'combos'] },
-    { id: 'inventario', etiqueta: 'Inventario', Icono: Package, rutas: ['inventario', 'stock_bajo', 'compras', 'variacion_precios', 'mod_masiva', 'sugerencias', 'comparativa'] }
+    { id: 'ventas', etiqueta: 'Ventas', Icono: ShoppingCart, rutas: ['ventas', 'vendedores', 'caja', 'clientes', 'presupuestos', 'combos'] },
+    { id: 'inventario', etiqueta: 'Inventario', Icono: Package, rutas: ['inventario', 'stock_bajo', 'compras', 'variacion_precios', 'mod_masiva'] }
   ].map((grupo) => ({ ...grupo, hijos: grupo.rutas.map(obtenerRutaSidebar).filter(Boolean) })).filter((grupo) => grupo.hijos.length > 0);
   const entradasSidebarGestion = ['notificaciones', 'proveedores', 'flyer', 'comparativa_paralela', 'rastreo', 'buscador_avanzado'].map(obtenerRutaSidebar).filter(Boolean);
   const entradasSidebarSistema = ['reportes', 'ajustes', 'ayuda'].map(obtenerRutaSidebar).filter(Boolean);
@@ -26602,7 +26812,8 @@ function obtenerCategoriaProducto(producto) {
     ? AYUDA_SECCIONES.filter((seccion) => coincideBusquedaCompuesta([
       seccion.titulo,
       seccion.resumen,
-      seccion.pasos,
+      seccion.paraQue,
+      seccion.tareas.map((tarea) => [tarea.titulo, tarea.pasos]),
       seccion.claves
     ], consultaAyuda))
     : AYUDA_SECCIONES;
@@ -27693,7 +27904,7 @@ function obtenerCategoriaProducto(producto) {
         /* Sistema global de acciones: lineal, semántico y sin cajas permanentes. */
         .sf-enterprise-shell .sf-icon-action,
         .sf-enterprise-shell .sf-client-icon-action,
-        .sf-enterprise-shell button[title]:has(> svg:only-child) {
+        .sf-enterprise-shell button[title]:not(.sf-has-text):has(> svg:only-child) {
           display:inline-flex !important;
           width:32px !important;
           min-width:32px !important;
@@ -27713,22 +27924,22 @@ function obtenerCategoriaProducto(producto) {
         }
         .sf-enterprise-shell .sf-icon-action svg,
         .sf-enterprise-shell .sf-client-icon-action svg,
-        .sf-enterprise-shell button[title]:has(> svg:only-child) svg { width:18px !important; height:18px !important; stroke-width:1.75 !important; }
+        .sf-enterprise-shell button[title]:not(.sf-has-text):has(> svg:only-child) svg { width:18px !important; height:18px !important; stroke-width:1.75 !important; }
         .sf-enterprise-shell .sf-icon-action:hover:not(:disabled),
         .sf-enterprise-shell .sf-client-icon-action:hover:not(:disabled),
-        .sf-enterprise-shell button[title]:has(> svg:only-child):hover:not(:disabled) {
+        .sf-enterprise-shell button[title]:not(.sf-has-text):has(> svg:only-child):hover:not(:disabled) {
           background:#f1f5f9 !important;
           box-shadow:none !important;
         }
         .sf-enterprise-shell .sf-icon-action:focus-visible,
         .sf-enterprise-shell .sf-client-icon-action:focus-visible,
-        .sf-enterprise-shell button[title]:has(> svg:only-child):focus-visible {
+        .sf-enterprise-shell button[title]:not(.sf-has-text):has(> svg:only-child):focus-visible {
           outline:2px solid rgba(15,141,135,.42) !important;
           outline-offset:1px;
         }
         .sf-enterprise-shell .sf-icon-action:disabled,
         .sf-enterprise-shell .sf-client-icon-action:disabled,
-        .sf-enterprise-shell button[title]:has(> svg:only-child):disabled { color:#94a3b8 !important; opacity:1 !important; cursor:not-allowed !important; }
+        .sf-enterprise-shell button[title]:not(.sf-has-text):has(> svg:only-child):disabled { color:#94a3b8 !important; opacity:1 !important; cursor:not-allowed !important; }
         .sf-enterprise-shell .sf-icon-action-edit,
         .sf-enterprise-shell button[title^="Editar"]:has(> svg:only-child) { color:#2563eb !important; }
         .sf-enterprise-shell .sf-icon-action-edit:hover:not(:disabled),
@@ -27758,7 +27969,7 @@ function obtenerCategoriaProducto(producto) {
         .sf-enterprise-shell .sf-icon-action-warning,
         .sf-enterprise-shell button[title^="Advertir"]:has(> svg:only-child) { color:#d97706 !important; }
         .sf-enterprise-shell .sf-icon-action-secondary { color:#7c3aed !important; }
-        .sf-enterprise-shell table td:has(button[title]:has(> svg:only-child)) > div.flex { gap:3px !important; }
+        .sf-enterprise-shell table td:has(button[title]:not(.sf-has-text):has(> svg:only-child)) > div.flex { gap:3px !important; }
         .sf-enterprise-shell .sf-client-more { position:relative; }
         .sf-enterprise-shell .sf-client-more > summary { list-style:none; cursor:pointer; font-size:18px; }
         .sf-enterprise-shell .sf-client-more > summary::-webkit-details-marker { display:none; }
@@ -28348,8 +28559,8 @@ function obtenerCategoriaProducto(producto) {
                   <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-300/30 bg-blue-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">
                     <BookOpen size={14} /> Centro de ayuda SeniorFlow
                   </div>
-                  <h2 className="text-2xl font-black tracking-tight lg:text-3xl">Todo el sistema, explicado paso a paso</h2>
-                  <p className="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-slate-300">Consultá cómo trabajar en cada módulo, qué información modifica cada acción y cuáles son las recomendaciones para mantener los datos ordenados y seguros.</p>
+                  <h2 className="text-2xl font-black tracking-tight lg:text-3xl">Aprendé a usar el sistema, paso a paso</h2>
+                  <p className="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-slate-300">Elegí qué querés hacer y seguí los pasos. Cada tema explica para qué sirve y cómo se hace.</p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-left lg:min-w-[220px]">
                   <p className="text-[10px] font-black uppercase tracking-wider text-blue-200">Empresa activa</p>
@@ -28371,7 +28582,7 @@ function obtenerCategoriaProducto(producto) {
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-xs font-bold text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
-                <p className="px-2 pb-2 text-[10px] font-black uppercase tracking-wider text-slate-400">Módulos del sistema</p>
+                <p className="px-2 pb-2 text-[10px] font-black uppercase tracking-wider text-slate-400">Temas de ayuda</p>
                 <div className="max-h-[calc(62*var(--sf-1vh,1vh))] space-y-1 overflow-y-auto pr-1">
                   {seccionesAyudaFiltradas.map((seccion) => {
                     const IconoSeccion = iconosAyuda[seccion.icono] || BookOpen;
@@ -28398,7 +28609,7 @@ function obtenerCategoriaProducto(producto) {
                     <div className="rounded-xl bg-blue-600 p-2.5 text-white shadow-sm"><BookOpen size={19} /></div>
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-wider text-blue-700">Guía de uso</p>
-                      <p className="mt-1 text-sm font-bold leading-relaxed text-blue-950">Elegí un módulo del listado para consultar sus pasos, recomendaciones y relación con el resto del sistema.</p>
+                      <p className="mt-1 text-sm font-bold leading-relaxed text-blue-950">Elegí un tema de la izquierda: te explicamos para qué sirve y cómo hacer cada tarea, paso a paso.</p>
                     </div>
                   </div>
                 </div>
@@ -28412,7 +28623,7 @@ function obtenerCategoriaProducto(producto) {
                           <div className="flex items-start gap-3">
                             <div className="rounded-2xl bg-slate-900 p-3 text-white shadow-sm"><IconoSeccion size={24} /></div>
                             <div>
-                              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-600">Tutorial del módulo</p>
+                              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-600">Tutorial</p>
                               <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-900">{seccionAyudaSeleccionada.titulo}</h3>
                               <p className="mt-1 text-sm font-medium leading-relaxed text-slate-500">{seccionAyudaSeleccionada.resumen}</p>
                             </div>
@@ -28422,24 +28633,30 @@ function obtenerCategoriaProducto(producto) {
 
                         <div className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(260px,.85fr)]">
                           <div>
-                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">Cómo trabajar en este módulo</h4>
+                            <div className="mb-4 rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                              <p className="text-[10px] font-black uppercase tracking-wider text-blue-700">¿Para qué sirve?</p>
+                              <p className="mt-1 text-sm font-bold leading-relaxed text-blue-950">{seccionAyudaSeleccionada.paraQue}</p>
+                            </div>
+                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">Cómo se hace</h4>
                             <div className="mt-3 space-y-3">
-                              {seccionAyudaSeleccionada.pasos.map((paso, index) => (
-                                <details key={`ayuda-paso-${seccionAyudaSeleccionada.id}-${index}`} className="group rounded-xl border border-slate-100 bg-slate-50/70 open:border-blue-200 open:bg-blue-50/50">
-                                  <summary className="flex cursor-pointer list-none items-start gap-3 p-3 [&::-webkit-details-marker]:hidden">
-                                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[11px] font-black text-white group-open:bg-blue-700">{index + 1}</span>
-                                    <span className="flex-1 pt-0.5 text-sm font-bold leading-relaxed text-slate-700">{paso}</span>
-                                    <ChevronDown size={16} className="mt-1 shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
+                              {seccionAyudaSeleccionada.tareas.map((tarea, index) => (
+                                <details key={`ayuda-tarea-${seccionAyudaSeleccionada.id}-${index}`} open={index === 0} className="group rounded-xl border border-slate-100 bg-slate-50/70 open:border-blue-200 open:bg-blue-50/50">
+                                  <summary className="flex cursor-pointer list-none items-center gap-3 p-3 [&::-webkit-details-marker]:hidden">
+                                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[11px] font-black text-white">{index + 1}</span>
+                                    <span className="flex-1 text-sm font-black leading-snug text-slate-800">{tarea.titulo}</span>
+                                    <ChevronDown size={16} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
                                   </summary>
-                                  <div className="border-t border-blue-100 px-3 pb-3 pt-2 pl-12 text-xs font-semibold leading-relaxed text-blue-950">
-                                    {obtenerDetallePasoAyuda(seccionAyudaSeleccionada, paso, index)}
-                                  </div>
+                                  <ol className="space-y-2 border-t border-blue-100 px-4 pb-4 pt-3">
+                                    {tarea.pasos.map((paso, indicePaso) => (
+                                      <li key={`ayuda-paso-${indicePaso}`} className="flex items-start gap-2.5 text-xs font-semibold leading-relaxed text-slate-700"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-[10px] font-black text-blue-700 ring-1 ring-blue-200">{indicePaso + 1}</span><span>{paso}</span></li>
+                                    ))}
+                                  </ol>
                                 </details>
                               ))}
                             </div>
                           </div>
                           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                            <div className="flex items-center gap-2 text-amber-800"><AlertCircle size={17} /><h4 className="text-xs font-black uppercase tracking-wider">Puntos importantes</h4></div>
+                            <div className="flex items-center gap-2 text-amber-800"><AlertCircle size={17} /><h4 className="text-xs font-black uppercase tracking-wider">Tené en cuenta</h4></div>
                             <ul className="mt-3 space-y-3">
                               {seccionAyudaSeleccionada.claves.map((clave, index) => (
                                 <li key={`ayuda-clave-${seccionAyudaSeleccionada.id}-${index}`} className="flex items-start gap-2 text-xs font-bold leading-relaxed text-amber-900"><CheckCircle size={14} className="mt-0.5 shrink-0 text-amber-600" />{clave}</li>
@@ -29245,31 +29462,30 @@ function obtenerCategoriaProducto(producto) {
 
         {/* --- VISTA: MODIFICACIÓN MASIVA --- */}
         {puedeVerModMasiva && vista === 'mod_masiva' && (
-          <div className="space-y-6 animate-in fade-in duration-300 print:hidden">
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-fuchsia-600 p-2.5 rounded-xl shadow-sm"><Edit2 size={20} className="text-white"/></div>
+          <div className="sf-mm space-y-6 animate-in fade-in duration-300 print:hidden">
+            <div className="sf-mm-head">
+              <div className="sf-mm-title">
+                <span className="sf-mm-ico"><Edit2 size={18} /></span>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900 tracking-tight">Modificación Masiva</h2>
-                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Multiplicar, asignar proveedor, reemplazar texto y actualizar precios en un solo lugar</p>
+                  <h2>Modificación masiva</h2>
+                  <p>Cambiá muchos productos a la vez: elegí la herramienta, filtrá, seleccioná y aplicá.</p>
                 </div>
               </div>
-              <div className="w-full lg:w-auto flex flex-wrap gap-2">
+              <button type="button" className="sf-bud-btn sf-mm-hist" onClick={abrirRespaldosPrecios}><History size={14} /> Historial y deshacer</button>
+              <div className="sf-mm-tabs" role="tablist">
                 {[
-                  { key: 'multiplicar', label: 'Multiplicar Articulos' },
-                  { key: 'asignar_proveedor', label: 'Asignar Proveedor' },
-                  { key: 'reemplazar_datos', label: 'Reemplazar Datos' },
-                  { key: 'actualizar_precios', label: 'Actualizar Precios' }
+                  { key: 'multiplicar', label: 'Multiplicar artículos' },
+                  { key: 'asignar_proveedor', label: 'Asignar proveedor' },
+                  { key: 'reemplazar_datos', label: 'Reemplazar datos' },
+                  { key: 'actualizar_precios', label: 'Actualizar precios' }
                 ].map((item) => (
                   <button
                     key={item.key}
                     type="button"
+                    role="tab"
+                    aria-selected={modMasivaSubvista === item.key}
                     onClick={() => setModMasivaSubvista(item.key)}
-                    className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-colors ${
-                      modMasivaSubvista === item.key
-                        ? 'bg-fuchsia-600 text-white border-fuchsia-600'
-                        : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                    }`}
+                    className={`sf-mm-tab ${modMasivaSubvista === item.key ? 'is-on' : ''}`}
                   >
                     {item.label}
                   </button>
@@ -29283,10 +29499,10 @@ function obtenerCategoriaProducto(producto) {
                 : productosModMasivaVisualizados;
               const esSubvistaReemplazo = modMasivaSubvista === 'reemplazar_datos';
               const esSubvistaMultiplicar = modMasivaSubvista === 'multiplicar';
-              const controlesMasivosAbiertos = Boolean(modMasivaPanelesAbiertos[modMasivaSubvista]);
+              const controlesMasivosAbiertos = modMasivaPanelesAbiertos[modMasivaSubvista] !== false;
               const toggleControlesMasivos = () => setModMasivaPanelesAbiertos((prev) => ({
                 ...prev,
-                [modMasivaSubvista]: !prev[modMasivaSubvista]
+                [modMasivaSubvista]: prev[modMasivaSubvista] === false
               }));
               const titulosControlesMasivos = {
                 multiplicar: {
@@ -29456,18 +29672,27 @@ function obtenerCategoriaProducto(producto) {
                   )}
                 </div>
               );
+              const hayFiltrosActivos = Boolean(busquedaModMasiva || modMasivaFiltroProveedorPrecio || modMasivaFiltroMarcaPrecio || modMasivaFiltroCategoriaPrecio || modMasivaFiltroEstado);
+              const limpiarFiltrosMasivos = () => {
+                setBusquedaModMasiva('');
+                setModMasivaFiltroProveedorPrecio('');
+                setModMasivaFiltroMarcaPrecio('');
+                setModMasivaFiltroCategoriaPrecio('');
+                setModMasivaFiltroEstado('');
+              };
               const filtrosModMasivaPanel = (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">Buscar productos</h3>
-                      <p className="text-[11px] font-bold text-gray-500">Filtra el listado antes de seleccionar y aplicar cambios.</p>
+                      <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">1 · Filtrar productos</h3>
+                      <p className="text-[11px] font-bold text-gray-500">Los mismos filtros valen para las cuatro herramientas.</p>
                     </div>
-                    <span className="px-2 py-1 rounded-md bg-fuchsia-50 border border-fuchsia-100 text-fuchsia-700 text-xs font-black">
-                      {totalFiltrados}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {hayFiltrosActivos && <button type="button" className="sf-mm-link" onClick={limpiarFiltrosMasivos}>Quitar filtros</button>}
+                      <span className="px-2 py-1 rounded-md bg-fuchsia-50 border border-fuchsia-100 text-fuchsia-700 text-xs font-black">{totalFiltrados}</span>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="sf-mm-filters">
                     <div className="relative">
                       <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input
@@ -29477,22 +29702,133 @@ function obtenerCategoriaProducto(producto) {
                         className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-fuchsia-500"
                       />
                     </div>
-                    <select
-                      value={filtroProveedorModMasiva}
-                      onChange={(e) => setFiltroProveedorModMasiva(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-fuchsia-500"
-                    >
+                    <select value={modMasivaFiltroProveedorPrecio} onChange={(e) => setModMasivaFiltroProveedorPrecio(e.target.value)}>
                       <option value="">Todos los proveedores</option>
-                      {proveedoresInventario.map((nombre) => (
-                        <option key={`mod-masiva-filtro-comun-${nombre}`} value={nombre}>
-                          {nombre}
-                        </option>
-                      ))}
+                      {proveedoresInventario.map((nombre) => <option key={`mm-f-prov-${nombre}`} value={nombre}>{nombre}</option>)}
                     </select>
+                    <select value={modMasivaFiltroMarcaPrecio} onChange={(e) => setModMasivaFiltroMarcaPrecio(e.target.value)}>
+                      <option value="">Todas las marcas</option>
+                      {marcasInventario.map((marca) => <option key={`mm-f-marca-${marca}`} value={marca}>{marca}</option>)}
+                    </select>
+                    <select value={modMasivaFiltroCategoriaPrecio} onChange={(e) => setModMasivaFiltroCategoriaPrecio(e.target.value)}>
+                      <option value="">Todas las categorías</option>
+                      {categoriasInventario.map((cat) => <option key={`mm-f-cat-${cat}`} value={cat}>{cat}</option>)}
+                    </select>
+                  </div>
+                  <div className="sf-mm-chips">
+                    {[
+                      { key: '', label: 'Todos' },
+                      { key: 'sin_proveedor', label: 'Sin proveedor' },
+                      { key: 'sin_precio', label: 'Sin precio' },
+                      { key: 'bajo_costo', label: 'Precio bajo el costo' },
+                      { key: 'sin_stock', label: 'Sin stock' },
+                      { key: 'con_stock', label: 'Con stock' }
+                    ].map((chip) => (
+                      <button key={`mm-chip-${chip.key || 'todos'}`} type="button" className={`sf-mm-chip ${modMasivaFiltroEstado === chip.key ? 'is-on' : ''}`} onClick={() => setModMasivaFiltroEstado(chip.key)}>{chip.label}</button>
+                    ))}
                   </div>
                 </div>
               );
-              return modMasivaSubvista === 'reemplazar_datos' ? (
+              const prepararConfirmacionMasiva = async () => {
+                if (!productosObjetivoPreview.length) {
+                  await notificarSistema('Seleccioná al menos un producto.', { tipo: 'warning', titulo: 'Sin selección' });
+                  return;
+                }
+                const fmt = (v) => (v === '' || v === null || v === undefined ? '—' : String(v));
+                const filas = [];
+                let avisos = [];
+                let accion = (ids) => aplicarProveedorMasivo(ids);
+                let titulo = 'Confirmar cambios masivos';
+                let nota = '';
+                if (modMasivaSubvista === 'actualizar_precios') {
+                  accion = (ids) => aplicarActualizacionPreciosMasivo(ids);
+                  const modo = ['costo', 'precio_individual'].includes(modMasivaTipoAjustePrecio) ? modMasivaTipoAjustePrecio : 'venta';
+                  const modoMontoPrev = modMasivaAjusteModo === 'monto' && modo === 'venta';
+                  const montoPrev = parseNumeroBasico(modMasivaAjusteMonto) || 0;
+                  const pct = modoMontoPrev ? 0 : parseNumeroBasico(modMasivaAjustePrecioPct);
+                  const factor = 1 + ((Number.isFinite(pct) ? pct : 0) / 100);
+                  const ajustar = (v, esPrecio = false) => calcularValorAjusteMasivo(v, { modoMonto: modoMontoPrev, factor, monto: montoPrev, redondeo: modMasivaRedondeo, esPrecio });
+                  const etiquetaPrev = modoMontoPrev ? `${montoPrev > 0 ? '+' : ''}${formatearDinero(montoPrev)}` : `${formatearPorcentaje(pct || 0)}%`;
+                  titulo = modo === 'precio_individual' ? 'Confirmar precios individuales' : (modo === 'costo' ? `Confirmar ajuste de costos (${etiquetaPrev})` : `Confirmar ajuste de precios (${etiquetaPrev})`);
+                  let bajoCosto = 0;
+                  let variacionAlta = 0;
+                  if (modo !== 'precio_individual' && (modoMontoPrev ? montoPrev === 0 : !pct)) {
+                    await notificarSistema(modoMontoPrev ? 'Ingresá un monto válido distinto de 0.' : 'Ingresá un porcentaje válido distinto de 0.', { tipo: 'warning', titulo: 'Ajuste inválido' });
+                    return;
+                  }
+                  productosObjetivoPreview.forEach((producto) => {
+                    const cambios = [];
+                    if (modo === 'precio_individual') {
+                      const raw = modMasivaPreciosIndividuales[producto.id];
+                      if ((raw ?? '').toString().trim() !== '') {
+                        const nuevo = Math.max(0, parseNumeroBasico(raw) || 0);
+                        cambios.push({ campo: 'Precio', antes: formatearDinero(parseNumeroBasico(producto?.precio) || 0), despues: formatearDinero(nuevo) });
+                        if (nuevo > 0 && nuevo < (parseNumeroBasico(producto?.costo) || 0)) bajoCosto += 1;
+                      }
+                    } else if (modo === 'venta') {
+                      const antes = Math.max(0, parseNumeroBasico(producto?.precio) || 0);
+                      const nuevo = ajustar(antes, true);
+                      cambios.push({ campo: 'Precio', antes: formatearDinero(antes), despues: formatearDinero(nuevo) });
+                      if (nuevo > 0 && nuevo < (parseNumeroBasico(producto?.costo) || 0)) bajoCosto += 1;
+                      if (antes > 0 && Math.abs((nuevo - antes) / antes) > 0.25) variacionAlta += 1;
+                    } else {
+                      const antes = Math.max(0, parseNumeroBasico(producto?.costoOriginal ?? producto?.costo ?? 0) || 0);
+                      cambios.push({ campo: 'Costo', antes: formatearDinero(antes), despues: formatearDinero(ajustar(antes)) });
+                    }
+                    if (textoSeguroTrim(modMasivaIvaGeneral, '')) cambios.push({ campo: 'IVA', antes: fmt(producto?.iva), despues: textoSeguroTrim(modMasivaIvaGeneral, '') });
+                    if (cambios.length) filas.push({ id: producto.id, codigo: textoSeguroTrim(producto?.codigo, '-'), descripcion: textoSeguroTrim(producto?.descripcion, ''), cambios });
+                  });
+                  if (variacionAlta > 0) avisos.push(`${variacionAlta} producto(s) cambian más de un 25%. Revisalos antes de confirmar.`);
+                  if (bajoCosto > 0) avisos.push(`${bajoCosto} producto(s) quedarían con precio por debajo del costo.`);
+                  nota = 'Se guarda un respaldo automático antes de aplicar. Podés volver atrás desde Historial.';
+                } else {
+                  const esDup = modMasivaSubvista === 'multiplicar' && modMasivaDuplicar;
+                  titulo = modMasivaSubvista === 'multiplicar' ? (esDup ? 'Confirmar duplicación de artículos' : 'Confirmar cambios en artículos') : (modMasivaSubvista === 'reemplazar_datos' ? 'Confirmar reemplazo de datos' : 'Confirmar proveedor y costo');
+                  const individual = modMasivaCostoModo === 'individual';
+                  productosObjetivoPreview.forEach((producto) => {
+                    const cambios = [];
+                    const costos = obtenerCostosProveedorProducto(producto).map((costo, index) => normalizarProveedorCosto(costo, index));
+                    const idx = modMasivaProveedor ? costos.findIndex((costo) => normalizarTextoBusqueda(costo?.proveedor || '') === normalizarTextoBusqueda(modMasivaProveedor)) : -1;
+                    const base = idx >= 0 ? costos[idx] : null;
+                    if (modMasivaProveedor) {
+                      cambios.push({ campo: 'Proveedor', antes: base ? modMasivaProveedor : 'Sin asignar', despues: modMasivaProveedor });
+                      const codAntes = textoSeguroTrim(base?.codigoProveedor, textoSeguroTrim(producto?.codigoProveedor, ''));
+                      const codDespues = resolverCodigoProveedorModMasiva({ modo: modMasivaCodigoProveedorModo, codigoManual: modMasivaCodigoProveedor, prefijo: modMasivaCodigoProveedorPrefijo, codigoActual: codAntes, producto, codigosManuales: modMasivaCodigosProveedorManual });
+                      if (codAntes !== codDespues) cambios.push({ campo: 'Cód. proveedor', antes: fmt(codAntes), despues: fmt(codDespues) });
+                      const rawCosto = individual ? modMasivaCostosIndividuales?.[producto.id] : modMasivaCosto;
+                      const costoNuevo = parseNumeroBasico(rawCosto);
+                      if (textoSeguroTrim(rawCosto, '') !== '' && Number.isFinite(costoNuevo) && costoNuevo > 0) cambios.push({ campo: 'Costo', antes: fmt(base?.costo), despues: `${costoNuevo} ${modMasivaMoneda || 'ARS'}` });
+                    }
+                    const aplicaTexto = (modMasivaSubvista === 'reemplazar_datos' && Boolean(textoSeguroTrim(modMasivaTextoReemplazo, ''))) || (modMasivaSubvista === 'multiplicar' && modMasivaAplicarReemplazoDescripcion && Boolean(textoSeguroTrim(modMasivaTextoBuscar, '')));
+                    if (aplicaTexto) {
+                      const antes = textoSeguroTrim(producto?.descripcion, '');
+                      const despues = transformarDescripcionModMasiva(antes, modMasivaModoDescripcion, modMasivaTextoBuscar, modMasivaTextoReemplazo);
+                      if (antes !== despues) cambios.push({ campo: 'Descripción', antes, despues });
+                    }
+                    if (modMasivaSubvista === 'multiplicar' && textoSeguroTrim(modMasivaMarcaNueva, '')) cambios.push({ campo: 'Marca', antes: fmt(producto?.marca), despues: textoSeguroTrim(modMasivaMarcaNueva, '') });
+                    if (modMasivaSubvista === 'multiplicar' && textoSeguroTrim(modMasivaIvaGeneral, '')) cambios.push({ campo: 'IVA', antes: fmt(producto?.iva), despues: textoSeguroTrim(modMasivaIvaGeneral, '') });
+                    if (esDup) cambios.unshift({ campo: 'Nuevo artículo', antes: '—', despues: 'Se crea una copia con código nuevo' });
+                    if (cambios.length) filas.push({ id: producto.id, codigo: textoSeguroTrim(producto?.codigo, '-'), descripcion: textoSeguroTrim(producto?.descripcion, ''), cambios });
+                  });
+                  nota = esDup ? 'Se crean productos nuevos y se guarda un respaldo. Al restaurarlo desde Historial, esos productos nuevos se eliminan.' : 'Se guarda un respaldo automático antes de aplicar. Podés volver atrás desde Historial.';
+                }
+                if (!filas.length) {
+                  await notificarSistema('Con los valores cargados no hay ningún cambio para aplicar. Completá los campos de la herramienta.', { tipo: 'warning', titulo: 'Sin cambios a aplicar' });
+                  return;
+                }
+                setConfirmacionMasiva({ titulo, total: productosObjetivoPreview.length, filas, avisos, nota, accion, excluidos: [] });
+              };
+              const barraSeleccionMasiva = (
+                <div className="sf-mm-bar">
+                  <div className="sf-mm-bar-count"><strong>{totalSeleccionados}</strong> seleccionados <em>de {totalFiltrados} filtrados</em></div>
+                  <div className="sf-mm-bar-actions">
+                    <button type="button" className="sf-bud-btn" onClick={toggleSeleccionTodosModMasiva} disabled={!totalFiltrados}>{todosSeleccionados ? 'Quitar filtrados' : 'Seleccionar filtrados'}</button>
+                    <button type="button" className="sf-bud-btn" onClick={() => setSeleccionProductosModMasiva([])} disabled={!totalSeleccionados}>Limpiar selección</button>
+                    <button type="button" className="sf-bud-new" disabled={!totalSeleccionados} onClick={prepararConfirmacionMasiva}>Revisar y aplicar</button>
+                  </div>
+                </div>
+              );
+              return (<>{modMasivaSubvista === 'reemplazar_datos' ? (
                 <>
                   {muestraPreview && (
                     <div className="bg-white rounded-2xl border border-fuchsia-100 shadow-sm overflow-hidden">
@@ -29607,14 +29943,14 @@ function obtenerCategoriaProducto(producto) {
                         type="button"
                         onClick={() => setSeleccionProductosModMasiva([])}
                         disabled={!totalSeleccionados}
-                        className="px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-[11px] font-black uppercase tracking-wider disabled:opacity-40"
+                        className="sf-mm-dup px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-[11px] font-black uppercase tracking-wider disabled:opacity-40"
                       >
                         Limpiar selección
                       </button>
                       <button
                         type="button"
                         onClick={aplicarProveedorMasivo}
-                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider"
+                        className="sf-mm-dup px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider"
                       >
                         Aplicar
                       </button>
@@ -29826,14 +30162,14 @@ function obtenerCategoriaProducto(producto) {
                           type="button"
                           onClick={() => setSeleccionProductosModMasiva([])}
                           disabled={!totalSeleccionados}
-                          className="px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-[11px] font-black uppercase tracking-wider disabled:opacity-40"
+                          className="sf-mm-dup px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-[11px] font-black uppercase tracking-wider disabled:opacity-40"
                         >
                           Limpiar selección
                         </button>
                         <button
                           type="button"
                           onClick={aplicarProveedorMasivo}
-                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider"
+                          className="sf-mm-dup px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider"
                         >
                           Aplicar
                         </button>
@@ -29847,66 +30183,11 @@ function obtenerCategoriaProducto(producto) {
                 </>
               ) : modMasivaSubvista === 'actualizar_precios' ? (
                 <>
+                  {filtrosModMasivaPanel}
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-4">
                     {encabezadoControlesMasivos}
                     {controlesMasivosAbiertos && (
                       <>
-                    <div className="grid grid-cols-1 xl:grid-cols-4 gap-3">
-                      <div>
-                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Proveedor</label>
-                        <select
-                          value={modMasivaFiltroProveedorPrecio}
-                          onChange={(e) => setModMasivaFiltroProveedorPrecio(e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-fuchsia-500"
-                        >
-                          <option value="">Todos los proveedores</option>
-                          {proveedoresInventario.map((nombre) => (
-                            <option key={`mod-precio-proveedor-${nombre}`} value={nombre}>
-                              {nombre}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Marca</label>
-                        <select
-                          value={modMasivaFiltroMarcaPrecio}
-                          onChange={(e) => setModMasivaFiltroMarcaPrecio(e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-fuchsia-500"
-                        >
-                          <option value="">Todas las marcas</option>
-                          {marcasInventario.map((marca) => (
-                            <option key={`mod-precio-marca-${marca}`} value={marca}>{marca}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Categoría</label>
-                        <select
-                          value={modMasivaFiltroCategoriaPrecio}
-                          onChange={(e) => setModMasivaFiltroCategoriaPrecio(e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-fuchsia-500"
-                        >
-                          <option value="">Todas las categorías</option>
-                          {categoriasInventario.map((cat) => (
-                            <option key={`mod-precio-cat-${cat}`} value={cat}>{cat}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Buscar</label>
-                        <div className="relative">
-                          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                          <input
-                            value={busquedaModMasiva}
-                            onChange={(e) => setBusquedaModMasiva(e.target.value)}
-                            placeholder="Código, descripción o marca..."
-                            className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-fuchsia-500"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
                       <div>
                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">
@@ -29937,15 +30218,18 @@ function obtenerCategoriaProducto(producto) {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Porcentaje</label>
-                        <input
-                          value={modMasivaAjustePrecioPct}
-                          onChange={(e) => setModMasivaAjustePrecioPct(e.target.value)}
-                          placeholder="Ej: 8"
-                          inputMode="decimal"
-                          disabled={modMasivaTipoAjustePrecio === 'precio_individual'}
-                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-fuchsia-500"
-                        />
+                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">{modMasivaAjusteModo === 'monto' && modMasivaTipoAjustePrecio === 'venta' ? 'Monto a sumar o restar ($)' : 'Porcentaje'}</label>
+                        <div className="sf-mm-adj">
+                          <div className="sf-mm-seg">
+                            <button type="button" className={modMasivaAjusteModo !== 'monto' || modMasivaTipoAjustePrecio !== 'venta' ? 'is-on' : ''} onClick={() => setModMasivaAjusteModo('porcentaje')} disabled={modMasivaTipoAjustePrecio === 'precio_individual'}>%</button>
+                            <button type="button" className={modMasivaAjusteModo === 'monto' && modMasivaTipoAjustePrecio === 'venta' ? 'is-on' : ''} onClick={() => setModMasivaAjusteModo('monto')} disabled={modMasivaTipoAjustePrecio !== 'venta'} title="Solo disponible al ajustar el precio de venta">$</button>
+                          </div>
+                          {modMasivaAjusteModo === 'monto' && modMasivaTipoAjustePrecio === 'venta' ? (
+                            <input value={modMasivaAjusteMonto} onChange={(e) => setModMasivaAjusteMonto(e.target.value.replace(',', '.'))} placeholder="Ej: 500 o -200" inputMode="decimal" className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold outline-none" />
+                          ) : (
+                            <input value={modMasivaAjustePrecioPct} onChange={(e) => setModMasivaAjustePrecioPct(e.target.value)} placeholder="Ej: 8" inputMode="decimal" disabled={modMasivaTipoAjustePrecio === 'precio_individual'} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-fuchsia-500" />
+                          )}
+                        </div>
                       </div>
                       <div>
                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">IVA</label>
@@ -29961,6 +30245,17 @@ function obtenerCategoriaProducto(producto) {
                         </select>
                       </div>
                     </div>
+
+                    {modMasivaTipoAjustePrecio === 'venta' && (
+                      <div className="sf-mm-round">
+                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Redondeo del precio nuevo (hacia arriba)</label>
+                        <div className="sf-mm-chips">
+                          {[{ k: '', t: 'Sin redondeo' }, { k: '10', t: 'A $10' }, { k: '50', t: 'A $50' }, { k: '100', t: 'A $100' }, { k: '500', t: 'A $500' }, { k: '1000', t: 'A $1.000' }].map((o) => (
+                            <button key={`mm-red-${o.k || 'no'}`} type="button" className={`sf-mm-chip ${modMasivaRedondeo === o.k ? 'is-on' : ''}`} onClick={() => setModMasivaRedondeo(o.k)}>{o.t}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {modMasivaTipoAjustePrecio === 'precio_individual' && (
                       <div className="rounded-2xl border border-fuchsia-100 bg-fuchsia-50/30 overflow-hidden">
@@ -30015,7 +30310,7 @@ function obtenerCategoriaProducto(producto) {
                         onClick={async () => {
                           await aplicarActualizacionPreciosMasivo();
                         }}
-                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider"
+                        className="sf-mm-dup px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider"
                       >
                         Guardar cambios
                       </button>
@@ -30031,7 +30326,7 @@ function obtenerCategoriaProducto(producto) {
                         type="button"
                         onClick={() => setSeleccionProductosModMasiva([])}
                         disabled={!totalSeleccionados}
-                        className="px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-[11px] font-black uppercase tracking-wider disabled:opacity-40"
+                        className="sf-mm-dup px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-[11px] font-black uppercase tracking-wider disabled:opacity-40"
                       >
                         Limpiar selección
                       </button>
@@ -30339,14 +30634,14 @@ function obtenerCategoriaProducto(producto) {
                         type="button"
                         onClick={() => setSeleccionProductosModMasiva([])}
                         disabled={!totalSeleccionados}
-                        className="px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-[11px] font-black uppercase tracking-wider disabled:opacity-40"
+                        className="sf-mm-dup px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-[11px] font-black uppercase tracking-wider disabled:opacity-40"
                       >
                         Limpiar selección
                       </button>
                       <button
                         type="button"
                         onClick={aplicarProveedorMasivo}
-                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider"
+                        className="sf-mm-dup px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider"
                       >
                         Aplicar
                       </button>
@@ -30357,7 +30652,7 @@ function obtenerCategoriaProducto(producto) {
 
                   {tablaProductosBase}
                 </>
-              );
+              )}{barraSeleccionMasiva}</>);
             })()}
           </div>
         )}
@@ -31493,7 +31788,7 @@ function obtenerCategoriaProducto(producto) {
                 </button>
                 <button onClick={() => { setConfigExportInventario({ tipo: 'catalogo_pdf', alcance: 'general', categoria: '', incluirLogoMarca: true, mostrarPrecio: true, mostrarStock: true, modoStock: 'numero' }); setModalActivo('exportar_inventario'); }} className="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-bold py-1.5 px-2.5 rounded-lg shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 w-full sm:w-auto text-[10px] uppercase tracking-wide"><FileSpreadsheet size={14} /> Exportar</button>
                 <button onClick={() => { setBusquedaInventario(''); setFiltroCategoriaInventario(''); setFiltroProveedorInventario(''); setFiltroMarcaInventario(''); }} className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold py-1.5 px-2.5 rounded-lg shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 w-full sm:w-auto text-[10px] uppercase tracking-wide"><XCircle size={14} /> Limpiar filtros</button>
-                <button onClick={() => { setArchivoImportacionInventario(null); setFilasImportacionInventario([]); setColumnasArchivoImportacionInventario([]); setConfigImportacionInventario({ ...crearConfigImportacionInventarioVacia(), proveedor: filtroProveedorInventario || '' }); setResumenImportacionInventario(null); setModalActivo('importar_inventario'); }} className="bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-bold py-1.5 px-2.5 rounded-lg shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 w-full sm:w-auto text-[10px] uppercase tracking-wide"><ArrowDownCircle size={14} /> Importar</button>
+                <button onClick={abrirImportacionInventario} className="bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-bold py-1.5 px-2.5 rounded-lg shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 w-full sm:w-auto text-[10px] uppercase tracking-wide"><ArrowDownCircle size={14} /> Importar</button>
                 <button onClick={abrirActualizacionCostosProveedor} className="bg-white border border-rose-200 text-rose-700 hover:bg-rose-50 font-bold py-1.5 px-2.5 rounded-lg shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 w-full sm:w-auto text-[10px] uppercase tracking-wide"><TrendingUp size={14} /> Costos proveedor</button>
                 <button onClick={abrirRespaldosPrecios} className="bg-white border border-amber-200 text-amber-700 hover:bg-amber-50 font-bold py-1.5 px-2.5 rounded-lg shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 w-full sm:w-auto text-[10px] uppercase tracking-wide"><History size={14} /> Respaldos</button>
                 <button onClick={() => { setCampoPrecioProductoPreferido('ganancia'); setBusquedaComponenteCompuesto(''); setModoFormularioProducto('nuevo'); setFormProducto(crearFormularioProducto()); setProductoAEditar(null); limpiarEdicionTaxonomias(); setModalActivo('nuevo_producto'); }} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 px-2.5 rounded-lg shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 w-full sm:w-auto text-[10px] uppercase tracking-wide"><Plus size={14} /> Nuevo Producto</button>
@@ -31883,7 +32178,7 @@ function obtenerCategoriaProducto(producto) {
                   </div>
                 </div>
                 <a
-                  href="./ofertas.html?v=seniorflow-flyer-gestion-20261124-73"
+                  href="./ofertas.html?v=seniorflow-flyer-gestion-20261125-77"
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-white px-4 py-2.5 text-sm font-black text-cyan-700 hover:bg-cyan-50 transition-colors"
@@ -31896,7 +32191,7 @@ function obtenerCategoriaProducto(producto) {
                 <iframe
                   ref={flyerIframeRef}
                   title="Flyer Studio"
-                  src="./ofertas.html?v=seniorflow-flyer-gestion-20261124-73"
+                  src="./ofertas.html?v=seniorflow-flyer-gestion-20261125-77"
                   onLoad={enviarDatosAFlyer}
                   className="w-full h-full border-0"
                 />
@@ -33044,9 +33339,10 @@ function obtenerCategoriaProducto(producto) {
             </div>
             <div className={`sf-settings-nav sf-screen-header bg-slate-900 p-2 rounded-2xl shadow-lg border border-slate-700 ${vista === 'tarjetas_planes' ? 'hidden' : ''}`}>
               <p className="px-2 pb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Centro de configuración</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-10 gap-1.5">
                 <button type="button" onClick={() => setSeccionConfiguracionActiva('negocio')} className={`px-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wide flex flex-col items-center justify-center gap-1 transition-all ${seccionConfiguracionActiva === 'negocio' ? 'bg-white text-slate-900 shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}><Store size={15} />Negocio</button>
                 <button type="button" onClick={() => setSeccionConfiguracionActiva('cobro')} className={`px-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wide flex flex-col items-center justify-center gap-1 transition-all ${seccionConfiguracionActiva === 'cobro' ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}><CreditCard size={15} />Cobro</button>
+                <button type="button" onClick={() => setSeccionConfiguracionActiva('tarjetas')} className={`px-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wide flex flex-col items-center justify-center gap-1 transition-all ${seccionConfiguracionActiva === 'tarjetas' ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}><CreditCard size={15} />Tarjetas</button>
                 <button type="button" onClick={() => setSeccionConfiguracionActiva('recargos')} className={`px-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wide flex flex-col items-center justify-center gap-1 transition-all ${seccionConfiguracionActiva === 'recargos' ? 'bg-amber-500 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}><Clock size={15} />Recargos</button>
                 <button type="button" onClick={() => setSeccionConfiguracionActiva('inventario')} className={`px-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wide flex flex-col items-center justify-center gap-1 transition-all ${seccionConfiguracionActiva === 'inventario' ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}><Package size={15} />Inventario</button>
                 <button type="button" onClick={() => setSeccionConfiguracionActiva('historialCaja')} className={`px-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wide flex flex-col items-center justify-center gap-1 transition-all ${seccionConfiguracionActiva === 'historialCaja' ? 'bg-violet-500 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}><History size={15} />Caja</button>
@@ -35044,174 +35340,277 @@ function obtenerCategoriaProducto(producto) {
         </Modal>
       )}
 
-      {/* Modal Importar Inventario */}
-      {modalActivo === 'importar_inventario' && (
-        <Modal titulo="Importar Inventario" onClose={() => setModalActivo(null)} customWidth="max-w-5xl">
-          <div className="space-y-5">
-            <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 space-y-2">
-              <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Importación con mapeo de columnas</p>
-              <p className="text-xs font-medium text-emerald-900">Elegí un proveedor cargado en el sistema y marcá qué significa cada columna del Excel. Por defecto solo se actualizan productos ya cargados; si querés traer artículos nuevos, activá la opción de crear productos.</p>
-              <p className="text-[11px] text-emerald-800 font-medium">Cuando seleccionás proveedor, el cruce es estricto: solo toma la columna Código proveedor y solo actualiza productos que tengan ese proveedor asignado.</p>
-            </div>
+      {/* Modal Importar Inventario (asistente) */}
+      {modalActivo === 'importar_inventario' && (() => {
+        const paso = pasoImportacionInventario;
+        const prog = progresoImportacionInventario;
+        const vista = vistaPreviaImportacionInventario;
+        const cfg = configImportacionInventario;
+        const problemaConfig = validarConfigImportacionInventario();
+        const porcentaje = prog.total ? Math.min(100, Math.round((prog.procesadas / prog.total) * 100)) : 0;
+        const transcurrido = prog.inicio ? Math.max(1, (Date.now() - prog.inicio) / 1000) : 0;
+        const restante = prog.procesadas > 2 && prog.total > prog.procesadas ? Math.round((transcurrido / prog.procesadas) * (prog.total - prog.procesadas)) : null;
+        const textoRestante = restante === null ? '' : (restante >= 60 ? `${Math.floor(restante / 60)} min ${restante % 60} s` : `${restante} s`);
+        const filasVista = vista?.filas || [];
+        const accionables = filasVista.filter((f) => ['actualizar', 'crear'].includes(f.estado));
+        const seleccionadas = accionables.filter((f) => f.seleccionado);
+        const filtros = [
+          ['cambios', 'Con cambios', accionables.length],
+          ['actualizar', 'Actualizar', vista?.resumen?.actualizar || 0],
+          ['crear', 'Nuevos', vista?.resumen?.crear || 0],
+          ['alta', 'Variación > 25%', vista?.resumen?.variacionAlta || 0],
+          ['sin_cambios', 'Sin cambios', vista?.resumen?.sinCambios || 0],
+          ['omitidas', 'Omitidas', (vista?.resumen?.sinCoincidencia || 0) + (vista?.resumen?.problemas || 0)],
+          ['todos', 'Todas', filasVista.length]
+        ];
+        const filasFiltradas = filasVista.filter((f) => {
+          const filtro = filtroVistaImportacionInventario;
+          if (filtro === 'cambios') return ['actualizar', 'crear'].includes(f.estado);
+          if (filtro === 'actualizar' || filtro === 'crear') return f.estado === filtro;
+          if (filtro === 'alta') return f.variacionAlta && f.estado === 'actualizar';
+          if (filtro === 'sin_cambios') return f.estado === 'sin_cambios';
+          if (filtro === 'omitidas') return ['sin_coincidencia', 'sin_codigo', 'invalida', 'duplicado'].includes(f.estado);
+          return true;
+        });
+        const formatoMonto = (valor) => (valor === null || valor === undefined || Number.isNaN(valor) ? '—' : formatearDinero(valor));
+        const etiquetasEstado = { actualizar: ['Actualizar', 'is-ok'], crear: ['Nuevo', 'is-new'], sin_cambios: ['Sin cambios', 'is-muted'], sin_coincidencia: ['No encontrado', 'is-warn'], sin_codigo: ['Sin código', 'is-bad'], invalida: ['Dato inválido', 'is-bad'], duplicado: ['Repetido', 'is-warn'] };
+        const campos = [
+          ['Identificación', [['columnaCodigoProveedor', 'Código proveedor'], ['columnaCodigoProducto', 'Código producto'], ['columnaDescripcion', 'Descripción']]],
+          ['Precios', [['columnaCosto', 'Costo'], ['columnaPrecio', 'Precio de venta'], ['columnaGanancia', 'Ganancia %'], ['columnaMoneda', 'Moneda'], ['columnaIva', 'IVA']]],
+          ['Otros datos', [['columnaStock', 'Stock'], ['columnaMarca', 'Marca'], ['columnaCategoria', 'Categoría'], ['columnaUnidad', 'Unidad']]]
+        ];
+        const bloqueado = importandoInventario || analizandoImportacionInventario;
+        const cerrar = () => { if (importandoInventario) return; setModalActivo(null); };
+        const pie = paso === 1 ? (
+          <div className="sf-imp-foot"><span className="sf-imp-hint">{filasImportacionInventario.length ? `${filasImportacionInventario.length} filas listas para configurar` : 'Elegí un archivo para continuar'}</span><div><button type="button" className="sf-imp-btn" onClick={cerrar}>Cancelar</button><button type="button" className="sf-imp-btn is-primary" disabled={!filasImportacionInventario.length} onClick={() => setPasoImportacionInventario(2)}>Siguiente <ChevronRight size={15} /></button></div></div>
+        ) : paso === 2 ? (
+          <div className="sf-imp-foot"><span className={`sf-imp-hint ${problemaConfig ? 'is-bad' : ''}`}>{problemaConfig || 'Todo listo: vamos a revisar qué cambia antes de guardar nada.'}</span><div><button type="button" className="sf-imp-btn" disabled={bloqueado} onClick={() => setPasoImportacionInventario(1)}>Atrás</button><button type="button" className="sf-imp-btn is-primary" disabled={bloqueado || Boolean(problemaConfig)} onClick={analizarImportacionInventario}>{analizandoImportacionInventario ? <><Loader2 size={15} className="animate-spin" /> Analizando…</> : <>Revisar cambios <ChevronRight size={15} /></>}</button></div></div>
+        ) : paso === 3 ? (
+          <div className="sf-imp-foot"><span className="sf-imp-hint">{seleccionadas.length} de {accionables.length} cambios seleccionados · se guarda un respaldo para poder deshacer</span><div><button type="button" className="sf-imp-btn" onClick={() => setPasoImportacionInventario(2)}>Atrás</button><button type="button" className="sf-imp-btn is-primary" disabled={!seleccionadas.length} onClick={aplicarImportacionInventario}>Aplicar {seleccionadas.length} cambio{seleccionadas.length === 1 ? '' : 's'}</button></div></div>
+        ) : (
+          <div className="sf-imp-foot"><span className="sf-imp-hint">{importandoInventario ? 'No cierres esta ventana mientras se guardan los cambios.' : 'Importación finalizada.'}</span><div>
+            {importandoInventario ? <button type="button" className="sf-imp-btn is-danger" onClick={() => { cancelarImportacionInventarioRef.current = true; }}>Detener</button> : <><button type="button" className="sf-imp-btn" onClick={() => reiniciarImportacionInventario(filtroProveedorInventario || '')}>Importar otra lista</button><button type="button" className="sf-imp-btn is-primary" onClick={() => setModalActivo(null)}>Cerrar</button></>}
+          </div></div>
+        );
+        return (
+        <Modal titulo="Importar lista de precios" onClose={cerrar} customWidth="max-w-6xl" footer={pie}>
+          <div className="sf-imp">
+            <ol className="sf-imp-steps">
+              {PASOS_IMPORTACION_INVENTARIO.map((nombre, indice) => (
+                <li key={`imp-paso-${nombre}`} className={paso === indice + 1 ? 'is-current' : (paso > indice + 1 ? 'is-done' : '')}><span>{paso > indice + 1 ? <CheckCircle size={14} /> : indice + 1}</span>{nombre}</li>
+              ))}
+            </ol>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Proveedor de la lista</label>
-                <select
-                  value={configImportacionInventario.proveedor}
-                  onChange={(e) => setConfigImportacionInventario((prev) => ({ ...prev, proveedor: e.target.value }))}
-                  className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                  <option value="">Sin proveedor / solo código interno</option>
-                  {proveedoresInventario.map((proveedor) => <option key={`import-prov-${proveedor}`} value={proveedor}>{proveedor}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Archivo Excel o CSV</label>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls,.csv,.txt"
-                  onChange={(e) => cargarArchivoImportacionInventario(e.target.files?.[0] || null)}
-                  className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-                {archivoImportacionInventario && <p className="text-[11px] font-bold text-gray-600 mt-1">Seleccionado: {archivoImportacionInventario.name}</p>}
-              </div>
-            </div>
-
-            <label className="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={Boolean(configImportacionInventario.crearProductosNuevos)}
-                onChange={(e) => setConfigImportacionInventario((prev) => ({ ...prev, crearProductosNuevos: e.target.checked }))}
-                className="mt-0.5 w-4 h-4 text-sky-600 border-sky-300 rounded focus:ring-sky-500"
-              />
-              <span>
-                <span className="block text-[10px] font-black uppercase tracking-wider text-sky-800">Importar también productos nuevos del Excel</span>
-                <span className="block text-[11px] font-bold text-sky-700">Si queda desactivado, solo actualiza códigos que ya existan en inventario y omite el resto de la lista.</span>
-              </span>
-            </label>
-
-            {!!columnasArchivoImportacionInventario.length && (
-              <div className="border border-gray-200 rounded-xl p-3 space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  {[
-                    ['columnaCodigoProveedor', 'Código proveedor'],
-                    ['columnaCodigoProducto', 'Código producto'],
-                    ['columnaDescripcion', 'Descripción'],
-                    ['columnaMarca', 'Marca'],
-                    ['columnaCategoria', 'Categoría'],
-                    ['columnaCosto', 'Precio costo'],
-                    ['columnaPrecio', 'Precio venta'],
-                    ['columnaGanancia', 'Ganancia %'],
-                    ['columnaStock', 'Stock'],
-                    ['columnaUnidad', 'Unidad'],
-                    ['columnaIva', 'IVA'],
-                    ['columnaMoneda', 'Moneda']
-                  ].map(([campo, label]) => (
-                    <div key={`map-import-${campo}`}>
-                      <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{label}</label>
-                      <select
-                        value={configImportacionInventario[campo] || ''}
-                        onChange={(e) => setConfigImportacionInventario((prev) => ({ ...prev, [campo]: e.target.value }))}
-                        className="w-full px-2.5 py-2 bg-white border border-gray-200 rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-                      >
-                        <option value="">No usar</option>
-                        {columnasArchivoImportacionInventario.map((columna) => <option key={`import-col-${campo}-${columna}`} value={columna}>{columna}</option>)}
-                      </select>
-                    </div>
-                  ))}
+            {paso === 1 && (
+              <div className="sf-imp-pane">
+                <div className="sf-imp-grid2">
+                  <div className="sf-imp-field">
+                    <label>Proveedor de la lista</label>
+                    <select value={cfg.proveedor} onChange={(e) => setConfigImportacionInventario((prev) => ({ ...prev, proveedor: e.target.value }))}>
+                      <option value="">Sin proveedor (cruzar por código interno)</option>
+                      {proveedoresInventario.map((proveedor) => <option key={`import-prov-${proveedor}`} value={proveedor}>{proveedor}</option>)}
+                    </select>
+                    <small>{cfg.proveedor ? 'Se cruza por "Código proveedor" y solo se actualizan productos que tengan ese proveedor.' : 'Se cruza por el código de tus productos.'}</small>
+                  </div>
+                  <label className="sf-imp-check">
+                    <input type="checkbox" checked={Boolean(cfg.crearProductosNuevos)} onChange={(e) => setConfigImportacionInventario((prev) => ({ ...prev, crearProductosNuevos: e.target.checked }))} />
+                    <span><b>Crear los productos que no existan</b><small>Si está apagado, solo se actualizan los productos ya cargados y el resto se omite.</small></span>
+                  </label>
                 </div>
-                <label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(configImportacionInventario.ivaIncluido)}
-                    onChange={(e) => setConfigImportacionInventario((prev) => ({ ...prev, ivaIncluido: e.target.checked }))}
-                    className="mt-0.5 w-4 h-4 text-amber-600 border-amber-300 rounded focus:ring-amber-500"
-                  />
-                  <span>
-                    <span className="block text-[10px] font-black uppercase tracking-wider text-amber-800">El costo del Excel ya incluye IVA</span>
-                    <span className="block text-[11px] font-bold text-amber-700">Se guarda en la línea del proveedor para que el análisis de costos no vuelva a sumar IVA.</span>
-                  </span>
-                </label>
+
+                {!archivoImportacionInventario ? (
+                  <label className={`sf-imp-drop ${arrastrandoImportacionInventario ? 'is-over' : ''}`}
+                    onDragOver={(e) => { e.preventDefault(); setArrastrandoImportacionInventario(true); }}
+                    onDragLeave={() => setArrastrandoImportacionInventario(false)}
+                    onDrop={(e) => { e.preventDefault(); setArrastrandoImportacionInventario(false); const archivo = e.dataTransfer?.files?.[0]; if (archivo) cargarArchivoImportacionInventario(archivo); }}>
+                    <input type="file" accept=".xlsx,.xls,.xlsm,.csv,.txt" className="hidden" onChange={(e) => { cargarArchivoImportacionInventario(e.target.files?.[0] || null); e.target.value = ''; }} />
+                    <Upload size={30} />
+                    <strong>Arrastrá tu Excel acá o hacé clic para elegirlo</strong>
+                    <span>Formatos: .xlsx, .xls o .csv. Con una fila de títulos arriba (por ejemplo: Código, Descripción, Costo).</span>
+                  </label>
+                ) : (
+                  <div className="sf-imp-file">
+                    <span className="sf-imp-file-ico"><FileSpreadsheet size={24} /></span>
+                    <div><strong>{archivoImportacionInventario.name}</strong><small>{(archivoImportacionInventario.size / 1024).toFixed(0)} KB · {filasImportacionInventario.length} filas · {columnasArchivoImportacionInventario.length} columnas detectadas</small></div>
+                    <button type="button" className="sf-imp-btn" onClick={() => reiniciarImportacionInventario(cfg.proveedor)}>Cambiar archivo</button>
+                  </div>
+                )}
+                <button type="button" className="sf-imp-link" onClick={descargarPlantillaImportacionInventario}><Download size={14} /> Descargar plantilla de ejemplo</button>
               </div>
             )}
 
-            {!!filasImportacionInventario.length && !!columnasArchivoImportacionInventario.length && (
-              <div className="border border-gray-200 rounded-xl overflow-hidden">
-                <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-gray-500">Previsualización</p>
-                  <p className="text-[11px] font-bold text-gray-500">{filasImportacionInventario.length} fila(s)</p>
+            {paso === 2 && (
+              <div className="sf-imp-pane">
+                <p className="sf-imp-lead">Indicá qué columna de tu archivo corresponde a cada dato. Detectamos las más probables; revisalas y corregí lo que haga falta.</p>
+                {campos.map(([grupo, lista]) => (
+                  <div key={`imp-grupo-${grupo}`} className="sf-imp-group">
+                    <h4>{grupo}</h4>
+                    <div className="sf-imp-map">
+                      {lista.map(([campo, etiqueta]) => {
+                        const muestra = cfg[campo] ? filasImportacionInventario.slice(0, 3).map((f) => String(f?.[cfg[campo]] ?? '')).filter(Boolean).join(' · ') : '';
+                        return (
+                          <div key={`map-import-${campo}`} className={`sf-imp-field ${cfg[campo] ? 'is-set' : ''}`}>
+                            <label>{etiqueta}</label>
+                            <select value={cfg[campo] || ''} onChange={(e) => setConfigImportacionInventario((prev) => ({ ...prev, [campo]: e.target.value }))}>
+                              <option value="">No usar</option>
+                              {columnasArchivoImportacionInventario.map((columna) => <option key={`import-col-${campo}-${columna}`} value={columna}>{columna}</option>)}
+                            </select>
+                            <small title={muestra}>{muestra ? `Ej: ${muestra}` : 'Sin columna asignada'}</small>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                <label className="sf-imp-check">
+                  <input type="checkbox" checked={Boolean(cfg.ivaIncluido)} onChange={(e) => setConfigImportacionInventario((prev) => ({ ...prev, ivaIncluido: e.target.checked }))} />
+                  <span><b>Los costos del archivo ya incluyen IVA</b><small>Se guarda así en el proveedor para no volver a sumar IVA.</small></span>
+                </label>
+                <div className="sf-imp-group">
+                  <h4>Vista previa del archivo</h4>
+                  <div className="sf-imp-table-wrap">
+                    <table className="sf-imp-table">
+                      <thead><tr>{columnasArchivoImportacionInventario.slice(0, 9).map((columna) => <th key={`pv-h-${columna}`}>{columna}</th>)}</tr></thead>
+                      <tbody>{filasImportacionInventario.slice(0, 5).map((fila, index) => <tr key={`pv-${index}`}>{columnasArchivoImportacionInventario.slice(0, 9).map((columna) => <td key={`pv-c-${index}-${columna}`}>{String(fila?.[columna] ?? '')}</td>)}</tr>)}</tbody>
+                    </table>
+                  </div>
                 </div>
-                <div className="overflow-x-auto max-h-56 custom-scrollbar">
-                  <table className="w-full text-xs">
-                    <thead className="bg-white text-gray-500 uppercase">
-                      <tr>
-                        {columnasArchivoImportacionInventario.slice(0, 8).map((columna) => <th key={`preview-import-head-${columna}`} className="text-left px-3 py-2 whitespace-nowrap">{columna}</th>)}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {filasImportacionInventario.slice(0, 6).map((fila, index) => (
-                        <tr key={`preview-import-${index}`}>
-                          {columnasArchivoImportacionInventario.slice(0, 8).map((columna) => (
-                            <td key={`preview-import-cell-${index}-${columna}`} className="px-3 py-2 whitespace-nowrap text-gray-700 font-bold">{(fila?.[columna] ?? '').toString()}</td>
-                          ))}
-                        </tr>
-                      ))}
+              </div>
+            )}
+
+            {paso === 3 && vista && (
+              <div className="sf-imp-pane">
+                <div className="sf-imp-kpis">
+                  <div><span>Filas del archivo</span><b>{vista.resumen.total}</b></div>
+                  <div className="is-ok"><span>Se actualizan</span><b>{vista.resumen.actualizar}</b></div>
+                  <div className="is-new"><span>Productos nuevos</span><b>{vista.resumen.crear}</b></div>
+                  <div><span>Sin cambios</span><b>{vista.resumen.sinCambios}</b></div>
+                  <div className="is-warn"><span>Omitidas</span><b>{vista.resumen.sinCoincidencia + vista.resumen.problemas}</b></div>
+                </div>
+                {vista.resumen.variacionAlta > 0 && <div className="sf-imp-alert"><AlertCircle size={16} /> {vista.resumen.variacionAlta} producto(s) cambian más de 25% de costo o precio. Revisalos antes de aplicar (filtro "Variación &gt; 25%").</div>}
+                {vista.resumen.actualizar + vista.resumen.crear === 0 && <div className="sf-imp-alert"><AlertCircle size={16} /> No hay cambios para aplicar. Revisá que el proveedor y las columnas de código sean las correctas (paso 2).</div>}
+                <div className="sf-imp-chips">
+                  {filtros.map(([clave, texto, cantidad]) => <button key={`imp-f-${clave}`} type="button" className={filtroVistaImportacionInventario === clave ? 'is-on' : ''} onClick={() => setFiltroVistaImportacionInventario(clave)}>{texto} <em>{cantidad}</em></button>)}
+                </div>
+                <div className="sf-imp-table-wrap is-tall">
+                  <table className="sf-imp-table">
+                    <thead><tr>
+                      <th className="w-9"><input type="checkbox" checked={accionables.length > 0 && seleccionadas.length === accionables.length} onChange={(e) => alternarTodasImportacionInventario(e.target.checked)} aria-label="Seleccionar todo" /></th>
+                      <th>Fila</th><th>Código</th><th>Producto</th><th className="is-num">Costo</th><th className="is-num">Precio venta</th><th className="is-num">Stock</th><th>Estado</th>
+                    </tr></thead>
+                    <tbody>
+                      {filasFiltradas.slice(0, 200).map((f) => {
+                        const [textoEstado, claseEstado] = etiquetasEstado[f.estado] || ['—', ''];
+                        const editable = ['actualizar', 'crear'].includes(f.estado);
+                        return (
+                          <tr key={f.id} className={f.seleccionado ? '' : (editable ? 'is-off' : '')}>
+                            <td>{editable ? <input type="checkbox" checked={Boolean(f.seleccionado)} onChange={() => alternarFilaImportacionInventario(f.id)} aria-label="Incluir fila" /> : null}</td>
+                            <td className="is-muted">{f.filaNumero}</td>
+                            <td>{f.codigo || f.codigoProducto || '—'}</td>
+                            <td className="is-desc" title={f.motivo}>{f.descripcion || f.descripcionArchivo || '—'}{!editable && <small>{f.motivo}</small>}</td>
+                            <td className="is-num">{editable || f.estado === 'sin_cambios' ? <>{f.costoAntes !== null && f.costoAntes !== undefined && <s>{formatoMonto(f.costoAntes)}</s>}<b>{formatoMonto(f.costoDespues ?? f.costoAntes)}</b>{f.porcentajeCosto !== null && f.porcentajeCosto !== undefined && Math.abs(f.porcentajeCosto) >= 0.01 && <i className={f.porcentajeCosto > 0 ? 'is-up' : 'is-down'}>{f.porcentajeCosto > 0 ? '+' : ''}{f.porcentajeCosto.toFixed(1)}%</i>}</> : '—'}</td>
+                            <td className="is-num">{editable || f.estado === 'sin_cambios' ? <>{f.precioAntes !== null && f.precioAntes !== undefined && f.precioDespues !== null && f.precioDespues !== f.precioAntes && <s>{formatoMonto(f.precioAntes)}</s>}<b>{formatoMonto(f.precioDespues ?? f.precioAntes)}</b>{f.porcentajePrecio !== null && f.porcentajePrecio !== undefined && Math.abs(f.porcentajePrecio) >= 0.01 && <i className={f.porcentajePrecio > 0 ? 'is-up' : 'is-down'}>{f.porcentajePrecio > 0 ? '+' : ''}{f.porcentajePrecio.toFixed(1)}%</i>}</> : '—'}</td>
+                            <td className="is-num">{f.stockDespues !== null && f.stockDespues !== undefined ? <>{f.stockAntes !== null && f.stockAntes !== undefined && f.stockAntes !== f.stockDespues && <s>{f.stockAntes}</s>}<b>{f.stockDespues}</b></> : '—'}</td>
+                            <td><span className={`sf-imp-tag ${claseEstado}`}>{textoEstado}</span></td>
+                          </tr>
+                        );
+                      })}
+                      {!filasFiltradas.length && <tr><td colSpan={8} className="sf-imp-empty">No hay filas en este filtro.</td></tr>}
                     </tbody>
                   </table>
                 </div>
+                {filasFiltradas.length > 200 && <p className="sf-imp-note">Mostrando las primeras 200 de {filasFiltradas.length} filas. Los cambios seleccionados se aplican todos, aunque no se vean en pantalla.</p>}
               </div>
             )}
 
-            {importandoInventario && (
-              <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-black uppercase tracking-wider text-indigo-800">Actualizando precios</p>
-                  <p className="text-xs font-black text-indigo-700">{progresoImportacionInventario.procesadas} / {progresoImportacionInventario.total}</p>
-                </div>
-                <div className="h-3 overflow-hidden rounded-full bg-indigo-100">
-                  <div className="h-full rounded-full bg-indigo-600 transition-all duration-300" style={{ width: `${progresoImportacionInventario.total ? Math.min(100, (progresoImportacionInventario.procesadas / progresoImportacionInventario.total) * 100) : 0}%` }} />
-                </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-bold text-indigo-900">
-                  <span>Actualizados: {progresoImportacionInventario.actualizados}</span>
-                  <span>Variaciones registradas: {progresoImportacionInventario.variaciones}</span>
-                  <span>Sin cambios: {progresoImportacionInventario.sinCambios}</span>
-                </div>
+            {paso === 4 && (
+              <div className="sf-imp-pane">
+                {importandoInventario ? (
+                  <div className="sf-imp-progress">
+                    <Loader2 size={34} className="animate-spin" />
+                    <h3>{prog.cancelado || cancelarImportacionInventarioRef.current ? 'Deteniendo…' : 'Importando tu lista'}</h3>
+                    <div className="sf-imp-bar"><div style={{ width: `${porcentaje}%` }} /></div>
+                    <p className="sf-imp-pct">{porcentaje}% · {prog.procesadas} de {prog.total}{textoRestante ? ` · faltan ~${textoRestante}` : ''}</p>
+                    <div className="sf-imp-kpis is-small">
+                      <div className="is-ok"><span>Actualizados</span><b>{prog.actualizados}</b></div>
+                      <div className="is-new"><span>Creados</span><b>{prog.creados}</b></div>
+                      <div><span>Variaciones de costo</span><b>{prog.variaciones}</b></div>
+                      <div className={prog.errores ? 'is-bad' : ''}><span>Con error</span><b>{prog.errores}</b></div>
+                    </div>
+                  </div>
+                ) : resumenImportacionInventario ? (
+                  <div className="sf-imp-result">
+                    <div className={`sf-imp-result-head ${resumenImportacionInventario.errores || resumenImportacionInventario.cancelado ? 'is-warn' : 'is-ok'}`}>
+                      {resumenImportacionInventario.errores || resumenImportacionInventario.cancelado ? <AlertCircle size={30} /> : <CheckCircle size={30} />}
+                      <div><h3>{resumenImportacionInventario.cancelado ? 'Importación detenida' : (resumenImportacionInventario.errores ? 'Importación terminada con avisos' : 'Importación completada')}</h3>
+                        <p>{resumenImportacionInventario.cancelado ? `Se aplicaron los cambios hasta el momento${resumenImportacionInventario.pendientes > 0 ? `; quedaron ${resumenImportacionInventario.pendientes} sin procesar.` : '.'}` : 'Los cambios ya están guardados en el inventario.'}{resumenImportacionInventario.falloGeneral ? ` Detalle: ${resumenImportacionInventario.falloGeneral}` : ''}</p></div>
+                    </div>
+                    <div className="sf-imp-kpis">
+                      <div className="is-ok"><span>Actualizados</span><b>{resumenImportacionInventario.actualizados}</b></div>
+                      <div className="is-new"><span>Creados</span><b>{resumenImportacionInventario.creados}</b></div>
+                      <div><span>Sin cambios</span><b>{resumenImportacionInventario.sinCambios}</b></div>
+                      <div className="is-warn"><span>Omitidas</span><b>{resumenImportacionInventario.omitidas}</b></div>
+                      <div className={resumenImportacionInventario.errores ? 'is-bad' : ''}><span>Con error</span><b>{resumenImportacionInventario.errores}</b></div>
+                    </div>
+                    {resumenImportacionInventario.respaldoId && <div className="sf-imp-undo"><History size={16} /><span>Guardamos un respaldo de los precios anteriores. Si algo no quedó como esperabas, podés volver atrás.</span><button type="button" className="sf-imp-btn" onClick={abrirRespaldosPrecios}>Ver respaldos</button></div>}
+                    {erroresImportacionInventario.length > 0 && (
+                      <div className="sf-imp-group">
+                        <div className="sf-imp-errhead"><h4>Filas con error ({erroresImportacionInventario.length})</h4><button type="button" className="sf-imp-link" onClick={descargarErroresImportacionInventario}><Download size={14} /> Descargar detalle</button></div>
+                        <div className="sf-imp-table-wrap"><table className="sf-imp-table"><thead><tr><th>Fila</th><th>Código</th><th>Producto</th><th>Motivo</th></tr></thead><tbody>{erroresImportacionInventario.slice(0, 50).map((e, i) => <tr key={`imp-err-${i}`}><td>{e.filaNumero}</td><td>{e.codigo || '—'}</td><td className="is-desc">{e.descripcion || '—'}</td><td>{e.mensaje}</td></tr>)}</tbody></table></div>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
               </div>
             )}
+          </div>
+        </Modal>
+        );
+      })()}
 
-            {resumenImportacionInventario && (
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3"><p className="text-[10px] font-bold text-gray-500 uppercase">Filas</p><p className="text-lg font-black text-gray-900">{resumenImportacionInventario.total}</p></div>
-                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3"><p className="text-[10px] font-bold text-emerald-700 uppercase">Actualizados</p><p className="text-lg font-black text-emerald-800">{resumenImportacionInventario.actualizados}</p></div>
-                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3"><p className="text-[10px] font-bold text-indigo-700 uppercase">Creados</p><p className="text-lg font-black text-indigo-800">{resumenImportacionInventario.creados || 0}</p></div>
-                <div className="bg-orange-50 border border-orange-100 rounded-xl p-3"><p className="text-[10px] font-bold text-orange-700 uppercase">Sin match</p><p className="text-lg font-black text-orange-800">{resumenImportacionInventario.sinCoincidencia}</p></div>
-                <div className="bg-red-50 border border-red-100 rounded-xl p-3"><p className="text-[10px] font-bold text-red-700 uppercase">Sin código</p><p className="text-lg font-black text-red-800">{resumenImportacionInventario.sinCodigo}</p></div>
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3"><p className="text-[10px] font-bold text-gray-500 uppercase">Sin cambios</p><p className="text-lg font-black text-gray-700">{resumenImportacionInventario.sinCambios}</p></div>
-              </div>
-            )}
-
-            {resumenImportacionInventario?.omitidosPorExistentes > 0 && (
-              <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800">
-                Se omitieron {resumenImportacionInventario.omitidosPorExistentes} fila(s) porque no estaban cargadas en inventario.
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={procesarImportacionInventario}
-              disabled={importandoInventario || !archivoImportacionInventario || !filasImportacionInventario.length}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-black py-3.5 rounded-xl text-sm uppercase tracking-wider transition-colors"
-            >
-              {importandoInventario ? 'Importando...' : 'Importar y Actualizar'}
-            </button>
+      {/* Modal Respaldos de precios */}
+      {confirmacionMasiva && (
+        <Modal titulo={confirmacionMasiva.titulo} onClose={() => setConfirmacionMasiva(null)} customWidth="max-w-5xl">
+          <div className="sf-mmc">
+            <div className="sf-mmc-sum">
+              <div><small>Productos seleccionados</small><strong>{confirmacionMasiva.total}</strong></div>
+              <div><small>Se van a modificar</small><strong>{confirmacionMasiva.filas.length - (confirmacionMasiva.excluidos || []).length}</strong></div>
+              <div><small>Excluidos o sin cambios</small><strong>{Math.max(0, confirmacionMasiva.total - (confirmacionMasiva.filas.length - (confirmacionMasiva.excluidos || []).length))}</strong></div>
+            </div>
+            {confirmacionMasiva.avisos.map((aviso, i) => <p key={`aviso-mm-${i}`} className="sf-mmc-warn">⚠ {aviso}</p>)}
+            <div className="sf-mmc-table">
+              <table>
+                <thead><tr><th><input type="checkbox" aria-label="Incluir todos" checked={(confirmacionMasiva.excluidos || []).length === 0} onChange={(e) => setConfirmacionMasiva((prev) => ({ ...prev, excluidos: e.target.checked ? [] : prev.filas.map((f) => f.id) }))} /></th><th>Código</th><th>Producto</th><th>Cambios (antes → después)</th></tr></thead>
+                <tbody>
+                  {confirmacionMasiva.filas.map((fila) => (
+                    <tr key={`mmc-${fila.id}`} className={(confirmacionMasiva.excluidos || []).includes(fila.id) ? 'is-off' : ''}>
+                      <td className="sf-mmc-chk"><input type="checkbox" aria-label="Incluir producto" checked={!(confirmacionMasiva.excluidos || []).includes(fila.id)} onChange={(e) => setConfirmacionMasiva((prev) => ({ ...prev, excluidos: e.target.checked ? (prev.excluidos || []).filter((id) => id !== fila.id) : [...(prev.excluidos || []), fila.id] }))} /></td>
+                      <td>{fila.codigo}</td>
+                      <td>{fila.descripcion}</td>
+                      <td>
+                        {fila.cambios.map((c, i) => (
+                          <div key={`mmc-${fila.id}-${i}`} className="sf-mmc-chg"><b>{c.campo}:</b> <span className="is-old">{c.antes}</span> <i>→</i> <span className="is-new">{c.despues}</span></div>
+                        ))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {confirmacionMasiva.nota && <p className="sf-mmc-note">{confirmacionMasiva.nota}</p>}
+            <div className="sf-mmc-foot">
+              <button type="button" className="sf-bud-btn" onClick={() => setConfirmacionMasiva(null)}>Cancelar</button>
+              {(() => {
+                const idsIncluidos = confirmacionMasiva.filas.filter((f) => !(confirmacionMasiva.excluidos || []).includes(f.id)).map((f) => f.id);
+                return <button type="button" className="sf-bud-new" disabled={!idsIncluidos.length} onClick={async () => { const accion = confirmacionMasiva.accion; setConfirmacionMasiva(null); await accion(idsIncluidos); }}>Confirmar y aplicar a {idsIncluidos.length} producto(s)</button>;
+              })()}
+            </div>
           </div>
         </Modal>
       )}
 
-      {/* Modal Respaldos de precios */}
       {modalActivo === 'respaldos_precios' && (
-        <Modal titulo="Respaldos de Precios" onClose={() => setModalActivo(null)} customWidth="max-w-4xl">
+        <Modal titulo="Historial de cambios masivos y respaldos" onClose={() => setModalActivo(null)} customWidth="max-w-4xl">
           <div className="space-y-4">
             <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
               <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">Vuelta atrás segura</p>
@@ -38734,8 +39133,8 @@ function obtenerCategoriaProducto(producto) {
                     <option value="365">Último año</option>
                   </select>
                 </label>
-                <button type="button" className="sf-bud-btn" onClick={() => setDetallesCuentaCorrienteAbiertos(movimientosClienteSeleccionadoPaginados.items.every((m) => detallesCuentaCorrienteAbiertos[m.id]) ? {} : Object.fromEntries(movimientosClienteSeleccionadoPaginados.items.map((m) => [m.id, true])))} title="Expandir o contraer el detalle de los movimientos de esta página"><ChevronsUpDown size={15} /> Detalle</button>
-                <button type="button" className="sf-bud-btn" onClick={() => descargarCsvSimple(`cuenta_corriente_${(clienteSeleccionado?.nombre || 'cliente').replace(/\s+/g, '_')}.csv`, [['Fecha', 'Tipo', 'Descripción', 'Importe'], ...movimientosClienteSeleccionadoFiltrados.map((m) => [`${formatearFecha(m.fecha)} ${formatearHora(m.fecha)}`, m.tipo === 'cobro' ? 'Cobro' : (esRecargoMoraMovimiento(m) ? 'Recargo' : 'Cargo'), m.descripcion || '', (m.tipo === 'cobro' ? -1 : 1) * Math.abs(Number(m.monto || 0))])])} disabled={!movimientosClienteSeleccionadoFiltrados.length}><Download size={15} /> CSV</button>
+                <button type="button" className="sf-ca-btn" onClick={() => setDetallesCuentaCorrienteAbiertos(movimientosClienteSeleccionadoPaginados.items.every((m) => detallesCuentaCorrienteAbiertos[m.id]) ? {} : Object.fromEntries(movimientosClienteSeleccionadoPaginados.items.map((m) => [m.id, true])))} title="Expandir o contraer el detalle de los movimientos de esta página"><ChevronsUpDown size={15} /> Detalle</button>
+                <details className="sf-client-more sf-ca-more sf-ca-export"><summary className="sf-ca-btn"><Download size={15} /> Descargar</summary><div className="sf-client-more-menu"><button type="button" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); descargarResumenCuentaClientePdf(clienteSeleccionado); }}><FileText size={14} /> Resumen en PDF</button><button type="button" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); (() => descargarCsvSimple(`cuenta_corriente_${(clienteSeleccionado?.nombre || 'cliente').replace(/\s+/g, '_')}.csv`, [['Fecha', 'Tipo', 'Descripción', 'Importe'], ...movimientosClienteSeleccionadoFiltrados.map((m) => [`${formatearFecha(m.fecha)} ${formatearHora(m.fecha)}`, m.tipo === 'cobro' ? 'Cobro' : (esRecargoMoraMovimiento(m) ? 'Recargo' : 'Cargo'), m.descripcion || '', (m.tipo === 'cobro' ? -1 : 1) * Math.abs(Number(m.monto || 0))])]))(); }} disabled={!movimientosClienteSeleccionadoFiltrados.length}><Download size={14} /> Planilla CSV (Excel)</button></div></details>
               </div>
               {movimientosClienteSeleccionadoVisibles.length === 0 ? (
                 <div className="p-8 text-center text-gray-400">
