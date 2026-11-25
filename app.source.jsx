@@ -648,10 +648,12 @@ const MOTIVOS_DEVOLUCION = ['Arrepentimiento', 'Producto fallado', 'Error en el 
 const DESCRIPCIONES_VENTA_PREESTABLECIDAS = ['Remito X', 'Factura A', 'Factura B'];
 const ACTUALIZACIONES_SISTEMA = [
   {
-    version: '2026.11.25-79',
+    version: '2026.11.25-83',
     fecha: '2026-11-25',
-    titulo: 'Menú simplificado, Ayuda tutorial y botones corregidos',
+    titulo: 'Novedades y Ayuda rediseñadas, importador y menú',
     cambios: [
+      'Logística rediseñada: búsqueda y selección de productos, tabla comparativa con la mejor opción marcada (costo final, entrega, precio) y mapas de ruta más compactos.',
+      'Novedades (Ajustes) y Ayuda rediseñadas con el estilo del sistema; en Ajustes el menú lateral ya no desaparece al abrir Novedades.',
       'Se quitaron del menú Tarjetas y planes (ahora en Ajustes > Tarjetas), Sugerencias y Comparativa.',
       'Ayuda rediseñada como tutorial: para qué sirve cada módulo y cómo hacer cada tarea paso a paso.',
       'Botones de acción (ver, editar, descargar, eliminar, comparar) con un mismo diseño en todas las listas; detalle de cuenta corriente sin textos superpuestos.',
@@ -28550,126 +28552,61 @@ function obtenerCategoriaProducto(producto) {
         })()}
 
         {puedeVerAyuda && vista === 'ayuda' && (
-          <section className="space-y-5 animate-in fade-in duration-300 print:hidden">
-            <div className="relative overflow-hidden rounded-3xl bg-slate-950 text-white shadow-xl">
-              <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-blue-500/20 blur-2xl" />
-              <div className="absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-indigo-500/20 blur-2xl" />
-              <div className="relative flex flex-col gap-4 p-6 lg:flex-row lg:items-center lg:justify-between lg:p-8">
-                <div className="max-w-3xl">
-                  <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-300/30 bg-blue-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">
-                    <BookOpen size={14} /> Centro de ayuda SeniorFlow
-                  </div>
-                  <h2 className="text-2xl font-black tracking-tight lg:text-3xl">Aprendé a usar el sistema, paso a paso</h2>
-                  <p className="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-slate-300">Elegí qué querés hacer y seguí los pasos. Cada tema explica para qué sirve y cómo se hace.</p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-left lg:min-w-[220px]">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-blue-200">Empresa activa</p>
-                  <p className="mt-1 text-lg font-black">{configuracion.nombre || 'Mi negocio'}</p>
-                  <p className="mt-1 text-[11px] font-bold text-slate-300">Guía operativa para todo el equipo</p>
-                </div>
+          <section className="sf-help print:hidden">
+            <header className="sf-help-head">
+              <span className="sf-help-head-ico"><BookOpen size={20} /></span>
+              <div>
+                <h1>Centro de ayuda</h1>
+                <p>Elegí un tema y seguí los pasos. Cada guía explica para qué sirve y cómo se hace.</p>
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
-              <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:sticky lg:top-28">
-                <div className="relative mb-3">
-                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    data-ayuda-search="true"
-                    value={busquedaAyuda}
-                    onChange={(e) => setBusquedaAyuda(e.target.value)}
-                    placeholder="Buscar en la ayuda..."
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-xs font-bold text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                  />
-                </div>
-                <p className="px-2 pb-2 text-[10px] font-black uppercase tracking-wider text-slate-400">Temas de ayuda</p>
-                <div className="max-h-[calc(62*var(--sf-1vh,1vh))] space-y-1 overflow-y-auto pr-1">
-                  {seccionesAyudaFiltradas.map((seccion) => {
-                    const IconoSeccion = iconosAyuda[seccion.icono] || BookOpen;
-                    const activo = seccion.id === seccionAyudaSeleccionada.id;
-                    return (
-                      <button
-                        key={`ayuda-nav-${seccion.id}`}
-                        type="button"
-                        onClick={() => setSeccionAyudaActiva(seccion.id)}
-                        className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors ${activo ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'}`}
-                      >
-                        <IconoSeccion size={16} className="shrink-0" />
-                        <span className="text-[11px] font-black leading-tight">{seccion.titulo}</span>
-                      </button>
-                    );
-                  })}
-                  {seccionesAyudaFiltradas.length === 0 && <p className="px-3 py-5 text-center text-xs font-bold text-slate-400">No encontramos un tema con esa búsqueda.</p>}
-                </div>
-              </aside>
-
-              <div className="min-w-0 space-y-5">
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="rounded-xl bg-blue-600 p-2.5 text-white shadow-sm"><BookOpen size={19} /></div>
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-wider text-blue-700">Guía de uso</p>
-                      <p className="mt-1 text-sm font-bold leading-relaxed text-blue-950">Elegí un tema de la izquierda: te explicamos para qué sirve y cómo hacer cada tarea, paso a paso.</p>
-                    </div>
-                  </div>
-                </div>
-
-                <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-7">
-                  {(() => {
-                    const IconoSeccion = iconosAyuda[seccionAyudaSeleccionada.icono] || BookOpen;
-                    return (
-                      <>
-                        <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="flex items-start gap-3">
-                            <div className="rounded-2xl bg-slate-900 p-3 text-white shadow-sm"><IconoSeccion size={24} /></div>
-                            <div>
-                              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-600">Tutorial</p>
-                              <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-900">{seccionAyudaSeleccionada.titulo}</h3>
-                              <p className="mt-1 text-sm font-medium leading-relaxed text-slate-500">{seccionAyudaSeleccionada.resumen}</p>
-                            </div>
-                          </div>
-                          <span className="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700">Uso recomendado</span>
-                        </div>
-
-                        <div className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(260px,.85fr)]">
-                          <div>
-                            <div className="mb-4 rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
-                              <p className="text-[10px] font-black uppercase tracking-wider text-blue-700">¿Para qué sirve?</p>
-                              <p className="mt-1 text-sm font-bold leading-relaxed text-blue-950">{seccionAyudaSeleccionada.paraQue}</p>
-                            </div>
-                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">Cómo se hace</h4>
-                            <div className="mt-3 space-y-3">
-                              {seccionAyudaSeleccionada.tareas.map((tarea, index) => (
-                                <details key={`ayuda-tarea-${seccionAyudaSeleccionada.id}-${index}`} open={index === 0} className="group rounded-xl border border-slate-100 bg-slate-50/70 open:border-blue-200 open:bg-blue-50/50">
-                                  <summary className="flex cursor-pointer list-none items-center gap-3 p-3 [&::-webkit-details-marker]:hidden">
-                                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[11px] font-black text-white">{index + 1}</span>
-                                    <span className="flex-1 text-sm font-black leading-snug text-slate-800">{tarea.titulo}</span>
-                                    <ChevronDown size={16} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
-                                  </summary>
-                                  <ol className="space-y-2 border-t border-blue-100 px-4 pb-4 pt-3">
-                                    {tarea.pasos.map((paso, indicePaso) => (
-                                      <li key={`ayuda-paso-${indicePaso}`} className="flex items-start gap-2.5 text-xs font-semibold leading-relaxed text-slate-700"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-[10px] font-black text-blue-700 ring-1 ring-blue-200">{indicePaso + 1}</span><span>{paso}</span></li>
-                                    ))}
-                                  </ol>
-                                </details>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                            <div className="flex items-center gap-2 text-amber-800"><AlertCircle size={17} /><h4 className="text-xs font-black uppercase tracking-wider">Tené en cuenta</h4></div>
-                            <ul className="mt-3 space-y-3">
-                              {seccionAyudaSeleccionada.claves.map((clave, index) => (
-                                <li key={`ayuda-clave-${seccionAyudaSeleccionada.id}-${index}`} className="flex items-start gap-2 text-xs font-bold leading-relaxed text-amber-900"><CheckCircle size={14} className="mt-0.5 shrink-0 text-amber-600" />{clave}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
-                      </>
-                    );
-                  })()}
-                </article>
-
+              <div className="sf-help-search">
+                <Search size={15} />
+                <input data-ayuda-search="true" value={busquedaAyuda} onChange={(e) => setBusquedaAyuda(e.target.value)} placeholder="Buscar en la ayuda…" />
               </div>
+            </header>
+            <div className="sf-help-body">
+              <nav className="sf-help-nav" aria-label="Temas de ayuda">
+                <p>Temas</p>
+                {seccionesAyudaFiltradas.map((seccion) => {
+                  const IconoSeccion = iconosAyuda[seccion.icono] || BookOpen;
+                  const activo = seccion.id === seccionAyudaSeleccionada.id;
+                  return (
+                    <button key={`ayuda-nav-${seccion.id}`} type="button" onClick={() => setSeccionAyudaActiva(seccion.id)} className={activo ? 'is-on' : ''}>
+                      <IconoSeccion size={16} /><span>{seccion.titulo}</span>
+                    </button>
+                  );
+                })}
+                {seccionesAyudaFiltradas.length === 0 && <em>No encontramos un tema con esa búsqueda.</em>}
+              </nav>
+              <article className="sf-help-article">
+                {(() => {
+                  const IconoSeccion = iconosAyuda[seccionAyudaSeleccionada.icono] || BookOpen;
+                  return (
+                    <>
+                      <div className="sf-help-title">
+                        <span><IconoSeccion size={22} /></span>
+                        <div><h2>{seccionAyudaSeleccionada.titulo}</h2><p>{seccionAyudaSeleccionada.resumen}</p></div>
+                      </div>
+                      <div className="sf-help-why"><b>¿Para qué sirve?</b><p>{seccionAyudaSeleccionada.paraQue}</p></div>
+                      <h3 className="sf-help-sub">Cómo se hace</h3>
+                      <div className="sf-help-tasks">
+                        {seccionAyudaSeleccionada.tareas.map((tarea, index) => (
+                          <details key={`ayuda-tarea-${seccionAyudaSeleccionada.id}-${index}`} open={index === 0}>
+                            <summary><span className="sf-help-n">{index + 1}</span><strong>{tarea.titulo}</strong><ChevronDown size={16} /></summary>
+                            <ol>{tarea.pasos.map((paso, indicePaso) => <li key={`ayuda-paso-${indicePaso}`}><span>{indicePaso + 1}</span><p>{paso}</p></li>)}</ol>
+                          </details>
+                        ))}
+                      </div>
+                      {seccionAyudaSeleccionada.claves?.length > 0 && (
+                        <div className="sf-help-tips">
+                          <h3 className="sf-help-sub"><Info size={15} /> Tené en cuenta</h3>
+                          <ul>{seccionAyudaSeleccionada.claves.map((clave, index) => <li key={`ayuda-clave-${seccionAyudaSeleccionada.id}-${index}`}><CheckCircle size={14} />{clave}</li>)}</ul>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </article>
             </div>
           </section>
         )}
@@ -29341,124 +29278,144 @@ function obtenerCategoriaProducto(producto) {
         )}
 
         {/* --- VISTA: LOGÍSTICA --- */}
-        {puedeVerComparativa && vista === 'comparativa_paralela' && (
-          <div className="space-y-6 animate-in fade-in duration-300 print:hidden">
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-violet-600 p-2.5 rounded-xl shadow-sm"><ArrowRight size={20} className="text-white" /></div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900 tracking-tight">Logística</h2>
-                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Compará hasta 5 productos considerando costo, ganancia y logística</p>
+        {puedeVerComparativa && vista === 'comparativa_paralela' && (() => {
+          const filasLog = datosComparativaParalela;
+          const minimo = (valores) => { const v = valores.filter((n) => Number.isFinite(n) && n > 0); return v.length > 1 ? Math.min(...v) : null; };
+          const mejorCosto = minimo(filasLog.map((f) => (f.costo ? f.costo.costoPesos : NaN)));
+          const mejorPlazo = minimo(filasLog.map((f) => Number(f.demoraDias)));
+          const quitarProducto = (id) => setProductosComparativaParalelaIds((prev) => prev.filter((x) => x !== id));
+          const alternarProducto = (id, marcar) => setProductosComparativaParalelaIds((prev) => (marcar ? (prev.includes(id) ? prev : [...prev, id].slice(0, 5)) : prev.filter((x) => x !== id)));
+          const llena = productosComparativaParalelaIds.length >= 5;
+          const conCosto = filasLog.filter((f) => f.costo);
+          const menorCosto = conCosto.length > 1 ? conCosto.reduce((a2, b2) => (b2.costo.costoPesos < a2.costo.costoPesos ? b2 : a2)) : null;
+          const conPlazo = filasLog.filter((f) => Number(f.demoraDias) > 0);
+          const masRapido = conPlazo.length > 1 ? conPlazo.reduce((a2, b2) => (Number(b2.demoraDias) < Number(a2.demoraDias) ? b2 : a2)) : null;
+          const conGanancia = filasLog.filter((f) => f.ganancia > 0);
+          const mayorGanancia = conGanancia.length > 1 ? conGanancia.reduce((a2, b2) => (b2.ganancia > a2.ganancia ? b2 : a2)) : null;
+          const tiles = [
+            ['Menor costo final', menorCosto, menorCosto ? formatearDinero(menorCosto.costo.costoPesos) : ''],
+            ['Entrega más rápida', masRapido, masRapido ? `${formatearCantidad(masRapido.demoraDias)} días` : ''],
+            ['Mayor ganancia', mayorGanancia, mayorGanancia ? `${formatearPorcentaje(mayorGanancia.ganancia)}%` : '']
+          ];
+          const miniatura = (producto) => (obtenerImagenesProducto(producto)[0] ? <img src={obtenerImagenesProducto(producto)[0]} alt="" /> : <Package size={20} />);
+          return (
+          <div className="sf-lg print:hidden">
+            <header className="sf-lg-head">
+              <span className="sf-lg-ico"><Truck size={20} /></span>
+              <div>
+                <h1>Logística</h1>
+                <p>Compará costo, flete, ganancia y plazo de entrega de hasta 5 productos.</p>
+              </div>
+              <span className="sf-lg-count">{productosComparativaParalelaIds.length} / 5 productos</span>
+              <button type="button" className="sf-ca-btn" disabled={!productosComparativaParalelaIds.length} onClick={() => { setProductosComparativaParalelaIds([]); setProveedoresComparativaParalela({}); }}>Limpiar</button>
+            </header>
+
+            <section className="sf-lg-picker">
+              <div className="sf-lg-picker-top">
+                <div className="sf-lg-search">
+                  <Search size={15} />
+                  <input value={busquedaComparativaParalela} onChange={(e) => setBusquedaComparativaParalela(e.target.value)} placeholder="Buscar producto por nombre, código o marca…" />
+                  {busquedaComparativaParalela && <button type="button" aria-label="Borrar búsqueda" onClick={() => setBusquedaComparativaParalela('')}><X size={14} /></button>}
+                </div>
+                <div className="sf-lg-chips">
+                  {filasLog.map((fila) => (
+                    <span key={`lg-chip-${fila.producto.id}`} className="sf-lg-chip"><b title={fila.producto.descripcion}>{fila.producto.descripcion || 'Producto'}</b><button type="button" aria-label="Quitar de la comparación" onClick={() => quitarProducto(fila.producto.id)}><X size={12} /></button></span>
+                  ))}
+                  {!filasLog.length && <span className="sf-lg-chips-empty">Los productos que elijas aparecen acá.</span>}
                 </div>
               </div>
-              <div className="rounded-xl border border-violet-100 bg-violet-50 px-3 py-2 text-[11px] font-bold text-violet-800">
-                Seleccionados: {productosComparativaParalelaIds.length}/5
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-              <div className="flex flex-col lg:flex-row gap-3 lg:items-end">
-                <div className="flex-1">
-                  <label className="block text-[10px] font-black uppercase tracking-wider text-gray-500 mb-1">Buscar productos</label>
-                  <div className="relative">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input value={busquedaComparativaParalela} onChange={(e) => setBusquedaComparativaParalela(e.target.value)} placeholder="Ej: alumbrado público, cable, lámpara..." className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-violet-500" />
+              {busquedaComparativaParalela.trim() && (
+                <div className="sf-lg-list">
+                  <div className="sf-lg-list-head">{productosComparativaParalelaDisponibles.length} resultado{productosComparativaParalelaDisponibles.length === 1 ? '' : 's'}{llena ? ' · llegaste al máximo de 5 productos' : ''}</div>
+                  <div className="sf-lg-list-body">
+                    {productosComparativaParalelaDisponibles.map((producto) => {
+                      const seleccionado = productosComparativaParalelaIds.includes(producto.id);
+                      const bloqueado = !seleccionado && llena;
+                      return (
+                        <label key={`paralela-producto-${producto.id}`} className={`${seleccionado ? 'is-on' : ''} ${bloqueado ? 'is-disabled' : ''}`}>
+                          <input type="checkbox" checked={seleccionado} disabled={bloqueado} onChange={(e) => alternarProducto(producto.id, e.target.checked)} />
+                          <span className="sf-lg-name">{producto.descripcion || 'Producto'}</span>
+                          <span className="sf-lg-code">{producto.codigo || producto.codigoInterno || '-'}</span>
+                        </label>
+                      );
+                    })}
+                    {!productosComparativaParalelaDisponibles.length && <p className="sf-lg-hint">No encontramos productos con esa búsqueda.</p>}
                   </div>
                 </div>
-                <button type="button" onClick={() => { setProductosComparativaParalelaIds([]); setProveedoresComparativaParalela({}); }} className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-black uppercase tracking-wider">Limpiar selección</button>
-              </div>
-              {!busquedaComparativaParalela.trim() ? (
-                <div className="mt-3 rounded-xl border border-dashed border-violet-200 bg-violet-50/40 px-4 py-5 text-center text-xs font-bold text-violet-700">
-                  Escribí el nombre, código o marca de un producto para buscarlo y tildarlo.
-                </div>
-              ) : (
-                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2 max-h-64 overflow-y-auto">
-                  {productosComparativaParalelaDisponibles.map((producto) => {
-                  const seleccionado = productosComparativaParalelaIds.includes(producto.id);
-                  return (
-                    <label key={`paralela-producto-${producto.id}`} className={`flex items-start gap-2 rounded-xl border px-3 py-2 cursor-pointer transition-colors ${seleccionado ? 'border-violet-300 bg-violet-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
-                      <input type="checkbox" checked={seleccionado} disabled={!seleccionado && productosComparativaParalelaIds.length >= 5} onChange={(e) => setProductosComparativaParalelaIds((prev) => e.target.checked ? [...prev, producto.id].slice(0, 5) : prev.filter((id) => id !== producto.id))} className="mt-0.5 h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500" />
-                      <span className="min-w-0"><span className="block text-xs font-black text-gray-900 line-clamp-2">{producto.descripcion || 'Producto'}</span><span className="block text-[10px] font-bold text-gray-500">Cód. {producto.codigo || producto.codigoInterno || '-'}</span></span>
-                    </label>
-                  );
-                  })}
-                  {!productosComparativaParalelaDisponibles.length && <p className="md:col-span-2 xl:col-span-4 py-5 text-center text-xs font-bold text-gray-500">No encontramos productos con esa búsqueda.</p>}
-                </div>
               )}
-            </div>
+            </section>
 
-            {!datosComparativaParalela.length ? (
-              <div className="bg-white rounded-2xl border border-dashed border-violet-200 p-12 text-center text-gray-400">
-                <ArrowRight size={38} className="mx-auto mb-3 opacity-30 text-violet-500" />
-                <p className="font-bold text-base text-gray-500">Seleccioná entre 2 y 5 productos para iniciar la comparación.</p>
-              </div>
+            {!filasLog.length ? (
+              <section className="sf-lg-empty">
+                <Truck size={34} />
+                <strong>Elegí productos para comparar</strong>
+                <span>Buscá arriba y tildá entre 2 y 5 productos. Vas a ver costo, flete, ganancia, plazo y ruta de cada uno lado a lado.</span>
+              </section>
             ) : (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-                {datosComparativaParalela.map((fila, index) => {
-                  const puntos = fila.puntosRuta.length > 1 ? fila.puntosRuta : ['Ruta sin configurar'];
-                  const costoTexto = fila.costo ? formatearDinero(fila.costo.costoPesos) : '-';
-                  const mapa = fila.mapaOpenStreetMap;
-                  return (
-                    <article key={`comparativa-paralela-card-${fila.producto.id}`} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                      <div className="relative h-40 bg-white border-b border-slate-100 flex items-center justify-center p-4">
-                        <div className="absolute top-3 right-3 z-10 rounded-xl bg-cyan-600 px-3 py-2 text-right text-white shadow-md">
-                          <p className="text-[9px] font-black uppercase tracking-wider opacity-90">Precio final</p>
-                          <p className="text-lg font-black leading-none">{formatearDinero(fila.precioVenta)}</p>
-                        </div>
-                        {obtenerImagenesProducto(fila.producto)[0] ? (
-                          <img src={obtenerImagenesProducto(fila.producto)[0]} alt={fila.producto.descripcion || 'Producto'} className="w-full h-full object-contain" />
-                        ) : (
-                          <div className="w-20 h-20 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-300"><Package size={34} /></div>
-                        )}
+              <>
+                {filasLog.length > 1 && (
+                  <section className="sf-lg-tiles">
+                    {tiles.map(([titulo, fila, valor]) => (
+                      <div key={`lg-tile-${titulo}`}>
+                        <small>{titulo}</small>
+                        {fila ? <><b>{valor}</b><span title={fila.producto.descripcion}>{fila.producto.descripcion}</span></> : <span>Sin datos cargados</span>}
                       </div>
-                      <div className="p-4 border-b border-slate-100 bg-gradient-to-r from-violet-50 to-white flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-black uppercase tracking-wider text-violet-700">Producto {index + 1}</p>
-                          <h3 className="font-black text-slate-900 leading-tight mt-1">{fila.producto.descripcion || 'Producto'}</h3>
-                          <p className="text-[10px] font-bold text-slate-500 mt-1">Código: {fila.producto.codigo || fila.producto.codigoInterno || '-'}</p>
-                        </div>
-                        <button type="button" onClick={() => setProductosComparativaParalelaIds((prev) => prev.filter((id) => id !== fila.producto.id))} className="shrink-0 text-[10px] font-black uppercase text-red-600 hover:text-red-800">Quitar</button>
-                      </div>
-                      <div className="p-4 space-y-4">
-                        <div>
-                          <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Proveedor a comparar</label>
-                          <select value={fila.costo?.proveedor || ''} onChange={(e) => setProveedoresComparativaParalela((prev) => ({ ...prev, [fila.producto.id]: e.target.value }))} className="w-full px-3 py-2.5 rounded-xl border border-violet-200 bg-white text-sm font-black text-slate-800 outline-none focus:ring-2 focus:ring-violet-500">
+                    ))}
+                  </section>
+                )}
+                <section className="sf-lg-cards">
+                  {filasLog.map((fila, index) => {
+                    const puntos = fila.puntosRuta.length > 1 ? fila.puntosRuta : ['Ruta sin configurar'];
+                    const mapa = fila.mapaOpenStreetMap;
+                    const mejorC = fila.costo && mejorCosto !== null && fila.costo.costoPesos === mejorCosto;
+                    const mejorP = mejorPlazo !== null && Number(fila.demoraDias) === mejorPlazo;
+                    return (
+                      <article key={`comparativa-paralela-card-${fila.producto.id}`} className="sf-lg-pc">
+                        <header>
+                          <span className="sf-lg-thumb">{miniatura(fila.producto)}</span>
+                          <div><small>Producto {index + 1} · Cód. {fila.producto.codigo || fila.producto.codigoInterno || '-'}</small><h3 title={fila.producto.descripcion}>{fila.producto.descripcion || 'Producto'}</h3></div>
+                          <button type="button" aria-label="Quitar de la comparación" title="Quitar de la comparación" onClick={() => quitarProducto(fila.producto.id)}><X size={15} /></button>
+                        </header>
+                        <div className="sf-lg-price"><div><small>Precio de venta</small><b>{formatearDinero(fila.precioVenta)}</b></div><span>{fila.ganancia > 0 ? `Ganancia ${formatearPorcentaje(fila.ganancia)}%` : 'Ganancia sin cargar'}</span></div>
+                        <label className="sf-lg-field"><small>Proveedor</small>
+                          <select value={fila.costo?.proveedor || ''} onChange={(e) => setProveedoresComparativaParalela((prev) => ({ ...prev, [fila.producto.id]: e.target.value }))}>
                             {fila.costos.length === 0 ? <option value="">Sin costos de proveedor cargados</option> : fila.costos.map((costo) => <option key={`${fila.producto.id}-${costo.id}`} value={costo.proveedor}>{costo.proveedor} · {formatearDinero(costo.costoPesos)}</option>)}
                           </select>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                          <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-2"><p className="text-[9px] font-black uppercase text-emerald-700">Costo</p><p className="text-sm font-black text-emerald-900">{costoTexto}</p><p className="text-[9px] font-bold text-emerald-700">{fila.iva === 'sin_iva' ? 'Sin IVA' : 'IVA incluido'}</p></div>
-                          <div className="rounded-xl bg-indigo-50 border border-indigo-100 p-2"><p className="text-[9px] font-black uppercase text-indigo-700">Flete</p><p className="text-sm font-black text-indigo-900">{formatearDinero(fila.fleteMonto)}</p><p className="text-[9px] font-bold text-indigo-700">{formatearPorcentaje(fila.fletePct)}%</p></div>
-                          <div className="rounded-xl bg-amber-50 border border-amber-100 p-2"><p className="text-[9px] font-black uppercase text-amber-700">Ganancia</p><p className="text-sm font-black text-amber-900">{fila.ganancia > 0 ? `${formatearPorcentaje(fila.ganancia)}%` : 'Sin cargar'}</p><p className="text-[9px] font-bold text-amber-700">Precio {formatearDinero(fila.precioVenta)}</p></div>
-                          <div className="rounded-xl bg-sky-50 border border-sky-100 p-2"><p className="text-[9px] font-black uppercase text-sky-700">Entrega</p><p className="text-sm font-black text-sky-900">{fila.demoraDias ? `${formatearCantidad(fila.demoraDias)} días` : '-'}</p><p className="text-[9px] font-bold text-sky-700">{fila.distanciaKm ? `${formatearCantidad(fila.distanciaKm)} km` : 'km sin cargar'}</p></div>
-                        </div>
-                        <div className="rounded-2xl border border-slate-200 overflow-hidden">
-                          <div className="px-3 py-2 bg-slate-900 text-white flex items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-wider">Ruta logística</p><p className="text-[10px] font-bold text-slate-300">{fila.transportista}</p></div><span className="text-[10px] font-black">{fila.distanciaKm ? `${formatearCantidad(fila.distanciaKm)} km` : 'Distancia pendiente'}</span></div>
-                          <div className="p-3 bg-slate-50">
-                            {mapa ? (
-                              <div className="relative h-72 overflow-hidden rounded-xl bg-sky-100">
-                                <svg viewBox={mapa.viewBox} preserveAspectRatio="xMidYMid meet" className="w-full h-full" role="img" aria-label={`Mapa de ruta ${fila.origen} a ${fila.destino}`}>
-                                  {mapa.tiles.map((tile) => <image key={`${fila.producto.id}-${tile.src}`} href={tile.src} x={tile.x} y={tile.y} width="256" height="256" preserveAspectRatio="none" />)}
-                                  <path d={mapa.rutaPath} fill="none" stroke="#ffffff" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
-                                  <path d={mapa.rutaPath} fill="none" stroke="#2563eb" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-                                  {mapa.paradas.map((punto, puntoIndex) => <circle key={`${fila.producto.id}-mapa-parada-${puntoIndex}`} cx={punto.x} cy={punto.y} r="10" fill={puntoIndex === 0 ? '#059669' : puntoIndex === mapa.paradas.length - 1 ? '#dc2626' : '#f59e0b'} stroke="white" strokeWidth="4" />)}
-                                </svg>
-                                <span className="absolute bottom-1 right-2 rounded bg-white/85 px-1.5 py-0.5 text-[9px] font-bold text-slate-600">© OpenStreetMap</span>
-                              </div>
-                            ) : (
-                              <div className="h-72 rounded-xl bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500">Calculá la ruta para mostrar el mapa.</div>
-                            )}
-                            <div className="flex flex-wrap gap-1.5 mt-1">{puntos.map((punto, puntoIndex) => <span key={`${fila.producto.id}-chip-${puntoIndex}`} className={`px-2 py-1 rounded-md text-[10px] font-black ${puntoIndex === 0 ? 'bg-emerald-100 text-emerald-800' : puntoIndex === puntos.length - 1 ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{puntoIndex + 1}. {punto}</span>)}</div>
-                          </div>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
+                        </label>
+                        <dl className="sf-lg-dl">
+                          <div><dt>Costo del producto</dt><dd>{fila.costo ? formatearDinero(fila.costoSinFlete) : '—'}</dd></div>
+                          <div><dt>Flete ({formatearPorcentaje(fila.fletePct)}%)</dt><dd>{formatearDinero(fila.fleteMonto)}</dd></div>
+                          <div className={`is-total ${mejorC ? 'is-best' : ''}`}><dt>Costo final {mejorC && <em className="sf-lg-best">Mejor</em>}</dt><dd>{fila.costo ? formatearDinero(fila.costo.costoPesos) : '—'}</dd></div>
+                          <div className={mejorP ? 'is-best' : ''}><dt>Entrega {mejorP && <em className="sf-lg-best">Más rápida</em>}</dt><dd>{fila.demoraDias ? `${formatearCantidad(fila.demoraDias)} días` : '—'}</dd></div>
+                          <div><dt>Distancia</dt><dd>{fila.distanciaKm ? `${formatearCantidad(fila.distanciaKm)} km` : '—'}</dd></div>
+                          <div><dt>Transporte</dt><dd>{fila.transportista || '—'}</dd></div>
+                        </dl>
+                        <details className="sf-lg-route" open>
+                          <summary>Ruta logística<ChevronDown size={15} /></summary>
+                          {mapa ? (
+                            <div className="sf-lg-map">
+                              <svg viewBox={mapa.viewBox} preserveAspectRatio="xMidYMid meet" role="img" aria-label={`Mapa de ruta ${fila.origen} a ${fila.destino}`}>
+                                {mapa.tiles.map((tile) => <image key={`${fila.producto.id}-${tile.src}`} href={tile.src} x={tile.x} y={tile.y} width="256" height="256" preserveAspectRatio="none" />)}
+                                <path d={mapa.rutaPath} fill="none" stroke="#ffffff" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+                                <path d={mapa.rutaPath} fill="none" stroke="#2563eb" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+                                {mapa.paradas.map((punto, puntoIndex) => <circle key={`${fila.producto.id}-mapa-parada-${puntoIndex}`} cx={punto.x} cy={punto.y} r="10" fill={puntoIndex === 0 ? '#059669' : puntoIndex === mapa.paradas.length - 1 ? '#dc2626' : '#f59e0b'} stroke="white" strokeWidth="4" />)}
+                              </svg>
+                              <span className="sf-lg-osm">© OpenStreetMap</span>
+                            </div>
+                          ) : (
+                            <div className="sf-lg-map is-empty">Configurá la ruta del proveedor para ver el mapa.</div>
+                          )}
+                          <div className="sf-lg-stops">{puntos.map((punto, puntoIndex) => <span key={`${fila.producto.id}-chip-${puntoIndex}`} className={puntoIndex === 0 ? 'is-start' : (puntoIndex === puntos.length - 1 ? 'is-end' : '')}>{puntoIndex + 1}. {punto}</span>)}</div>
+                        </details>
+                      </article>
+                    );
+                  })}
+                </section>
+              </>
             )}
           </div>
-        )}
+          );
+        })()}
 
         {/* --- VISTA: MODIFICACIÓN MASIVA --- */}
         {puedeVerModMasiva && vista === 'mod_masiva' && (
@@ -33889,7 +33846,7 @@ function obtenerCategoriaProducto(producto) {
             </div>
 
 
-            <div className={`sf-settings-section sf-act bg-white rounded-2xl shadow-sm border border-slate-200 ${seccionConfiguracionActiva === 'actualizaciones' ? '' : 'hidden'}`}>
+            <div className={`sf-settings-section sf-act ${seccionConfiguracionActiva === 'actualizaciones' ? '' : 'hidden'}`}>
               {(() => {
                 const ultima = ACTUALIZACIONES_SISTEMA[0];
                 return (
@@ -33897,19 +33854,23 @@ function obtenerCategoriaProducto(producto) {
                     <div className="sf-act-hero">
                       <span className="sf-act-ico"><RefreshCw size={20} /></span>
                       <div>
-                        <strong>Sistema actualizado</strong>
-                        <small>Versión {ultima.version} · Última actualización: {formatearFecha(`${ultima.fecha}T12:00:00`)}</small>
+                        <strong>Novedades del sistema</strong>
+                        <small>Estás usando la versión {ultima.version} · actualizada el {formatearFecha(`${ultima.fecha}T12:00:00`)}</small>
                       </div>
+                      <span className="sf-act-ok"><CheckCircle size={14} /> Sistema al día</span>
                     </div>
                     <div className="sf-act-list">
                       {ACTUALIZACIONES_SISTEMA.map((act, i) => (
-                        <article key={act.version} className={i === 0 ? 'is-last' : ''}>
-                          <header>
+                        <details key={act.version} className={`sf-act-item ${i === 0 ? 'is-last' : ''}`} open={i < 3}>
+                          <summary>
+                            <span className="sf-act-dot" />
                             <strong>{act.titulo}</strong>
-                            <span>{i === 0 ? 'Más reciente · ' : ''}{act.version} · {formatearFecha(`${act.fecha}T12:00:00`)}</span>
-                          </header>
-                          <ul>{act.cambios.map((c, k) => <li key={`${act.version}-${k}`}>{c}</li>)}</ul>
-                        </article>
+                            {i === 0 && <em>Nueva</em>}
+                            <span className="sf-act-meta">v{act.version} · {formatearFecha(`${act.fecha}T12:00:00`)}</span>
+                            <ChevronDown size={15} />
+                          </summary>
+                          <ul>{act.cambios.map((c, k) => <li key={`${act.version}-${k}`}><CheckCircle size={14} />{c}</li>)}</ul>
+                        </details>
                       ))}
                     </div>
                   </div>
