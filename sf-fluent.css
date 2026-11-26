@@ -3658,6 +3658,31 @@ html body .sf-app-shell .sf-lg-stops span.is-start { background: #dff6dd; color:
 html body .sf-app-shell .sf-lg-stops span.is-end { background: #fde7e9; color: #a4262c; }
 @media (max-width: 900px) { html body .sf-app-shell .sf-lg-tiles { grid-template-columns: 1fr; } html body .sf-app-shell .sf-lg-list-body { grid-template-columns: 1fr; } }
 
+/* Cheque en punto de venta */
+html body .sf-app-shell .sf-pvw-dialog.sf-chq { width: 560px; }
+html body .sf-app-shell .sf-chq-top { display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; }
+html body .sf-app-shell .sf-chq-top .sf-pvw-box { flex: 1 1 180px; }
+html body .sf-app-shell .sf-chq-seg { display: inline-flex; border: 1px solid var(--sfw-border-strong); border-radius: 4px; overflow: hidden; align-self: stretch; }
+html body .sf-app-shell .sf-chq-seg button { padding: 0 14px; border: 0; background: #fff; font-size: 13px; color: var(--sfw-text); cursor: pointer; }
+html body .sf-app-shell .sf-chq-seg button + button { border-left: 1px solid var(--sfw-border-strong); }
+html body .sf-app-shell .sf-chq-seg button.is-on { background: var(--sfw-accent); color: #fff; }
+html body .sf-app-shell .sf-chq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+html body .sf-app-shell .sf-chq-grid .sf-pvw-f { padding-top: 0; }
+html body .sf-app-shell .sf-chq-quick { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--sfw-text-2); }
+html body .sf-app-shell .sf-chq-quick button { height: 26px; padding: 0 10px; border: 1px solid var(--sfw-border-strong); border-radius: 13px; background: #fff; font-size: 12px; color: var(--sfw-text); cursor: pointer; }
+html body .sf-app-shell .sf-chq-quick button:hover { background: var(--sfw-accent-soft); border-color: var(--sfw-accent); }
+html body .sf-app-shell .sf-chq-photos > span { display: block; margin-bottom: 6px; font-size: 12px; color: var(--sfw-text-2); }
+html body .sf-app-shell .sf-chq-photos > div { display: flex; gap: 10px; flex-wrap: wrap; }
+html body .sf-app-shell .sf-chq-photos figure { position: relative; margin: 0; width: 150px; height: 96px; border: 1px solid var(--sfw-border); border-radius: 6px; overflow: hidden; background: #f3f3f3; }
+html body .sf-app-shell .sf-chq-photos figure img { width: 100%; height: 100%; object-fit: cover; }
+html body .sf-app-shell .sf-chq-photos figure button { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: rgba(0,0,0,.65); color: #fff; cursor: pointer; padding: 0; }
+html body .sf-app-shell .sf-chq-add { width: 150px; height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 1px dashed var(--sfw-border-strong); border-radius: 6px; color: var(--sfw-accent); font-size: 12px; cursor: pointer; }
+html body .sf-app-shell .sf-chq-add:hover { background: var(--sfw-accent-soft); }
+html body .sf-app-shell .sf-chq-note { margin: 0; font-size: 12px; color: var(--sfw-text-2); line-height: 1.4; }
+html body .sf-app-shell .sf-chq-hint { margin-left: auto; height: 28px; padding: 0 12px; border-radius: 4px; font-size: 12px; cursor: pointer; border: 1px solid var(--sfw-accent); background: #fff; color: var(--sfw-accent); }
+html body .sf-app-shell .sf-chq-hint.is-pending { background: var(--sfw-accent); color: #fff; }
+@media (max-width: 600px) { html body .sf-app-shell .sf-chq-grid { grid-template-columns: 1fr; } }
+
 } /* fin @media screen */
 
 /* ==========================================================================

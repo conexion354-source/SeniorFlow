@@ -648,8 +648,8 @@ const MOTIVOS_DEVOLUCION = ['Arrepentimiento', 'Producto fallado', 'Error en el 
 const DESCRIPCIONES_VENTA_PREESTABLECIDAS = ['Remito X', 'Factura A', 'Factura B'];
 const ACTUALIZACIONES_SISTEMA = [
   {
-    version: '2026.11.25-83',
-    fecha: '2026-11-25',
+    version: '2026.11.26-84',
+    fecha: '2026-11-26',
     titulo: 'Novedades y Ayuda rediseñadas, importador y menú',
     cambios: [
       'Logística rediseñada: búsqueda y selección de productos, tabla comparativa con la mejor opción marcada (costo final, entrega, precio) y mapas de ruta más compactos.',
@@ -3748,6 +3748,7 @@ function AppInterna() {
   const [modoPantallaClientePuntoVenta, setModoPantallaClientePuntoVenta] = useState('carrito');
   const [efectivoRecibidoPuntoVenta, setEfectivoRecibidoPuntoVenta] = useState('');
   const [pagoPendientePuntoVenta, setPagoPendientePuntoVenta] = useState(null);
+  const [chequeVentaAbierto, setChequeVentaAbierto] = useState(false);
   const guardandoPuntoVentaRef = useRef(false);
   const operacionCajaRef = useRef(null);
   const configuracionSnapshotRef = useRef(false);
@@ -4902,7 +4903,7 @@ function AppInterna() {
 
   const obtenerRegistrosRastreoCheques = useMemo(() => (
     movimientos
-      .filter((mov) => ['cheque', 'echeq'].includes(normalizarMetodoPago(mov?.metodoPago || '')) && (mov?.tipo === 'cobro' || mov?.detallesPago?.clienteId || mov?.detallesPago?.recibo))
+      .filter((mov) => ['cheque', 'echeq'].includes(normalizarMetodoPago(mov?.metodoPago || '')) && (mov?.tipo === 'cobro' || (mov?.tipo === 'venta' && mov?.detallesPago?.tipoComprobante !== 'nota_credito') || mov?.detallesPago?.clienteId || mov?.detallesPago?.recibo))
       .map((mov) => {
         const detalles = mov.detallesPago || {};
         const recibo = detalles.recibo || {};
@@ -9483,6 +9484,16 @@ const abrirPuntoVenta = () => {
       vendedorNombre: textoSeguroTrim(detalles?.vendedorNombre, ''),
       comisionPorcentaje: detalles?.comisionPorcentaje ?? '',
       notas: textoSeguroTrim(detalles?.notas, ''),
+      cheque: ['cheque', 'echeq'].includes(normalizarMetodoPago(mov?.metodoPago)) ? {
+        tipo: normalizarMetodoPago(mov?.metodoPago) === 'echeq' ? 'echeq' : textoSeguroTrim(detalles?.tipoCheque, 'cheque'),
+        numero: textoSeguroTrim(detalles?.numeroCheque, ''),
+        banco: textoSeguroTrim(detalles?.banco, ''),
+        emisor: textoSeguroTrim(detalles?.emisor, ''),
+        cuit: textoSeguroTrim(detalles?.cuitEmisor, ''),
+        fechaEmision: textoSeguroTrim(detalles?.fechaEmision, ''),
+        fechaCobro: textoSeguroTrim(detalles?.fechaCobro, ''),
+        adjuntos: Array.isArray(detalles?.adjuntos) ? detalles.adjuntos : []
+      } : null,
       items
     });
     setModalActivo('punto_venta');
@@ -9810,6 +9821,14 @@ const abrirPuntoVenta = () => {
       }
     }
     const itemsVentaNormalizados = itemsNormalizados;
+    if (!esNotaCredito && ['cheque', 'echeq'].includes(metodoFormulario)) {
+      const faltantesCheque = obtenerFaltantesChequeVenta();
+      if (faltantesCheque.length) {
+        setChequeVentaAbierto(true);
+        await notificarSistema(`Cargá los datos del cheque antes de guardar: ${faltantesCheque.join(', ')}.`, { tipo: 'warning', titulo: 'Datos del cheque' });
+        return;
+      }
+    }
     if (!opciones?.confirmarPago && !esNotaCredito && ['efectivo', 'transferencia'].includes(metodoFormulario)) {
       setPagoPendientePuntoVenta(metodoFormulario);
       setCierrePantallaClientePuntoVenta(null);
@@ -9997,6 +10016,16 @@ const abrirPuntoVenta = () => {
         efectivoRecibido: recibidoEfectivo,
         vuelto: vueltoEfectivo,
         aliasTransferencia: metodoFormulario === 'transferencia' ? textoSeguroTrim(configuracion?.pagoAlias, '') : '',
+        ...(!esNotaCredito && ['cheque', 'echeq'].includes(metodoFormulario) && formPuntoVenta.cheque ? {
+          tipoCheque: textoSeguroTrim(formPuntoVenta.cheque.tipo, 'cheque'),
+          numeroCheque: textoSeguroTrim(formPuntoVenta.cheque.numero, ''),
+          banco: textoSeguroTrim(formPuntoVenta.cheque.banco, ''),
+          emisor: textoSeguroTrim(formPuntoVenta.cheque.emisor, '') || textoSeguroTrim(formPuntoVenta.clienteNombre, ''),
+          cuitEmisor: textoSeguroTrim(formPuntoVenta.cheque.cuit, ''),
+          fechaEmision: esFechaInputValida(formPuntoVenta.cheque.fechaEmision) ? formPuntoVenta.cheque.fechaEmision : '',
+          fechaCobro: textoSeguroTrim(formPuntoVenta.cheque.fechaCobro, ''),
+          adjuntos: (Array.isArray(formPuntoVenta.cheque.adjuntos) ? formPuntoVenta.cheque.adjuntos : []).slice(0, 2)
+        } : {}),
         ...(esMetodoTarjetaVenta && planTarjetaVenta ? {
           tarjetaPlanId: planTarjetaVenta.id,
           tarjetaTipo: planTarjetaVenta.tipo,
@@ -21928,12 +21957,53 @@ function obtenerCategoriaProducto(producto) {
     }
   };
 
+  const crearChequeVentaVacio = () => ({ tipo: 'cheque', numero: '', banco: '', emisor: '', cuit: '', fechaEmision: obtenerFechaInputLocal(), fechaCobro: '', adjuntos: [] });
+  const actualizarChequeVenta = (cambios = {}) => setFormPuntoVenta((prev) => ({ ...prev, cheque: { ...(prev.cheque || crearChequeVentaVacio()), ...cambios } }));
+  const sumarDiasFechaChequeVenta = (dias = 30) => {
+    const base = esFechaInputValida(formPuntoVenta.cheque?.fechaEmision) ? new Date(`${formPuntoVenta.cheque.fechaEmision}T12:00:00`) : new Date();
+    base.setDate(base.getDate() + dias);
+    actualizarChequeVenta({ fechaCobro: obtenerFechaInputLocal(base) });
+  };
+  const manejarFotosChequeVenta = async (files = []) => {
+    const seleccion = Array.from(files || []).slice(0, 2);
+    const nuevas = [];
+    for (const file of seleccion) {
+      const crudo = await blobADataUrl(file);
+      if (!crudo) continue;
+      const comprimido = await comprimirImagenDataUrl(crudo, { maxAncho: 1280, calidad: 0.72 });
+      nuevas.push({ nombre: file.name || 'cheque', tipo: 'image/jpeg', dataUrl: comprimido });
+    }
+    if (!nuevas.length) return;
+    setFormPuntoVenta((prev) => {
+      const base = prev.cheque || crearChequeVentaVacio();
+      return { ...prev, cheque: { ...base, adjuntos: [...(base.adjuntos || []), ...nuevas].slice(0, 2) } };
+    });
+  };
+  const obtenerFaltantesChequeVenta = (cheque = formPuntoVenta.cheque) => {
+    const datos = cheque || {};
+    return [
+      !textoSeguroTrim(datos.numero, '') && 'número de cheque',
+      !textoSeguroTrim(datos.banco, '') && 'banco',
+      !esFechaInputValida(datos.fechaCobro) && 'fecha de cobro'
+    ].filter(Boolean);
+  };
+  const confirmarChequeVenta = async () => {
+    const faltan = obtenerFaltantesChequeVenta();
+    if (faltan.length) {
+      await notificarSistema(`Completá: ${faltan.join(', ')}.`, { tipo: 'warning', titulo: 'Datos del cheque' });
+      return;
+    }
+    setChequeVentaAbierto(false);
+    refrescarPantallaClientePuntoVentaPronto();
+  };
+
   const seleccionarMetodoPagoPuntoVenta = (metodo = 'efectivo') => {
     guardandoPuntoVentaRef.current = false;
     setCierrePantallaClientePuntoVenta(null);
     setPagoPendientePuntoVenta(null);
     setEfectivoRecibidoPuntoVenta('');
-    setFormPuntoVenta((prev) => ({ ...prev, metodoPago: metodo, tarjetaPlanId: '' }));
+    setFormPuntoVenta((prev) => ({ ...prev, metodoPago: metodo, tarjetaPlanId: '', cheque: metodo === 'cheque' ? (prev.cheque || crearChequeVentaVacio()) : null }));
+    setChequeVentaAbierto(metodo === 'cheque');
     refrescarPantallaClientePuntoVentaPronto();
   };
 
@@ -40853,6 +40923,13 @@ function obtenerCategoriaProducto(producto) {
                     <button key={`pv-pago-${metodo}`} type="button" onClick={() => seleccionarMetodoPagoPuntoVenta(metodo)} className={normalizarMetodoPago(formPuntoVenta.metodoPago) === metodo ? 'is-active' : ''}>{etiqueta}</button>
                   ))}
                 </div>
+                {['cheque', 'echeq'].includes(normalizarMetodoPago(formPuntoVenta.metodoPago)) && (
+                  <button type="button" className={`sf-chq-hint ${obtenerFaltantesChequeVenta().length ? 'is-pending' : 'is-ok'}`} onClick={() => setChequeVentaAbierto(true)}>
+                    {obtenerFaltantesChequeVenta().length
+                      ? 'Cargar datos del cheque'
+                      : `Cheque N° ${formPuntoVenta.cheque.numero} · ${textoSeguroTrim(formPuntoVenta.cheque.banco, '')} · cobro ${formatearFecha(`${formPuntoVenta.cheque.fechaCobro}T12:00:00`)} · Editar`}
+                  </button>
+                )}
                 {['efectivo', 'transferencia'].includes(normalizarMetodoPago(formPuntoVenta.metodoPago)) && (
                   <span className="sf-pvw-hint">
                     {normalizarMetodoPago(formPuntoVenta.metodoPago) === 'transferencia'
@@ -41295,6 +41372,61 @@ function obtenerCategoriaProducto(producto) {
               </aside>
             )}
           </form>
+          {chequeVentaAbierto && ['cheque', 'echeq'].includes(normalizarMetodoPago(formPuntoVenta.metodoPago)) && (
+            <div className="sf-pvw-overlay">
+              <div className="sf-pvw-dialog sf-chq" role="dialog" aria-modal="true">
+                <div className="sf-pvw-dialog-head">
+                  <div>
+                    <small>Venta con cheque</small>
+                    <h3>Datos del cheque</h3>
+                  </div>
+                  <button type="button" className="sf-icon-btn" onClick={() => setChequeVentaAbierto(false)} title="Cerrar"><X size={16} /></button>
+                </div>
+                <div className="sf-pvw-dialog-body">
+                  <div className="sf-chq-top">
+                    <div className="sf-pvw-box"><span>Importe del cheque</span><strong>{formatearDinero(totalFormularioPuntoVenta)}</strong></div>
+                    <div className="sf-chq-seg" role="tablist">
+                      {[['cheque', 'Cheque físico'], ['echeq', 'E-Cheq']].map(([valor, etiqueta]) => (
+                        <button key={`chq-tipo-${valor}`} type="button" className={(formPuntoVenta.cheque?.tipo || 'cheque') === valor ? 'is-on' : ''} onClick={() => actualizarChequeVenta({ tipo: valor })}>{etiqueta}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="sf-chq-grid">
+                    <label className="sf-pvw-f"><span>N° de cheque *</span><input type="text" autoFocus value={formPuntoVenta.cheque?.numero || ''} onChange={(e) => actualizarChequeVenta({ numero: e.target.value })} placeholder="Ej: 00012345" /></label>
+                    <label className="sf-pvw-f"><span>Banco *</span><input type="text" value={formPuntoVenta.cheque?.banco || ''} onChange={(e) => actualizarChequeVenta({ banco: e.target.value })} placeholder="Ej: Banco Nación" /></label>
+                    <label className="sf-pvw-f"><span>Emisor / razón social</span><input type="text" value={formPuntoVenta.cheque?.emisor || ''} onChange={(e) => actualizarChequeVenta({ emisor: e.target.value })} placeholder={formPuntoVenta.clienteNombre || 'Titular del cheque'} /></label>
+                    <label className="sf-pvw-f"><span>CUIT del emisor</span><input type="text" inputMode="numeric" value={formPuntoVenta.cheque?.cuit || ''} onChange={(e) => actualizarChequeVenta({ cuit: e.target.value })} placeholder="Opcional" /></label>
+                    <label className="sf-pvw-f"><span>Fecha de emisión</span><input type="date" value={formPuntoVenta.cheque?.fechaEmision || ''} onChange={(e) => actualizarChequeVenta({ fechaEmision: e.target.value })} /></label>
+                    <label className="sf-pvw-f"><span>Fecha de cobro *</span><input type="date" value={formPuntoVenta.cheque?.fechaCobro || ''} onChange={(e) => actualizarChequeVenta({ fechaCobro: e.target.value })} /></label>
+                  </div>
+                  <div className="sf-chq-quick"><span>Cobro en:</span>{[0, 30, 60, 90].map((dias) => <button key={`chq-dias-${dias}`} type="button" onClick={() => sumarDiasFechaChequeVenta(dias)}>{dias === 0 ? 'Hoy (al día)' : `${dias} días`}</button>)}</div>
+                  <div className="sf-chq-photos">
+                    <span>Foto del cheque (frente y dorso)</span>
+                    <div>
+                      {(formPuntoVenta.cheque?.adjuntos || []).map((adj, index) => (
+                        <figure key={`chq-foto-${index}`}>
+                          <img src={adj.dataUrl} alt={adj.nombre || 'Cheque'} />
+                          <button type="button" aria-label="Quitar foto" onClick={() => actualizarChequeVenta({ adjuntos: (formPuntoVenta.cheque?.adjuntos || []).filter((_, i) => i !== index) })}><X size={12} /></button>
+                        </figure>
+                      ))}
+                      {(formPuntoVenta.cheque?.adjuntos || []).length < 2 && (
+                        <label className="sf-chq-add">
+                          <Paperclip size={18} />
+                          <b>Agregar foto</b>
+                          <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { manejarFotosChequeVenta(e.target.files); e.target.value = ''; }} />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                  <p className="sf-chq-note">Al guardar la venta, el cheque queda en <b>Rastreo</b> (cartera de cheques) con sus datos y fotos, y la venta se registra como pagada con cheque.</p>
+                </div>
+                <div className="sf-pvw-dialog-foot">
+                  <button type="button" className="sf-bud-btn" onClick={() => setChequeVentaAbierto(false)}>Volver</button>
+                  <button type="button" className="sf-bud-new" onClick={confirmarChequeVenta}>Guardar datos del cheque</button>
+                </div>
+              </div>
+            </div>
+          )}
           {pagoPendientePuntoVenta && (
             <div className="sf-pvw-overlay">
               <div className="sf-pvw-dialog" role="dialog" aria-modal="true">
