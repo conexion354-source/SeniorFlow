@@ -44,9 +44,6 @@ const formatearCantidad = (valor) => {
     maximumFractionDigits: 3
   }).format(Number.isFinite(numero) ? numero : 0);
 };
-const etiquetaMonedaCosto = (moneda = 'ARS') => (
-  moneda === 'USD_BNA' ? 'USD oficial' : moneda === 'USD_BLUE' ? 'USD blue' : 'ARS'
-);
 const formatearPorcentaje = (valor) => new Intl.NumberFormat('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(valor) || 0);
 const formatearHora = (fecha) => new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit' }).format(new Date(fecha));
 const formatearFecha = (fecha) => new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(fecha));
@@ -648,6 +645,47 @@ const MOTIVOS_DEVOLUCION = ['Arrepentimiento', 'Producto fallado', 'Error en el 
 const DESCRIPCIONES_VENTA_PREESTABLECIDAS = ['Remito X', 'Factura A', 'Factura B'];
 const ACTUALIZACIONES_SISTEMA = [
   {
+    version: '2026.11.26-91',
+    fecha: '2026-11-26',
+    titulo: 'Modificación masiva más segura',
+    cambios: [
+      'Los cambios se aplican en lotes y, si algo falla a mitad de camino, avisa cuántos productos se actualizaron, cuáles fallaron y deja seleccionados los que faltan.',
+      'Ajustar costos ahora actualiza también el costo de cada proveedor y tiene la opción de recalcular el precio de venta con el margen de cada producto.',
+      'Ya no se puede dejar un precio o costo en $0: esos productos se omiten y se avisan en la confirmación.',
+      'Asignar proveedor ya no le saca el estado de proveedor principal a un proveedor que ya lo tenía.',
+      'Los cambios solo se aplican sobre lo seleccionado, nunca sobre todo lo visible. Se eliminó el botón "Deshacer cambios" duplicado: se usa Historial y deshacer, que no pisa el stock.',
+      'La vista previa y el botón Aplicar usan el mismo cálculo, así que lo que ves es lo que se guarda.'
+    ]
+  },
+  {
+    version: '2026.11.26-91',
+    fecha: '2026-11-26',
+    titulo: 'Cuentas corrientes: revisión de cálculos',
+    cambios: [
+      'Cuentas corrientes: un cobro sin cliente vinculado ya no se le asigna a otro cliente con nombre parecido (por ejemplo "Juan" y "Juan Pérez").',
+      'Cuentas corrientes: el saldo se calcula igual aunque un monto esté guardado como texto, y al eliminar un movimiento el saldo guardado se actualiza sin errores de decimales.',
+      'Cuentas corrientes: los ajustes de precio por aumentos de inventario ya no ocupan una línea aparte en el listado. Quedan dentro de su remito, con un resumen y un "Ver detalle" (producto, precio anterior y nuevo) y la opción de deshacer. Hay una pestaña "Ajustes de precio" para verlos todos juntos.',
+      'Cuentas corrientes: al eliminar un cobro cargado solo con el nombre del cliente (sin vincular), ahora también se actualiza el saldo guardado de ese cliente.'
+    ]
+  },
+  {
+    version: '2026.11.26-86',
+    fecha: '2026-11-26',
+    titulo: 'Limpieza interna del sistema',
+    cambios: [
+      'Limpieza de código que no se usaba (componentes, variables y estados sobrantes). Sin cambios en el funcionamiento; el sistema pesa menos y es más fácil de mantener.'
+    ]
+  },
+  {
+    version: '2026.11.26-85',
+    fecha: '2026-11-26',
+    titulo: 'Modificación masiva en ventanas y cheque en ventas',
+    cambios: [
+      'Modificación masiva: nuevo panel con las 4 herramientas explicadas (para qué sirve cada una). Cada herramienta se abre en su propia ventana con pasos Filtrar, Configurar y Revisar y aplicar.',
+      'Ventas: al elegir Cheque se abre una ventana para cargar número, banco, emisor, fechas y foto del cheque; queda registrado en Rastreo.'
+    ]
+  },
+  {
     version: '2026.11.26-84',
     fecha: '2026-11-26',
     titulo: 'Novedades y Ayuda rediseñadas, importador y menú',
@@ -902,6 +940,12 @@ const PERMISOS_USUARIO_OPCIONES = [
   ,{ key: 'puedeVerResumenes', label: 'Tarjetas de ventas', description: 'Ver tarjetas de ventas diarias/mensuales en Caja, Ventas y Cuentas corrientes.' }
 ];
 
+const MOD_MASIVA_HERRAMIENTAS = [
+  { key: 'actualizar_precios', label: 'Actualizar precios', icono: TrendingUp, sirve: 'Subí o bajá precios o costos por porcentaje o monto, o cargá precios uno por uno.', ejemplos: ['Aumento del 10% a una marca', 'Redondear precios', 'Corregir precios bajo el costo'] },
+  { key: 'asignar_proveedor', label: 'Asignar proveedor', icono: Truck, sirve: 'Asociá un proveedor, su código y el costo a muchos productos juntos.', ejemplos: ['Cargar proveedor a productos sin proveedor', 'Costo único o uno por producto'] },
+  { key: 'reemplazar_datos', label: 'Reemplazar datos', icono: RefreshCw, sirve: 'Buscá y reemplazá texto en las descripciones de los productos seleccionados.', ejemplos: ['Corregir un nombre mal escrito', 'Agregar un prefijo o sufijo'] },
+  { key: 'multiplicar', label: 'Multiplicar artículos', icono: Copy, sirve: 'Duplicá productos con otro proveedor, marca, ganancia o IVA para armar variantes.', ejemplos: ['Mismo producto de otro proveedor', 'Nueva marca con ganancia propia'] }
+];
 const AYUDA_SECCIONES = [
   {
     id: 'inicio', titulo: 'Primeros pasos', icono: 'BookOpen',
@@ -1885,14 +1929,6 @@ const obtenerFechaInputLocal = (fecha = new Date()) => {
 
 const esFechaInputValida = (valor = '') => /^\d{4}-\d{2}-\d{2}$/.test((valor || '').toString().trim());
 
-const esMismaFechaLocal = (fechaA = null, fechaB = new Date()) => {
-  if (!fechaA) return false;
-  const a = new Date(fechaA);
-  const b = fechaB instanceof Date ? fechaB : new Date(fechaB);
-  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return false;
-  return obtenerFechaInputLocal(a) === obtenerFechaInputLocal(b);
-};
-
 const sumarDiasFechaInputLocal = (fechaInput = '', dias = 0) => {
   const base = esFechaInputValida(fechaInput)
     ? new Date(`${fechaInput}T12:00:00`)
@@ -2116,224 +2152,6 @@ const SFPagination = ({ pagina, porPagina, total, entidad = 'registros', onPagin
     </div>
   );
 };
-
-const Button = ({
-  children,
-  onClick,
-  variant = 'primary',
-  size = 'md',
-  disabled = false,
-  className = '',
-  icon: Icon,
-  type = 'button',
-  ...props
-}) => {
-  const variants = {
-    primary: 'btn-primary',
-    secondary: 'btn-secondary',
-    ghost: 'btn-ghost',
-    danger: 'btn-danger',
-    soft: 'btn-soft'
-  };
-  const sizes = {
-    sm: 'btn-sm',
-    md: '',
-    lg: 'btn-lg'
-  };
-
-  return (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={disabled}
-      className={`btn inline-flex items-center justify-center gap-2 font-bold transition-all active:scale-[0.985] ${variants[variant] || variants.primary} ${sizes[size] || ''} ${className}`}
-      {...props}
-    >
-      {Icon && <Icon size={18} />}
-      {children}
-    </button>
-  );
-};
-
-const ButtonPrimary = ({ children, ...props }) => <Button variant="primary" {...props}>{children}</Button>;
-const ButtonSecondary = ({ children, ...props }) => <Button variant="secondary" {...props}>{children}</Button>;
-const ButtonGhost = ({ children, ...props }) => <Button variant="ghost" {...props}>{children}</Button>;
-const ButtonDanger = ({ children, ...props }) => <Button variant="danger" {...props}>{children}</Button>;
-
-const SFIconAction = ({ icon: Icono, tooltip, action = 'neutral', className = '', type = 'button', ...props }) => (
-  <button
-    type={type}
-    title={tooltip}
-    aria-label={tooltip}
-    className={`sf-icon-action sf-icon-action-${action} ${className}`}
-    {...props}
-  >
-    <Icono size={18} strokeWidth={1.75} />
-  </button>
-);
-
-const Card = ({ children, className = '', hover = true, padding = 'p-6', ...props }) => (
-  <div className={`card ${padding} ${hover ? 'hover-lift' : ''} ${className}`} {...props}>
-    {children}
-  </div>
-);
-
-const StatusBadge = ({ status, className = '' }) => {
-  const map = {
-    Pagado: 'badge-success',
-    Completado: 'badge-success',
-    Pendiente: 'badge-warning',
-    Rechazado: 'badge-danger',
-    Activo: 'badge-success',
-    Inactivo: 'badge-warning',
-    'En proceso': 'badge-info'
-  };
-
-  return (
-    <span className={`badge ${map[status] || 'badge-info'} ${className}`}>
-      {status}
-    </span>
-  );
-};
-
-const DataTable = ({
-  columns = [],
-  data = [],
-  onRowClick,
-  emptyMessage = 'No hay datos para mostrar'
-}) => {
-  if (!data.length) {
-    return (
-      <div className="table-container p-8 text-center text-gray-500">
-        <p className="font-bold">{emptyMessage}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="table-container overflow-x-auto">
-      <table className="min-w-full">
-        <thead>
-          <tr>
-            {columns.map((col, index) => (
-              <th key={col.key || col.accessor || index} className={col.className || ''}>
-                {col.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((row, rowIndex) => (
-            <tr
-              key={row.id || rowIndex}
-              onClick={() => onRowClick && onRowClick(row)}
-              className={`${onRowClick ? 'cursor-pointer' : ''} hover:bg-gray-50 transition-colors`}
-            >
-              {columns.map((col, colIndex) => (
-                <td key={col.key || col.accessor || colIndex} className={col.tdClassName || ''}>
-                  {col.render ? col.render(row) : row[col.accessor]}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-};
-
-const Input = ({
-  label,
-  error,
-  hint,
-  className = '',
-  id,
-  ...props
-}) => {
-  const inputId = id || (label ? `input-${normalizarTextoBusqueda(label).replace(/\s+/g, '-')}` : undefined);
-
-  return (
-    <div className="field">
-      {label && <label className="label" htmlFor={inputId}>{label}</label>}
-      <input
-        id={inputId}
-        className={`input ${error ? 'border-red-500 focus:ring-red-500' : ''} ${className}`}
-        {...props}
-      />
-      {hint && <p className="hint">{hint}</p>}
-      {error && <p className="text-red-500 text-xs mt-1 font-bold">{error}</p>}
-    </div>
-  );
-};
-
-const STAT_CARD_COLORS = {
-  indigo: { bg: 'bg-indigo-100', text: 'text-indigo-600' },
-  emerald: { bg: 'bg-emerald-100', text: 'text-emerald-600' },
-  green: { bg: 'bg-green-100', text: 'text-green-600' },
-  blue: { bg: 'bg-blue-100', text: 'text-blue-600' },
-  cyan: { bg: 'bg-cyan-100', text: 'text-cyan-600' },
-  teal: { bg: 'bg-teal-100', text: 'text-teal-600' },
-  purple: { bg: 'bg-purple-100', text: 'text-purple-600' },
-  amber: { bg: 'bg-amber-100', text: 'text-amber-600' },
-  orange: { bg: 'bg-orange-100', text: 'text-orange-600' },
-  red: { bg: 'bg-red-100', text: 'text-red-600' },
-  slate: { bg: 'bg-slate-100', text: 'text-slate-600' }
-};
-
-const StatCard = ({
-  title,
-  value,
-  change,
-  icon: Icon,
-  color = 'indigo'
-}) => {
-  const colorClass = STAT_CARD_COLORS[color] || STAT_CARD_COLORS.indigo;
-
-  return (
-    <Card hover>
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="text-sm font-medium text-gray-500">{title}</p>
-          <p className="text-3xl font-extrabold mt-3 tracking-tight">{value}</p>
-          {change !== undefined && (
-            <p className={`text-sm mt-2 flex items-center gap-1 font-bold ${change >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-              {change >= 0 ? '↑' : '↓'} {Math.abs(change)}%
-            </p>
-          )}
-        </div>
-        {Icon && (
-          <div className={`w-12 h-12 ${colorClass.bg} rounded-2xl flex items-center justify-center`}>
-            <Icon className={`w-6 h-6 ${colorClass.text}`} />
-          </div>
-        )}
-      </div>
-    </Card>
-  );
-};
-
-const SectionHeader = ({ title, subtitle, action }) => (
-  <div className="flex items-center justify-between gap-4 mb-6">
-    <div className="min-w-0">
-      <h2 className="text-2xl font-extrabold tracking-tight">{title}</h2>
-      {subtitle && <p className="text-gray-500 mt-1">{subtitle}</p>}
-    </div>
-    {action && <div className="shrink-0">{action}</div>}
-  </div>
-);
-
-const EmptyState = ({
-  icon: Icon,
-  title,
-  description,
-  action
-}) => (
-  <div className="text-center py-12">
-    {Icon && <Icon className="mx-auto text-gray-300 mb-4" size={48} />}
-    <h3 className="font-bold text-lg text-gray-700">{title}</h3>
-    {description && <p className="text-gray-500 mt-1">{description}</p>}
-    {action && <div className="mt-6">{action}</div>}
-  </div>
-);
 
 const obtenerPerfilPantalla = () => {
   if (typeof window === 'undefined') {
@@ -3150,8 +2968,6 @@ const construirDatosMapaOpenStreetMap = (rutaParadasCoordenadas = [], rutaCoorde
   const ruta = (rutaCoordenadas || []).map(normalizarPuntoRuta).filter((punto) => Number.isFinite(punto.lat) && Number.isFinite(punto.lon));
   const paradas = (rutaParadasCoordenadas || []).map(normalizarPuntoRuta).filter((punto) => Number.isFinite(punto.lat) && Number.isFinite(punto.lon));
   if (ruta.length < 2) return null;
-  const minLat = Math.min(...ruta.map((punto) => punto.lat));
-  const maxLat = Math.max(...ruta.map((punto) => punto.lat));
   const minLon = Math.min(...ruta.map((punto) => punto.lon));
   const maxLon = Math.max(...ruta.map((punto) => punto.lon));
   const spanLon = Math.max(maxLon - minLon, 0.05);
@@ -3552,7 +3368,6 @@ function AppInterna() {
   const [filtroProveedorInventario, setFiltroProveedorInventario] = useState('');
   const [filtroMarcaInventario, setFiltroMarcaInventario] = useState('');
   const [productoComparador, setProductoComparador] = useState(null);
-  const [busquedaCompras, setBusquedaCompras] = useState('');
   const [periodoSugerencias, setPeriodoSugerencias] = useState('semana');
   const [reinicioRankingSugerencias, setReinicioRankingSugerencias] = useState(() => {
     try {
@@ -3624,7 +3439,6 @@ function AppInterna() {
   const [calculandoRutaProveedor, setCalculandoRutaProveedor] = useState(false);
   const [mensajeRutaProveedor, setMensajeRutaProveedor] = useState('');
   const [busquedaModMasiva, setBusquedaModMasiva] = useState('');
-  const [filtroProveedorModMasiva, setFiltroProveedorModMasiva] = useState('');
   const [seleccionProductosModMasiva, setSeleccionProductosModMasiva] = useState([]);
   const [modMasivaProveedor, setModMasivaProveedor] = useState('');
   const [modMasivaCodigoProveedor, setModMasivaCodigoProveedor] = useState('');
@@ -3634,6 +3448,7 @@ function AppInterna() {
   const [modMasivaLogoMarcaNueva, setModMasivaLogoMarcaNueva] = useState('');
   const [modMasivaIvaGeneral, setModMasivaIvaGeneral] = useState('');
   const [modMasivaSubvista, setModMasivaSubvista] = useState('multiplicar');
+  const [modMasivaAbierta, setModMasivaAbierta] = useState(false);
   const [modMasivaPanelesAbiertos, setModMasivaPanelesAbiertos] = useState({});
   const [modMasivaFiltroProveedorPrecio, setModMasivaFiltroProveedorPrecio] = useState('');
   const [modMasivaFiltroMarcaPrecio, setModMasivaFiltroMarcaPrecio] = useState('');
@@ -3656,10 +3471,16 @@ function AppInterna() {
   const [modMasivaCodigosProveedorManual, setModMasivaCodigosProveedorManual] = useState({});
   const [modMasivaAjustePrecioPct, setModMasivaAjustePrecioPct] = useState('');
   const [modMasivaPreciosIndividuales, setModMasivaPreciosIndividuales] = useState({});
-  const [ultimoCambioPreciosMasivo, setUltimoCambioPreciosMasivo] = useState(null);
+  const [modMasivaRecalcularPrecioCosto, setModMasivaRecalcularPrecioCosto] = useState(false);
   const [respaldosPrecios, setRespaldosPrecios] = useState([]);
   const [confirmacionMasiva, setConfirmacionMasiva] = useState(null);
   const [modMasivaFiltroEstado, setModMasivaFiltroEstado] = useState('');
+  useEffect(() => {
+    if (!modMasivaAbierta) return undefined;
+    const alTeclear = (e) => { if (e.key === 'Escape' && !confirmacionMasiva) setModMasivaAbierta(false); };
+    window.addEventListener('keydown', alTeclear);
+    return () => window.removeEventListener('keydown', alTeclear);
+  }, [modMasivaAbierta, confirmacionMasiva]);
   const [modMasivaAjusteModo, setModMasivaAjusteModo] = useState('porcentaje');
   const [modMasivaAjusteMonto, setModMasivaAjusteMonto] = useState('');
   const [modMasivaRedondeo, setModMasivaRedondeo] = useState('');
@@ -5114,12 +4935,22 @@ function AppInterna() {
     }
 
     const nombreCliente = normalizarTextoBusqueda(cliente.nombre);
+    // Otros clientes cuyo nombre contiene al de este (ej. "Juan" y "Juan Pérez"): evitan que un
+    // cobro sin cliente vinculado se le asigne a la persona equivocada.
+    const nombresMasLargosQueContienen = nombreCliente
+      ? clientes
+        .filter((otro) => otro.id !== cliente.id)
+        .map((otro) => normalizarTextoBusqueda(otro.nombre))
+        .filter((otro) => otro.length > nombreCliente.length && otro.includes(nombreCliente))
+      : [];
     const movimientosCuentaAsc = movimientos
       .filter((mov) => {
         if (mov.tipo === 'cobro') {
           if (mov.detallesPago?.clienteId) return mov.detallesPago.clienteId === cliente.id;
+          if (!nombreCliente) return false;
           const referenciaCobro = normalizarTextoBusqueda(mov.detallesPago?.cliente || mov.descripcion || '');
-          return referenciaCobro.includes(nombreCliente);
+          if (!referenciaCobro.includes(nombreCliente)) return false;
+          return !nombresMasLargosQueContienen.some((otro) => referenciaCobro.includes(otro));
         }
 
         if (esMovimientoCargoCuentaCorriente(mov)) {
@@ -5258,11 +5089,10 @@ function AppInterna() {
       esFechaInputValida(cargo?.fechaVencimiento)
       && cargo.fechaVencimiento < hoyInput
     ));
-    const saldoPendienteCalculado = ticketsPendientes.reduce((acc, cargo) => acc + Math.max(0, Number(cargo.pendiente || 0)), 0);
     // Un cobro mayor a la deuda debe conservarse como crédito del cliente.
     const saldoNetoCalculado = movimientosCuentaAsc.length
       ? Math.round(movimientosCuentaAsc.reduce((acc, mov) => {
-        const monto = Math.max(0, Number(mov?.monto || 0));
+        const monto = Math.max(0, parseMonto(mov?.monto));
         if (mov?.tipo === 'cobro' || esMovimientoDescuentoCuentaCorriente(mov)) return acc - monto;
         if (esMovimientoCargoCuentaCorriente(mov)) return acc + monto;
         return acc;
@@ -5387,14 +5217,19 @@ function AppInterna() {
 
   const resumenMovCuenta = useMemo(() => {
     const pendientes = Object.fromEntries((estadoCuentaClienteSeleccionado.cargosProcesados || []).map((cargo) => [cargo.id, cargo.pendiente]));
-    const r = { todos: movimientosClienteSeleccionadoVisibles.length, remitos: 0, pendientes: 0, cobros: 0, recargos: 0, cargado: 0, cobrado: 0 };
+    const r = { todos: movimientosClienteSeleccionadoVisibles.length, remitos: 0, pendientes: 0, cobros: 0, recargos: 0, ajustes: 0, ajustesOcultos: 0, cargado: 0, cobrado: 0 };
     movimientosClienteSeleccionadoVisibles.forEach((mov) => {
       const c = clasificarMovCuenta(mov, pendientes);
       if (c.esRemito) { r.remitos += 1; r.cargado += Math.abs(Number(mov.monto || 0)); }
       if (c.impago) r.pendientes += 1;
       if (c.esCobro) { r.cobros += 1; r.cobrado += Math.abs(Number(mov.monto || 0)); }
       if (c.esRecargo) r.recargos += 1;
+      if (c.esAjuste) {
+        r.ajustes += 1;
+        if (pendientes[String(mov?.detallesPago?.cargoOrigenId || '')] !== undefined) r.ajustesOcultos += 1;
+      }
     });
+    r.todos -= r.ajustesOcultos;
     return r;
   }, [movimientosClienteSeleccionadoVisibles, estadoCuentaClienteSeleccionado]);
 
@@ -5402,9 +5237,13 @@ function AppInterna() {
     const pendientes = Object.fromEntries((estadoCuentaClienteSeleccionado.cargosProcesados || []).map((cargo) => [cargo.id, cargo.pendiente]));
     const termino = normalizarTextoBusqueda(busquedaMovCuenta);
     const desde = periodoMovCuenta === 'todo' ? 0 : Date.now() - Number(periodoMovCuenta) * 86400000;
+    const idsCargosConAjustes = new Set((estadoCuentaClienteSeleccionado.cargosProcesados || []).map((cargo) => String(cargo.id)));
     return movimientosClienteSeleccionadoVisibles.filter((mov) => {
       if (desde && new Date(mov?.fecha || 0).getTime() < desde) return false;
       const c = clasificarMovCuenta(mov, pendientes);
+      // Los ajustes de precio se muestran dentro de su remito; solo se listan aparte en la pestaña "Ajustes".
+      const ajusteConRemito = c.esAjuste && idsCargosConAjustes.has(String(mov?.detallesPago?.cargoOrigenId || ''));
+      if (filtroMovCuenta === 'ajustes') { if (!c.esAjuste) return false; } else if (ajusteConRemito) return false;
       if (filtroMovCuenta === 'cobros' && !c.esCobro) return false;
       if (filtroMovCuenta === 'recargos' && !c.esRecargo) return false;
       if (filtroMovCuenta === 'pendientes' && !c.impago) return false;
@@ -7511,7 +7350,6 @@ function AppInterna() {
     if (String(item?.iva) === '10.5') acc.iva105 += desglose.iva;
     return acc;
   }, { neto: 0, iva21: 0, iva105: 0 }), [formPuntoVenta.items]);
-  const ajusteRedondeoFormularioPuntoVenta = totalFormularioPuntoVenta - totalFormularioPuntoVentaBase;
   const planesTarjetaConfigurados = useMemo(
     () => (Array.isArray(configuracion?.tarjetasPlanes) ? configuracion.tarjetasPlanes : []).map(normalizarPlanTarjeta),
     [configuracion?.tarjetasPlanes]
@@ -7852,11 +7690,6 @@ function AppInterna() {
     const planesTarjetaPantallaClienteHtml = opcionesTarjetaPantallaCliente
       ? `<div class="card-plans-display"><div class="card-plans-head"><p>Opciones con tarjeta</p><strong>${tipoTarjetaPuntoVenta === 'debito' ? 'Débito' : 'Crédito'}</strong></div><div class="card-plan-options">${opcionesTarjetaPantallaCliente}</div></div>`
       : '';
-
-    const imagenDestacada = destacado?.imagen
-      ? `<img src="${escaparHtmlPantallaCliente(destacado.imagen)}" alt="">`
-      : `<div class="feature-empty">${escaparHtmlPantallaCliente(negocio.slice(0, 2).toUpperCase())}</div>`;
-    const marcaDestacada = destacado ? obtenerMarcaHtml(destacado, 'feature-brand') : '';
     const alternativasDisplay = items
       .filter((item) => item.id !== destacado?.id)
       .slice(0, 4);
@@ -7876,7 +7709,6 @@ function AppInterna() {
       : '';
     const cantidadDestacada = destacado ? `${formatearCantidad(destacado.cantidad)} ${escaparHtmlPantallaCliente(abreviarUnidadPantallaCliente(destacado.unidad || 'unid'))}` : '0 unid.';
     const subtotalDestacado = destacado ? formatearDinero(destacado.subtotal) : formatearDinero(0);
-    const nombreDisplayCliente = textoSeguroTrim(negocio, NOMBRE_EMPRESA_FALLBACK).toUpperCase();
     const detallePagoHtml = (() => {
       if (resumenPago.metodo === 'efectivo') {
         const falta = Math.max(0, Number(resumenPago.total || 0) - Number(resumenPago.recibido || 0));
@@ -12245,25 +12077,6 @@ const abrirPuntoVenta = () => {
     setEditandoConfiguracion(true);
   };
 
-  const alternarRedondeoVentasHaciaArriba = async (activo) => {
-    const configuracionAnterior = configuracion;
-    const siguienteConfiguracion = { ...configuracion, redondearVentasHaciaArriba: Boolean(activo) };
-    setConfiguracion(siguienteConfiguracion);
-    setConfiguracionPersistida((prev) => ({ ...prev, redondearVentasHaciaArriba: Boolean(activo) }));
-    try {
-      await setDoc(doc(db, 'sistema', 'configuracion'), {
-        redondearVentasHaciaArriba: Boolean(activo)
-      }, { merge: true });
-    } catch (error) {
-      setConfiguracion(configuracionAnterior);
-      setConfiguracionPersistida((prev) => ({ ...prev, redondearVentasHaciaArriba: Boolean(configuracionAnterior?.redondearVentasHaciaArriba) }));
-      await notificarSistema('No se pudo guardar la preferencia de redondeo. Intentá nuevamente.', {
-        tipo: 'error',
-        titulo: 'Redondeo no guardado'
-      });
-    }
-  };
-
   const alternarSeccionConfiguracion = (clave) => {
     setSeccionesConfiguracionAbiertas((prev) => ({ ...prev, [clave]: !prev[clave] }));
   };
@@ -12800,16 +12613,19 @@ const abrirPuntoVenta = () => {
     if (!movimientoAEliminar) return;
     const mov = movimientoAEliminar;
     
-    if (mov.tipo === 'cobro' && mov.detallesPago?.clienteId) {
-      const cliente = clientes.find(c => c.id === mov.detallesPago.clienteId);
-      if (cliente) await updateDoc(doc(db, 'clientes', cliente.id), { saldo: cliente.saldo + mov.monto });
+    if (mov.tipo === 'cobro') {
+      const idClienteCobro = mov.detallesPago?.clienteId || '';
+      const nombreClienteCobro = normalizarTextoBusqueda(mov.detallesPago?.cliente || '');
+      const cliente = (idClienteCobro ? clientes.find((c) => c.id === idClienteCobro) : null)
+        || (!idClienteCobro && nombreClienteCobro ? clientes.find((c) => normalizarTextoBusqueda(c.nombre) === nombreClienteCobro) : null);
+      if (cliente) await updateDoc(doc(db, 'clientes', cliente.id), { saldo: Math.round((Number(cliente.saldo || 0) + Number(mov.monto || 0)) * 100) / 100 });
     }
     if (esMovimientoCargoCuentaCorriente(mov)) {
       const idCliente = mov.detallesPago?.clienteId || '';
       const nombreCliente = mov.detallesPago?.cliente?.trim();
       const cliente = (idCliente ? clientes.find((c) => c.id === idCliente) : null)
         || clientes.find(c => c.nombre.toLowerCase() === nombreCliente?.toLowerCase());
-      if (cliente) await updateDoc(doc(db, 'clientes', cliente.id), { saldo: cliente.saldo - mov.monto });
+      if (cliente) await updateDoc(doc(db, 'clientes', cliente.id), { saldo: Math.round((Number(cliente.saldo || 0) - Number(mov.monto || 0)) * 100) / 100 });
     }
     if (esMovimientoDescuentoCuentaCorriente(mov)) {
       const idCliente = mov.detallesPago?.clienteId || '';
@@ -13224,7 +13040,6 @@ const abrirPuntoVenta = () => {
 	    const pendientesBase = remitosBase.filter((ticket) => Number(ticket.pendiente || 0) > 0.009);
 	    const saldadosBase = remitosBase.filter((ticket) => Number(ticket.pendiente || 0) <= 0.009);
 	    const saldoPendienteSinRecargos = Math.max(0, pendientesBase.reduce((acc, item) => acc + Number(item.pendiente || 0), 0));
-    const pendientePorCargoId = Object.fromEntries((estado?.cargosProcesados || []).map((cargo) => [cargo.id, Number(cargo.pendiente || 0)]));
     const totalCreditosClientePdf = (estado?.movimientosDesc || [])
       .filter((movimiento) => movimiento?.tipo === 'cobro' || esMovimientoDescuentoCuentaCorriente(movimiento))
       .reduce((total, movimiento) => total + Math.abs(Number(movimiento?.monto || 0)), 0);
@@ -13834,7 +13649,6 @@ const abrirPuntoVenta = () => {
     });
 
     const doc = crearPdfA4('landscape', { titulo: 'Clientes con saldos pendientes' });
-    const nombreEmpresa = obtenerNombreEmpresaPresupuesto();
     const fechaEmision = new Date().toISOString();
     const totalDeudaGeneral = clientesVisiblesSegunAcceso.reduce((acc, cliente) => {
       const estado = estadoCuentaClientes[cliente.id] || {};
@@ -15930,16 +15744,6 @@ const abrirPuntoVenta = () => {
     if (!costos.length) return 0;
     const total = costos.reduce((acc, valor) => acc + Number(valor), 0);
     return total / costos.length;
-  };
-
-  const obtenerCostoProveedorPrincipalPesos = (productoForm = formProducto) => {
-    const costos = (productoForm?.proveedoresCostos || [])
-      .map((costo, index) => normalizarProveedorCosto(costo, index))
-      .map((costo) => ({ ...costo, costoPesos: convertirCostoProveedorAPesos(costo, productoForm) }))
-      .filter((costo) => Number.isFinite(Number(costo.costoPesos)) && Number(costo.costoPesos) > 0);
-    if (!costos.length) return 0;
-    const recomendado = costos.find((costo) => costo.recomendado) || costos[0];
-    return Number(recomendado?.costoPesos || 0);
   };
 
   const obtenerCostoNetoInicialDesdeProveedores = (productoForm = formProducto) => {
@@ -18318,16 +18122,6 @@ const abrirPuntoVenta = () => {
     }
   };
 
-  const obtenerPuntajeProveedor = (prov = {}) => (
-    (textoSeguroTrim(prov?.cuit, '') ? 4 : 0)
-    + (textoSeguroTrim(prov?.direccion, '') ? 3 : 0)
-    + (textoSeguroTrim(prov?.telefono, '') ? 2 : 0)
-    + (textoSeguroTrim(prov?.email, '') ? 2 : 0)
-    + (parseNumeroBasico(prov?.descuentoBase) > 0 ? 2 : 0)
-    + (prov?.aceptaCheques ? 1 : 0)
-    + (textoSeguroTrim(prov?.notas, '') ? 1 : 0)
-  );
-
   const abrirNuevaMarca = () => {
     setMarcaAEditar(null);
     setFormMarca(FORM_MARCA_VACIO);
@@ -19778,214 +19572,221 @@ const abrirPuntoVenta = () => {
     return Number(nuevo.toFixed(2));
   };
 
+  const ejecutarEnLotesTolerante = async (items = [], tarea, tamanoLote = 25) => {
+    const fallos = [];
+    for (let inicio = 0; inicio < items.length; inicio += tamanoLote) {
+      const lote = items.slice(inicio, inicio + tamanoLote);
+      const resultados = await Promise.allSettled(lote.map(tarea));
+      resultados.forEach((resultado, indice) => {
+        if (resultado.status === 'rejected') {
+          console.error('Falló un producto en la operación masiva', lote[indice]?.producto?.id || lote[indice]?.id, resultado.reason);
+          fallos.push(lote[indice]);
+        }
+      });
+    }
+    return fallos;
+  };
+
+  // Cálculo único del ajuste masivo de precios/costos: lo usan tanto la vista previa como el botón Aplicar,
+  // así lo que se ve antes de confirmar es exactamente lo que se guarda.
+  const calcularAjustePrecioMasivoProducto = (producto = {}, cfg = {}) => {
+    const { modoAjuste = 'venta', modoMonto = false, montoAjuste = 0, factor = 1, redondeo = '', proveedorFiltro = '', ivaNuevo = '', recalcularPrecio = false } = cfg;
+    const ajustar = (valor, esPrecio = false) => calcularValorAjusteMasivo(valor, { modoMonto, factor, monto: montoAjuste, redondeo, esPrecio });
+    const payload = {};
+    if (ivaNuevo) payload.iva = ivaNuevo;
+    const cambios = [];
+    const variaciones = [];
+    let omitir = '';
+    let precioAntes = Math.max(0, parseNumeroBasico(producto?.precio) || 0);
+    let precioDespues = precioAntes;
+    let costoDespues = Math.max(0, parseNumeroBasico(producto?.costo) || 0);
+
+    if (modoAjuste === 'venta') {
+      precioDespues = ajustar(precioAntes, true);
+      if (precioAntes > 0 && precioDespues <= 0) omitir = 'el precio quedaría en $0';
+      payload.precio = precioDespues;
+      cambios.push({ campo: 'Precio', antes: formatearDinero(precioAntes), despues: formatearDinero(precioDespues) });
+      return { payload, cambios, variaciones, omitir, precioAntes, precioDespues, costoDespues };
+    }
+
+    const costosActuales = obtenerCostosProveedorProducto(producto).map((costo, index) => normalizarProveedorCosto(costo, index));
+    const filtro = normalizarTextoBusqueda(proveedorFiltro || '');
+    let costoAntes = Math.max(0, parseNumeroBasico(producto?.costoOriginal ?? producto?.costo ?? 0) || 0);
+    let costoNuevo = costoAntes;
+    if (costosActuales.length) {
+      const idxFiltro = filtro ? costosActuales.findIndex((costo) => normalizarTextoBusqueda(costo?.proveedor || '') === filtro) : -1;
+      if (filtro && idxFiltro < 0) {
+        omitir = 'no tiene costo cargado con ese proveedor';
+        return { payload, cambios, variaciones, omitir, precioAntes, precioDespues, costoDespues };
+      }
+      const costosSiguientes = costosActuales.map((costo, index) => {
+        const aplica = filtro ? index === idxFiltro : true;
+        const actual = Math.max(0, parseNumeroBasico(costo?.costo || 0) || 0);
+        if (!aplica || actual <= 0) return costo;
+        const nuevo = ajustar(actual);
+        variaciones.push({ proveedor: costo.proveedor, precioAnterior: actual, precioNuevo: nuevo });
+        return { ...costo, costo: String(nuevo), actualizado: obtenerFechaInputLocal() };
+      });
+      const idxPrincipal = Math.max(0, costosSiguientes.findIndex((costo) => costo.recomendado));
+      const principalAntes = costosActuales[idxPrincipal];
+      const principalNuevo = costosSiguientes[idxPrincipal];
+      costoAntes = Math.max(0, parseNumeroBasico(principalAntes?.costo || 0) || 0);
+      costoNuevo = Math.max(0, parseNumeroBasico(principalNuevo?.costo || 0) || 0);
+      payload.proveedoresCostos = costosSiguientes;
+      payload.costo = convertirCostoProveedorAPesos(principalNuevo);
+      payload.costoOriginal = costoNuevo;
+      payload.monedaCosto = principalNuevo?.moneda || producto?.monedaCosto || 'ARS';
+      if (principalNuevo?.proveedor) { payload.proveedor = principalNuevo.proveedor; payload.codigoProveedor = principalNuevo.codigoProveedor || producto?.codigoProveedor || ''; }
+    } else {
+      costoNuevo = ajustar(costoAntes);
+      payload.costoOriginal = costoNuevo;
+      payload.costo = ajustar(Math.max(0, parseNumeroBasico(producto?.costo ?? 0) || 0));
+    }
+    costoDespues = Number(payload.costo ?? costoDespues) || 0;
+    if (costoAntes > 0 && costoNuevo <= 0) omitir = 'el costo quedaría en $0';
+    cambios.push({ campo: 'Costo', antes: formatearDinero(costoAntes), despues: formatearDinero(costoNuevo) });
+    if (recalcularPrecio && !omitir) {
+      const iva = payload.iva || producto?.iva;
+      const monedaCosto = payload.monedaCosto || producto?.monedaCosto || 'ARS';
+      let calculado = 0;
+      try {
+        calculado = parseNumeroBasico(calcularPrecioVenta(
+          payload.costoOriginal, producto?.ganancia, iva, monedaCosto,
+          obtenerCotizacionParaMoneda(monedaCosto), payload.costo,
+          Boolean(producto?.costoIvaIncluido)
+        ));
+      } catch (errorPrecio) {
+        console.error('No se pudo recalcular el precio de venta', producto?.codigo, errorPrecio);
+      }
+      if (Number.isFinite(calculado) && calculado > 0) {
+        precioDespues = Number(calculado.toFixed(2));
+        payload.precio = precioDespues;
+        cambios.push({ campo: 'Precio (por margen)', antes: formatearDinero(precioAntes), despues: formatearDinero(precioDespues) });
+      }
+    }
+    return { payload, cambios, variaciones, omitir, precioAntes, precioDespues, costoDespues };
+  };
+
   const aplicarActualizacionPreciosMasivo = async (idsOverride = null) => {
-    const idsObjetivo = Array.isArray(idsOverride) && idsOverride.length
-      ? idsOverride
-      : (seleccionProductosModMasiva.length
-        ? seleccionProductosModMasiva
-        : productosActualizacionPreciosVisualizados.map((producto) => producto.id));
+    // Solo se aplica sobre lo seleccionado: nunca "todo lo visible" por omisión.
+    const idsObjetivo = Array.isArray(idsOverride) ? idsOverride : seleccionProductosModMasiva;
     const productosObjetivo = (productos || []).filter((producto) => idsObjetivo.includes(producto.id));
     if (!productosObjetivo.length) {
-      await notificarSistema('No hay productos seleccionados para ajustar.', {
-        tipo: 'warning',
-        titulo: 'Sin selección'
-      });
+      await notificarSistema('No hay productos seleccionados para ajustar.', { tipo: 'warning', titulo: 'Sin selección' });
       return;
     }
 
     const modoAjuste = ['costo', 'precio_individual'].includes(modMasivaTipoAjustePrecio) ? modMasivaTipoAjustePrecio : 'venta';
     const ivaNuevo = textoSeguroTrim(modMasivaIvaGeneral, '');
+    const fechaActualizacionPrecios = new Date().toISOString();
+    let tareas = [];
+    let omitidos = [];
+    let tipoRespaldo = 'modificacion_masiva_precios';
+    let tituloRespaldo = 'Antes de ajustar precios masivos';
+    let detalleRespaldo = '';
+    let etiquetaAjuste = '';
+
     if (modoAjuste === 'precio_individual') {
-      const entradasPrecio = productosObjetivo
+      const entradas = productosObjetivo
         .map((producto) => {
           const valorRaw = modMasivaPreciosIndividuales[producto.id];
-          const valor = parseNumeroBasico(valorRaw);
-          return { producto, valorRaw, valor };
+          return { producto, valorRaw, valor: parseNumeroBasico(valorRaw) };
         })
         .filter(({ valorRaw }) => (valorRaw ?? '').toString().trim() !== '');
-      if (!entradasPrecio.length && !ivaNuevo) {
-        await notificarSistema('Carga al menos un precio individual o un cambio de IVA para guardar.', {
-          tipo: 'warning',
-          titulo: 'Sin cambios a aplicar'
-        });
+      if (!entradas.length && !ivaNuevo) {
+        await notificarSistema('Carga al menos un precio individual o un cambio de IVA para guardar.', { tipo: 'warning', titulo: 'Sin cambios a aplicar' });
         return;
       }
-      const invalido = entradasPrecio.find(({ valor }) => !Number.isFinite(valor) || valor < 0);
-      if (invalido) {
-        await notificarSistema('Hay un precio individual inválido. Revisá los importes cargados.', {
-          tipo: 'warning',
-          titulo: 'Precio inválido'
-        });
+      if (entradas.find(({ valor }) => !Number.isFinite(valor) || valor < 0)) {
+        await notificarSistema('Hay un precio individual inválido. Revisá los importes cargados.', { tipo: 'warning', titulo: 'Precio inválido' });
         return;
       }
-      const snapshotsPrevios = productosObjetivo.map((producto) => ({
-        id: producto.id,
-        data: clonarEstructuraSimple(producto)
-      }));
-      iniciarOperacionPrecios({ titulo: 'Actualización masiva de precios', fase: 'Generando respaldo previo', total: productosObjetivo.length, detalle: `Preparando ${productosObjetivo.length} producto(s)` });
+      tareas = productosObjetivo.map((producto) => {
+        const payload = { fechaActualizacion: fechaActualizacionPrecios };
+        if (ivaNuevo) payload.iva = ivaNuevo;
+        const valorRaw = modMasivaPreciosIndividuales[producto.id];
+        if ((valorRaw ?? '').toString().trim() !== '') {
+          payload.precio = Math.max(0, Number(parseNumeroBasico(valorRaw).toFixed(2)));
+          payload.fechaActualizacionPrecio = fechaActualizacionPrecios;
+        }
+        return Object.keys(payload).length > 1 ? { producto, payload, variaciones: [] } : null;
+      }).filter(Boolean);
+      tipoRespaldo = 'modificacion_masiva_precio_individual';
+      tituloRespaldo = 'Antes de precios individuales';
+      detalleRespaldo = `${tareas.length} producto(s) con precio individual`;
+      etiquetaAjuste = 'precios individuales';
+    } else {
+      const modoMonto = modMasivaAjusteModo === 'monto' && modoAjuste === 'venta';
+      const montoAjuste = parseNumeroBasico(modMasivaAjusteMonto);
+      const porcentaje = modoMonto ? 0 : parseNumeroBasico(modMasivaAjustePrecioPct);
+      if (modoMonto ? (!Number.isFinite(montoAjuste) || montoAjuste === 0) : (!Number.isFinite(porcentaje) || porcentaje === 0)) {
+        await notificarSistema(modoMonto ? 'Ingresá un monto válido distinto de 0 para ajustar precios.' : 'Ingresá un porcentaje válido distinto de 0 para ajustar precios.', { tipo: 'warning', titulo: 'Ajuste inválido' });
+        return;
+      }
+      if (!modoMonto && porcentaje <= -100) {
+        await notificarSistema('El porcentaje de baja debe ser mayor a -100%, porque dejaría los precios en $0.', { tipo: 'warning', titulo: 'Ajuste inválido' });
+        return;
+      }
+      etiquetaAjuste = modoMonto ? `${montoAjuste > 0 ? '+' : ''}${formatearDinero(montoAjuste)}` : `${formatearPorcentaje(porcentaje)}%`;
+      const cfg = {
+        modoAjuste, modoMonto, montoAjuste, factor: 1 + (porcentaje / 100), redondeo: modMasivaRedondeo,
+        proveedorFiltro: textoSeguroTrim(modMasivaFiltroProveedorPrecio, ''), ivaNuevo, recalcularPrecio: Boolean(modMasivaRecalcularPrecioCosto)
+      };
+      productosObjetivo.forEach((producto) => {
+        const resultado = calcularAjustePrecioMasivoProducto(producto, cfg);
+        if (resultado.omitir) { omitidos.push({ producto, motivo: resultado.omitir }); return; }
+        const payload = { ...resultado.payload, fechaActualizacion: fechaActualizacionPrecios, fechaActualizacionPrecio: fechaActualizacionPrecios };
+        if (modoAjuste === 'costo') payload.fechaActualizacionCostoProveedor = fechaActualizacionPrecios;
+        tareas.push({ producto, payload, variaciones: resultado.variaciones });
+      });
+      if (modoAjuste === 'costo') {
+        tipoRespaldo = 'modificacion_masiva_costos';
+        tituloRespaldo = 'Antes de ajustar costos masivos';
+      }
+      detalleRespaldo = `${tareas.length} producto(s), ajuste ${etiquetaAjuste}`;
+    }
+
+    if (!tareas.length) {
+      await notificarSistema(omitidos.length ? `Ningún producto se pudo ajustar (${omitidos.length} omitidos por no cumplir las condiciones).` : 'No hay cambios para aplicar.', { tipo: 'warning', titulo: 'Sin cambios a aplicar' });
+      return;
+    }
+
+    try {
+      iniciarOperacionPrecios({ titulo: 'Actualización masiva de precios', fase: 'Generando respaldo previo', total: tareas.length, detalle: `Preparando ${tareas.length} producto(s)` });
       await crearRespaldoPreciosPersistente({
-        productosObjetivo,
-        tipo: 'modificacion_masiva_precio_individual',
-        titulo: 'Antes de precios individuales',
-        detalle: `${productosObjetivo.length} producto(s) seleccionados`,
+        productosObjetivo: tareas.map((tarea) => tarea.producto),
+        tipo: tipoRespaldo,
+        titulo: tituloRespaldo,
+        detalle: detalleRespaldo,
         onProgreso: (procesadas, total) => actualizarOperacionPrecios({ procesadas, total, detalle: `Respaldo: ${procesadas} de ${total}` })
       });
-      const updates = productosObjetivo
-        .map((producto) => {
-          const fechaActualizacionPrecios = new Date().toISOString();
-          const payload = { fechaActualizacion: fechaActualizacionPrecios };
-          if (ivaNuevo) payload.iva = ivaNuevo;
-          const valorRaw = modMasivaPreciosIndividuales[producto.id];
-          if ((valorRaw ?? '').toString().trim() !== '') {
-            payload.precio = Math.max(0, Number(parseNumeroBasico(valorRaw).toFixed(2)));
-            payload.fechaActualizacionPrecio = fechaActualizacionPrecios;
+      actualizarOperacionPrecios({ fase: 'Aplicando cambios', total: tareas.length, procesadas: 0, detalle: `Actualizando ${tareas.length} producto(s)` });
+      const fallos = await ejecutarEnLotesTolerante(tareas, async (tarea) => {
+        await updateDoc(doc(db, 'productos', tarea.producto.id), limpiarDatoFirestore(tarea.payload));
+        for (const variacion of tarea.variaciones || []) {
+          try {
+            await registrarVariacionPrecio({ producto: tarea.producto, precioAnterior: variacion.precioAnterior, precioNuevo: variacion.precioNuevo, proveedor: variacion.proveedor, origen: 'lista_proveedor', tipoVariacion: 'costo_proveedor' });
+          } catch (errorVariacion) {
+            console.error('No se pudo registrar la variación de costo', errorVariacion);
           }
-          if (Object.keys(payload).length <= 1) return null;
-          return Promise.all([
-            updateDoc(doc(db, 'productos', producto.id), payload)
-          ]);
-        })
-        .filter(Boolean);
-      actualizarOperacionPrecios({ fase: 'Aplicando cambios', total: updates.length, procesadas: 0, detalle: `Actualizando ${updates.length} producto(s)` });
-      await Promise.all(updates.map(async (update) => {
-        await update;
-        actualizarOperacionPrecios((prev) => ({ procesadas: prev.procesadas + 1 }));
-      }));
-      setUltimoCambioPreciosMasivo({
-        fecha: new Date().toISOString(),
-        porcentaje: null,
-        modoAjuste,
-        cantidad: productosObjetivo.length,
-        productos: snapshotsPrevios
-      });
-      await finalizarOperacionPrecios(`Se actualizaron ${updates.length} producto(s).`);
-      await notificarSistema(`Se actualizaron precios individuales en ${updates.length} producto(s).`, {
-        tipo: 'success',
-        titulo: 'Precios actualizados'
-      });
-      limpiarModificacionMasiva();
-      return;
-    }
-
-    const modoMonto = modMasivaAjusteModo === 'monto' && modoAjuste === 'venta';
-    const montoAjuste = parseNumeroBasico(modMasivaAjusteMonto);
-    const porcentaje = modoMonto ? 0 : parseNumeroBasico(modMasivaAjustePrecioPct);
-    if (modoMonto ? (!Number.isFinite(montoAjuste) || montoAjuste === 0) : (!Number.isFinite(porcentaje) || porcentaje === 0)) {
-      await notificarSistema(modoMonto ? 'Ingresá un monto válido distinto de 0 para ajustar precios.' : 'Ingresa un porcentaje válido distinto de 0 para ajustar precios.', {
-        tipo: 'warning',
-        titulo: 'Ajuste inválido'
-      });
-      return;
-    }
-    const factor = 1 + (porcentaje / 100);
-    const etiquetaAjuste = modoMonto ? `${montoAjuste > 0 ? '+' : ''}${formatearDinero(montoAjuste)}` : `${formatearPorcentaje(porcentaje)}%`;
-    const ajustarValor = (valor, esPrecio = false) => calcularValorAjusteMasivo(valor, { modoMonto, factor, monto: montoAjuste, redondeo: modMasivaRedondeo, esPrecio });
-    const proveedorFiltroPrecio = textoSeguroTrim(modMasivaFiltroProveedorPrecio, '');
-    const snapshotsPrevios = productosObjetivo.map((producto) => ({
-      id: producto.id,
-      data: clonarEstructuraSimple(producto)
-    }));
-    iniciarOperacionPrecios({ titulo: 'Actualización masiva de precios', fase: 'Generando respaldo previo', total: productosObjetivo.length, detalle: `Preparando ${productosObjetivo.length} producto(s)` });
-    await crearRespaldoPreciosPersistente({
-      productosObjetivo,
-      tipo: modoAjuste === 'costo' ? 'modificacion_masiva_costos' : 'modificacion_masiva_precios',
-      titulo: modoAjuste === 'costo' ? 'Antes de ajustar costos masivos' : 'Antes de ajustar precios masivos',
-      detalle: `${productosObjetivo.length} producto(s), ajuste ${etiquetaAjuste}`,
-      onProgreso: (procesadas, total) => actualizarOperacionPrecios({ procesadas, total, detalle: `Respaldo: ${procesadas} de ${total}` })
-    });
-    const updates = productosObjetivo.map((producto) => {
-      const fechaActualizacionPrecios = new Date().toISOString();
-      const payload = { fechaActualizacion: fechaActualizacionPrecios, fechaActualizacionPrecio: fechaActualizacionPrecios };
-      let variacionCostoProveedor = Promise.resolve(false);
-      if (ivaNuevo) payload.iva = ivaNuevo;
-      if (modoAjuste === 'venta') {
-        const precioActual = Math.max(0, parseNumeroBasico(producto?.precio));
-        payload.precio = ajustarValor(precioActual, true);
-      } else {
-        payload.fechaActualizacionCostoProveedor = fechaActualizacionPrecios;
-        const costosActuales = obtenerCostosProveedorProducto(producto).map((costo, index) => normalizarProveedorCosto(costo, index));
-        if (proveedorFiltroPrecio) {
-          const idxCosto = costosActuales.findIndex((costo) => normalizarTextoBusqueda(costo?.proveedor || '') === normalizarTextoBusqueda(proveedorFiltroPrecio));
-          if (idxCosto >= 0) {
-            const costoPrevio = costosActuales[idxCosto];
-            const costoActual = Math.max(0, parseNumeroBasico(costoPrevio?.costo || 0));
-            const costoNuevo = ajustarValor(costoActual);
-            const costoActualizado = { ...costoPrevio, costo: String(costoNuevo), actualizado: obtenerFechaInputLocal() };
-            const costosSiguientes = costosActuales.map((costo, index) => (index === idxCosto ? costoActualizado : costo));
-            payload.proveedoresCostos = costosSiguientes;
-            payload.costo = convertirCostoProveedorAPesos(costoActualizado);
-            payload.costoOriginal = costoNuevo;
-            payload.monedaCosto = costoActualizado.moneda || producto?.monedaCosto || 'ARS';
-            variacionCostoProveedor = registrarVariacionPrecio({
-              producto,
-              precioAnterior: costoActual,
-              precioNuevo: costoNuevo,
-              proveedor: costoActualizado.proveedor,
-              origen: 'lista_proveedor',
-              tipoVariacion: 'costo_proveedor'
-            });
-            const proveedorPrincipal = costosSiguientes.find((costo) => costo.recomendado) || costosSiguientes[0] || null;
-            if (proveedorPrincipal?.proveedor === costoActualizado.proveedor) {
-              payload.proveedor = proveedorPrincipal.proveedor || '';
-              payload.codigoProveedor = proveedorPrincipal.codigoProveedor || '';
-            }
-          } else {
-            const costoBase = Math.max(0, parseNumeroBasico(producto?.costoOriginal ?? producto?.costo ?? 0));
-            payload.costoOriginal = ajustarValor(costoBase);
-            payload.costo = ajustarValor(Math.max(0, parseNumeroBasico(producto?.costo ?? 0)));
-          }
-        } else {
-          const costoBase = Math.max(0, parseNumeroBasico(producto?.costoOriginal ?? producto?.costo ?? 0));
-          payload.costoOriginal = ajustarValor(costoBase);
-          payload.costo = ajustarValor(Math.max(0, parseNumeroBasico(producto?.costo ?? 0)));
         }
-      }
-      return Promise.all([
-        updateDoc(doc(db, 'productos', producto.id), payload),
-        variacionCostoProveedor
-      ]);
-    });
-    actualizarOperacionPrecios({ fase: 'Aplicando cambios', total: updates.length, procesadas: 0, detalle: `Actualizando ${updates.length} producto(s)` });
-    await Promise.all(updates.map(async (update) => {
-      await update;
-      actualizarOperacionPrecios((prev) => ({ procesadas: prev.procesadas + 1 }));
-    }));
-    setUltimoCambioPreciosMasivo({
-      fecha: new Date().toISOString(),
-      porcentaje,
-      modoAjuste,
-      cantidad: productosObjetivo.length,
-      productos: snapshotsPrevios
-    });
-    await finalizarOperacionPrecios(`Se ajustaron ${productosObjetivo.length} producto(s).`);
-    await notificarSistema(`Se ajustaron ${productosObjetivo.length} producto(s) (${etiquetaAjuste}).`, {
-      tipo: 'success',
-      titulo: 'Precios actualizados'
-    });
-    limpiarModificacionMasiva();
-  };
-
-  const deshacerActualizacionPreciosMasivo = async () => {
-    if (!ultimoCambioPreciosMasivo?.productos?.length) {
-      await notificarSistema('No hay una actualización masiva reciente para deshacer.', {
-        tipo: 'warning',
-        titulo: 'Sin cambios para revertir'
+        actualizarOperacionPrecios((prev) => ({ procesadas: prev.procesadas + 1 }));
       });
-      return;
+      const correctos = tareas.length - fallos.length;
+      await finalizarOperacionPrecios(`Se actualizaron ${correctos} de ${tareas.length} producto(s).`);
+      const notaOmitidos = omitidos.length ? ` ${omitidos.length} se omitieron por no cumplir las condiciones (por ejemplo, quedarían en $0).` : '';
+      if (fallos.length) {
+        await notificarSistema(`Se actualizaron ${correctos} de ${tareas.length} producto(s). Fallaron ${fallos.length}: ${fallos.slice(0, 5).map((f) => f.producto?.codigo || f.producto?.id).join(', ')}${fallos.length > 5 ? '…' : ''}. Revisá la conexión y repetí la operación con esos productos, o restaurá el respaldo desde Historial.${notaOmitidos}`, { tipo: 'warning', titulo: 'Actualización incompleta' });
+        setSeleccionProductosModMasiva(fallos.map((f) => f.producto.id));
+        return;
+      }
+      await notificarSistema(`Se ajustaron ${correctos} producto(s) (${etiquetaAjuste}).${notaOmitidos}`, { tipo: 'success', titulo: 'Precios actualizados' });
+      limpiarModificacionMasiva();
+    } catch (error) {
+      console.error('Error en la actualización masiva de precios', error);
+      setOperacionPreciosEnCurso((prev) => ({ ...prev, activo: false }));
+      await notificarSistema('La actualización masiva se interrumpió. Se guardó un respaldo previo: revisá Historial y deshacer antes de repetir.', { tipo: 'error', titulo: 'Error en la actualización' });
     }
-
-    const restauraciones = ultimoCambioPreciosMasivo.productos.map((registro) => (
-      (() => {
-        const { id: _idIgnorado, ...dataRestaurar } = clonarEstructuraSimple(registro.data || {});
-        return setDoc(doc(db, 'productos', registro.id), dataRestaurar);
-      })()
-    ));
-    await Promise.all(restauraciones);
-    setUltimoCambioPreciosMasivo(null);
-    await notificarSistema('Se deshicieron los cambios de la última actualización masiva.', {
-      tipo: 'success',
-      titulo: 'Cambios revertidos'
-    });
   };
 
   const limpiarModificacionMasiva = () => {
@@ -20017,17 +19818,14 @@ const abrirPuntoVenta = () => {
     setModMasivaAjustePrecioPct('');
     setModMasivaAjusteMonto('');
     setModMasivaRedondeo('');
+    setModMasivaRecalcularPrecioCosto(false);
     setModMasivaFiltroEstado('');
     setModMasivaPreciosIndividuales({});
     setSeleccionProductosModMasiva([]);
   };
 
   const aplicarProveedorMasivo = async (idsOverride = null) => {
-    const idsObjetivo = Array.isArray(idsOverride) && idsOverride.length
-      ? idsOverride
-      : (seleccionProductosModMasiva.length
-        ? seleccionProductosModMasiva
-        : productosModMasivaVisualizados.map((producto) => producto.id));
+    const idsObjetivo = Array.isArray(idsOverride) ? idsOverride : seleccionProductosModMasiva;
     const productosObjetivo = (productos || []).filter((producto) => idsObjetivo.includes(producto.id));
     if (!productosObjetivo.length) {
       await notificarSistema('Selecciona al menos un producto para aplicar cambios masivos.', {
@@ -20083,7 +19881,6 @@ const abrirPuntoVenta = () => {
     }
 
     const proveedorMaestro = obtenerProveedorMaestroPorNombre(nombreProveedor);
-    const descuentoProveedor = parseNumeroBasico(proveedorMaestro?.descuentoBase || 0);
     const codigosReservados = obtenerCodigosInventarioUsados();
 
     const obtenerCodigoInternoDisponibleMasivo = () => {
@@ -20144,7 +19941,7 @@ const abrirPuntoVenta = () => {
           moneda: modMasivaMoneda || costoBase?.moneda || 'ARS',
           plazo: idxCosto >= 0 ? (costoBase?.plazo ?? '') : (proveedorMaestro?.aceptaCheques ? (proveedorMaestro?.plazoChequesDias || '') : (costoBase?.plazo || '')),
           actualizado: obtenerFechaInputLocal(),
-          recomendado: Boolean(modMasivaProveedorPrincipal)
+          recomendado: Boolean(modMasivaProveedorPrincipal) || (idxCosto >= 0 && Boolean(costoBase?.recomendado))
         };
 
         costosSiguientes = idxCosto >= 0
@@ -20214,7 +20011,7 @@ const abrirPuntoVenta = () => {
           fechaActualizacion: new Date().toISOString()
         };
         delete payloadNuevo.id;
-        updates.push(addDoc(collection(db, 'productos'), payloadNuevo).then((refNuevo) => { idsProductosCreadosMasivo.push(refNuevo.id); return refNuevo; }));
+        updates.push(() => addDoc(collection(db, 'productos'), payloadNuevo).then((refNuevo) => { idsProductosCreadosMasivo.push(refNuevo.id); return refNuevo; }));
       } else {
         const updatePayload = {
           proveedoresCostos: costosSiguientes,
@@ -20256,13 +20053,17 @@ const abrirPuntoVenta = () => {
           }
         }
 
-        updates.push(updateDoc(doc(db, 'productos', producto.id), updatePayload));
+        updates.push(() => updateDoc(doc(db, 'productos', producto.id), limpiarDatoFirestore(updatePayload)));
       }
     }
 
-    await Promise.all(updates);
+    const fallosMasivo = await ejecutarEnLotesTolerante(updates.map((hacer) => ({ hacer })), (tarea) => tarea.hacer());
     if (respaldoMasivo?.id && idsProductosCreadosMasivo.length) {
       try { await updateDoc(doc(db, 'respaldos_precios', respaldoMasivo.id), { idsCreados: idsProductosCreadosMasivo }); } catch (errorRespaldo) { console.error('No se pudo registrar los productos creados en el respaldo', errorRespaldo); }
+    }
+    if (fallosMasivo.length) {
+      await notificarSistema(`Se procesaron ${updates.length - fallosMasivo.length} de ${updates.length} producto(s). Fallaron ${fallosMasivo.length}. Revisá la conexión; si hace falta, restaurá el respaldo desde Historial y deshacer.`, { tipo: 'warning', titulo: 'Operación incompleta' });
+      return;
     }
     limpiarModificacionMasiva();
     await notificarSistema(
@@ -20441,12 +20242,6 @@ function obtenerCategoriaProducto(producto) {
     return matriz.slice(indiceEncabezado + 1)
       .filter((fila) => (fila || []).some((valor) => String(valor ?? '').trim()))
       .map((fila) => encabezados.reduce((registro, encabezado, indice) => ({ ...registro, [encabezado]: fila?.[indice] ?? '' }), {}));
-  };
-  const obtenerValorFilaImport = (fila, claves) => {
-    for (const k of claves) {
-      if (Object.prototype.hasOwnProperty.call(fila, k) && fila[k] !== '') return fila[k];
-    }
-    return '';
   };
 
   const crearConfigImportacionInventarioVacia = () => ({
@@ -22124,14 +21919,6 @@ function obtenerCategoriaProducto(producto) {
     }, {});
     for (const [proveedor, itemsProveedor] of Object.entries(grupos)) {
       const docPdf = crearPdfA4('portrait', { titulo: `Pedido a proveedor ${proveedor}` });
-      const logoFuente = textoSeguroTrim(
-        presupuesto?.empresaLogoDataUrl,
-        textoSeguroTrim(
-          presupuesto?.empresaLogo,
-          textoSeguroTrim(logoEmpresaRender, textoSeguroTrim(configuracion?.logo, LOGO_EMPRESA_FALLBACK_URL))
-        )
-      );
-      const logoEmpresa = logoFuente ? (logoFuente.startsWith('data:') ? logoFuente : await srcADataUrl(logoFuente)) : '';
       dibujarEncabezadoDocumentoApp(docPdf, { tipo: 'Pedido a proveedor', numero: '', lineasDoc: [`Emitido: ${new Date().toLocaleDateString('es-AR')} ${new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`] });
       docPdf.setFont('helvetica', 'bold');
       docPdf.setFontSize(11);
@@ -22254,13 +22041,6 @@ function obtenerCategoriaProducto(producto) {
     setLibroImportacionCompra(null);
   };
 
-  const obtenerEstadoPedidoCompraLabel = (estado = '') => {
-    const key = textoSeguroTrim(estado, 'guardado');
-    if (key === 'enviado') return 'Enviado';
-    if (key === 'recibido') return 'Recibido';
-    return 'Guardado';
-  };
-
   const obtenerEstadoPedidoCompraClase = (estado = '') => {
     const key = textoSeguroTrim(estado, 'guardado');
     if (key === 'enviado') return 'bg-indigo-50 text-indigo-700 border-indigo-200';
@@ -22352,11 +22132,6 @@ function obtenerCategoriaProducto(producto) {
     const costoBasePesos = convertirCostoProveedorBrutoParaPedidoCompra(costo, producto);
     const descuentoProveedor = compraDirectaActiva ? 0 : obtenerDescuentoProveedorParaPedidoCompra(costo?.proveedor || '');
     return Math.max(0, costoBasePesos * (1 - (descuentoProveedor / 100)));
-  };
-
-  const compraEsFacturaA = (tipo = '') => {
-    const normalizado = normalizarTextoBusqueda(tipo);
-    return normalizado === 'factura_a' || normalizado === 'factura a' || normalizado.includes('factura a');
   };
 
   const obtenerCostoBaseProductoParaPedidoCompra = (producto = {}, proveedor = '') => {
@@ -23449,17 +23224,9 @@ function obtenerCategoriaProducto(producto) {
     const notasPedido = textoSeguroTrim(notas, '');
     const transportePedido = incluirTransporte ? textoSeguroTrim(transporte, '') : '';
     const fechaPedidoTexto = textoSeguroTrim(fechaPedido, '');
-    const contactoNegocio = obtenerContactoNegocio(configuracion);
-    const logoFuente = textoSeguroTrim(
-      configuracion?.logo,
-      textoSeguroTrim(configuracion?.logoCorporativo, LOGO_EMPRESA_FALLBACK_URL)
-    );
-    const logoEmpresa = logoFuente ? (logoFuente.startsWith('data:') ? logoFuente : await srcADataUrl(logoFuente)) : '';
     const azulOscuro = [15, 23, 42];
-    const verde = [16, 185, 129];
     const verdeOscuro = [5, 95, 70];
     const borde = [219, 227, 239];
-    const gris = [100, 116, 139];
 
     docPdf.setFillColor(255, 255, 255);
     docPdf.rect(0, 0, 210, 297, 'F');
@@ -24091,18 +23858,6 @@ function obtenerCategoriaProducto(producto) {
     if (!resumen) throw new Error('Recibo no disponible');
 
     const docPdf = crearPdfA4('portrait', { titulo: 'Recibo de pago a cliente' });
-    const nombreEmpresaBase = obtenerNombreEmpresaPresupuesto();
-    const nombreEmpresaDoc = /^mi negocio$/i.test(textoSeguroTrim(nombreEmpresaBase))
-      ? NOMBRE_EMPRESA_FALLBACK
-      : textoSeguroTrim(nombreEmpresaBase, NOMBRE_EMPRESA_FALLBACK);
-    const contactoNegocioDoc = obtenerContactoNegocio(configuracion);
-    const logoDocumentoFuente = textoSeguroTrim(
-      configuracion?.logo,
-      textoSeguroTrim(configuracion?.logoCorporativo, LOGO_EMPRESA_FALLBACK_URL)
-    );
-    const logoDocumento = logoDocumentoFuente
-      ? (logoDocumentoFuente.startsWith('data:') ? logoDocumentoFuente : await srcADataUrl(logoDocumentoFuente))
-      : '';
     const metodoLabel = obtenerEtiquetaMetodoPago(resumen.metodoPago);
     const estadoPago = resumen.saldoDespues <= 0.009 ? 'Cuenta saldada' : 'Pago parcial';
     const aplicacionLabel = resumen.tipoAbono === 'ticket'
@@ -24126,7 +23881,6 @@ function obtenerCategoriaProducto(producto) {
     const verde = [16, 185, 129];
     const rojo = [220, 38, 38];
     const verdeSuave = [236, 253, 245];
-    const blancoSuave = [17, 24, 39];
 
     const dibujarBadgeCirculo = ({ x, y, radio = 5.4, fill = verdeSuave, texto = '', colorTexto = azulOscuroProfundo, fontSize = 8.5, bordeColor = null, bordeWidth = 0.25 }) => {
       if (bordeColor) {
@@ -26223,10 +25977,6 @@ function obtenerCategoriaProducto(producto) {
     );
   };
 
-  const calcularTotalPresupuesto = (items) => {
-    return calcularResumenPresupuesto(items, formPresupuesto.descuentoGeneral).total;
-  };
-
   const resumenPresupuestoActual = useMemo(
     () => calcularResumenPresupuesto(formPresupuesto.items, formPresupuesto.descuentoGeneral),
     [formPresupuesto.items, formPresupuesto.descuentoGeneral]
@@ -26390,9 +26140,6 @@ function obtenerCategoriaProducto(producto) {
       { etiqueta: 'Correo', valor: contacto.correo }
     ].filter((item) => item.valor);
   }, [configuracion]);
-  const lineasContactoNegocioPdf = contactoNegocioCompletoPdf.length > 0
-    ? contactoNegocioCompletoPdf
-    : [obtenerNombreEmpresaPresupuesto(presupuestoAImprimir)].filter(Boolean);
   const pieEmpresaPresupuestoPdf = contactoNegocioCompletoPdf.length > 0
     ? contactoNegocioCompletoPdf.join(' • ')
     : obtenerNombreEmpresaPresupuesto(presupuestoAImprimir);
@@ -26729,7 +26476,6 @@ function obtenerCategoriaProducto(producto) {
 
   const esAdminActual = usuarioTieneRolAdministrador(usuarioActual);
   const cantidadAdministradores = usuarios.filter((usuario) => (usuario?.rol || '').toLowerCase() === 'admin').length;
-  const puedeVerSistema = cajaSegura.estado === 'abierta' || esAdminActual;
   const puedeVerClientes = usuarioPuedeVerModulo('clientes', usuarioActual);
   const puedeVerVentas = usuarioPuedeVerModulo('ventas', usuarioActual);
   const puedeVerVendedores = usuarioPuedeVerModulo('vendedores', usuarioActual);
@@ -26754,30 +26500,6 @@ function obtenerCategoriaProducto(producto) {
   const puedeVerAjustes = usuarioPuedeVerModulo('ajustes', usuarioActual);
   const puedeVerAyuda = usuarioPuedeVerModulo('ayuda', usuarioActual);
   const puedeCargarCuentaHistorica = usuarioPuedeCargarCuentaHistorica();
-  const mostrarNavegacion = [
-    puedeVerCaja,
-    puedeVerVentas,
-    puedeVerVendedores,
-    puedeVerClientes,
-    puedeVerCuentasCorrientes,
-    puedeUsarCombos,
-    puedeUsarFlyer,
-    puedeVerInventario,
-    puedeVerStockBajo,
-    puedeVerModMasiva,
-    puedeVerVariacionPrecios,
-    puedeVerSugerencias,
-    puedeVerCompras,
-    puedeVerProveedores,
-    puedeVerComparativa,
-    puedeVerPresupuestos,
-    puedeVerReportes,
-    puedeVerRastreo,
-    puedeVerBuscadorAvanzado,
-    puedeVerNotificaciones,
-    puedeVerAjustes,
-    puedeVerAyuda
-  ].some(Boolean);
 
   const opcionesNavegacion = [
     { visible: puedeVerNotificaciones, vista: 'notificaciones', etiqueta: 'Notificaciones', Icono: Bell, color: 'rose' },
@@ -29136,21 +28858,13 @@ function obtenerCategoriaProducto(producto) {
                         const saldoClass = semaforo.saldoClass;
                         const estadoTexto = semaforo.estadoTexto;
                         const estadoClass = semaforo.badgeClass;
-                        const puedeAbonar = Boolean(estado.tieneDeuda || Number(estado.saldoPendiente ?? 0) > 0.009);
                         const saldoPendiente = Math.max(0, Number(estado.saldoPendiente ?? cliente.saldo ?? 0));
                         const mostrarIndicadoresDeudaCliente = Boolean(estado.tieneDeuda && saldoPendiente > 0.009);
                         const recordatorios = Number(cliente.recordatoriosWhatsappEnviados || 0);
                         const recargosAplicados = mostrarIndicadoresDeudaCliente ? Math.max(0, Number(estado.recargosAplicados || 0)) : 0;
                         const diasDeudaCliente = Number.isFinite(Number(estado?.diasDeuda)) ? Number(estado.diasDeuda) : null;
-                        const diasDesdeUltimoRecargoCliente = Number.isFinite(Number(estado?.diasDesdeUltimoRecargo))
-                          ? Number(estado.diasDesdeUltimoRecargo)
-                          : null;
-                        const porcentajeSugeridoRecargoCliente = Math.max(0, Number(estado?.porcentajeSugeridoRecargo || 0));
-                        const tramosSugeridosRecargoCliente = Math.max(0, Number(estado?.tramosSugeridosRecargo || 0));
-                        const porcentajeBaseRecargoCliente = Math.max(0, Number(estado?.ultimoPorcentajeRecargo || obtenerPorcentajeRecargoConfigurado(configuracion)));
                         const ultimaFechaRecargoCliente = estado?.ultimaFechaRecargo ? new Date(estado.ultimaFechaRecargo) : null;
                         const ultimaFechaRecargoValida = ultimaFechaRecargoCliente && !Number.isNaN(ultimaFechaRecargoCliente.getTime());
-                        const whatsappClienteUrl = construirUrlWhatsApp(cliente?.whatsapp || '');
                         const esAdmin = (usuarioActual?.rol || '').toLowerCase() === 'admin';
                         return (
                           <tr key={cliente.id} onClick={() => abrirDetalleCliente(cliente)} className="cursor-pointer">
@@ -29489,36 +29203,54 @@ function obtenerCategoriaProducto(producto) {
 
         {/* --- VISTA: MODIFICACIÓN MASIVA --- */}
         {puedeVerModMasiva && vista === 'mod_masiva' && (
-          <div className="sf-mm space-y-6 animate-in fade-in duration-300 print:hidden">
-            <div className="sf-mm-head">
-              <div className="sf-mm-title">
-                <span className="sf-mm-ico"><Edit2 size={18} /></span>
-                <div>
-                  <h2>Modificación masiva</h2>
-                  <p>Cambiá muchos productos a la vez: elegí la herramienta, filtrá, seleccioná y aplicá.</p>
+          <>
+            <div className="sf-mm sf-mmh print:hidden">
+              <div className="sf-mmh-head">
+                <div className="sf-mm-title">
+                  <span className="sf-mm-ico"><Edit2 size={18} /></span>
+                  <div>
+                    <h2>Modificación masiva</h2>
+                    <p>{`Cambiá muchos productos a la vez. ${(productos || []).length} productos en el inventario.`}</p>
+                  </div>
                 </div>
+                <button type="button" className="sf-bud-btn sf-mm-hist" onClick={abrirRespaldosPrecios}><History size={14} /> Historial y deshacer</button>
               </div>
-              <button type="button" className="sf-bud-btn sf-mm-hist" onClick={abrirRespaldosPrecios}><History size={14} /> Historial y deshacer</button>
-              <div className="sf-mm-tabs" role="tablist">
-                {[
-                  { key: 'multiplicar', label: 'Multiplicar artículos' },
-                  { key: 'asignar_proveedor', label: 'Asignar proveedor' },
-                  { key: 'reemplazar_datos', label: 'Reemplazar datos' },
-                  { key: 'actualizar_precios', label: 'Actualizar precios' }
-                ].map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    role="tab"
-                    aria-selected={modMasivaSubvista === item.key}
-                    onClick={() => setModMasivaSubvista(item.key)}
-                    className={`sf-mm-tab ${modMasivaSubvista === item.key ? 'is-on' : ''}`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+              <div className="sf-mmh-grid">
+                {MOD_MASIVA_HERRAMIENTAS.map((herr) => {
+                  const Icono = herr.icono;
+                  return (
+                    <button key={`mm-tool-${herr.key}`} type="button" className="sf-mmh-card" onClick={() => { setModMasivaSubvista(herr.key); setModMasivaAbierta(true); }}>
+                      <span className="sf-mmh-card-ico"><Icono size={20} /></span>
+                      <strong>{herr.label}</strong>
+                      <p>{herr.sirve}</p>
+                      <ul>{herr.ejemplos.map((ej) => <li key={`mm-ej-${herr.key}-${ej}`}>{ej}</li>)}</ul>
+                      <span className="sf-mmh-card-go">Abrir herramienta <ArrowRight size={14} /></span>
+                    </button>
+                  );
+                })}
               </div>
+              <p className="sf-mmh-note">Antes de aplicar cualquier cambio vas a ver una vista previa con el antes y el después, y se guarda un respaldo para poder deshacer.</p>
             </div>
+            {modMasivaAbierta && (
+            <div className="sf-mmw-overlay print:hidden" onMouseDown={(e) => { if (e.target === e.currentTarget) setModMasivaAbierta(false); }}>
+              <div className="sf-mmw" role="dialog" aria-modal="true">
+                <div className="sf-mmw-head">
+                  <div className="sf-mm-title">
+                    <span className="sf-mm-ico"><Edit2 size={18} /></span>
+                    <div>
+                      <h2>{(MOD_MASIVA_HERRAMIENTAS.find((h) => h.key === modMasivaSubvista) || MOD_MASIVA_HERRAMIENTAS[0]).label}</h2>
+                      <p>{(MOD_MASIVA_HERRAMIENTAS.find((h) => h.key === modMasivaSubvista) || MOD_MASIVA_HERRAMIENTAS[0]).sirve}</p>
+                    </div>
+                  </div>
+                  <ol className="sf-mmw-steps"><li><b>1</b> Filtrar y elegir</li><li><b>2</b> Configurar</li><li><b>3</b> Revisar y aplicar</li></ol>
+                  <button type="button" className="sf-mmw-close" onClick={() => setModMasivaAbierta(false)} title="Cerrar ventana" aria-label="Cerrar ventana"><X size={18} /></button>
+                </div>
+                <div className="sf-mmw-tabs" role="tablist">
+                  {MOD_MASIVA_HERRAMIENTAS.map((item) => (
+                    <button key={item.key} type="button" role="tab" aria-selected={modMasivaSubvista === item.key} onClick={() => setModMasivaSubvista(item.key)} className={`sf-mm-tab ${modMasivaSubvista === item.key ? 'is-on' : ''}`}>{item.label}</button>
+                  ))}
+                </div>
+                <div className="sf-mm sf-mmw-body">
 
             {(() => {
               const listaProductosMasivaActiva = modMasivaSubvista === 'actualizar_precios'
@@ -29779,6 +29511,15 @@ function obtenerCategoriaProducto(producto) {
                   titulo = modo === 'precio_individual' ? 'Confirmar precios individuales' : (modo === 'costo' ? `Confirmar ajuste de costos (${etiquetaPrev})` : `Confirmar ajuste de precios (${etiquetaPrev})`);
                   let bajoCosto = 0;
                   let variacionAlta = 0;
+                  const omitidosPrev = [];
+                  const cfgPreview = {
+                    modoAjuste: modo, modoMonto: modoMontoPrev, montoAjuste: montoPrev, factor, redondeo: modMasivaRedondeo,
+                    proveedorFiltro: textoSeguroTrim(modMasivaFiltroProveedorPrecio, ''), ivaNuevo: textoSeguroTrim(modMasivaIvaGeneral, ''), recalcularPrecio: Boolean(modMasivaRecalcularPrecioCosto)
+                  };
+                  if (modo !== 'precio_individual' && !modoMontoPrev && pct <= -100) {
+                    await notificarSistema('El porcentaje de baja debe ser mayor a -100%, porque dejaría los precios en $0.', { tipo: 'warning', titulo: 'Ajuste inválido' });
+                    return;
+                  }
                   if (modo !== 'precio_individual' && (modoMontoPrev ? montoPrev === 0 : !pct)) {
                     await notificarSistema(modoMontoPrev ? 'Ingresá un monto válido distinto de 0.' : 'Ingresá un porcentaje válido distinto de 0.', { tipo: 'warning', titulo: 'Ajuste inválido' });
                     return;
@@ -29792,19 +29533,21 @@ function obtenerCategoriaProducto(producto) {
                         cambios.push({ campo: 'Precio', antes: formatearDinero(parseNumeroBasico(producto?.precio) || 0), despues: formatearDinero(nuevo) });
                         if (nuevo > 0 && nuevo < (parseNumeroBasico(producto?.costo) || 0)) bajoCosto += 1;
                       }
-                    } else if (modo === 'venta') {
-                      const antes = Math.max(0, parseNumeroBasico(producto?.precio) || 0);
-                      const nuevo = ajustar(antes, true);
-                      cambios.push({ campo: 'Precio', antes: formatearDinero(antes), despues: formatearDinero(nuevo) });
-                      if (nuevo > 0 && nuevo < (parseNumeroBasico(producto?.costo) || 0)) bajoCosto += 1;
-                      if (antes > 0 && Math.abs((nuevo - antes) / antes) > 0.25) variacionAlta += 1;
                     } else {
-                      const antes = Math.max(0, parseNumeroBasico(producto?.costoOriginal ?? producto?.costo ?? 0) || 0);
-                      cambios.push({ campo: 'Costo', antes: formatearDinero(antes), despues: formatearDinero(ajustar(antes)) });
+                      const r = calcularAjustePrecioMasivoProducto(producto, cfgPreview);
+                      if (r.omitir) { omitidosPrev.push(`${textoSeguroTrim(producto?.codigo, '-')}: ${r.omitir}`); return; }
+                      r.cambios.forEach((cambio) => cambios.push(cambio));
+                      if (modo === 'venta' || (r.precioDespues !== r.precioAntes)) {
+                        if (r.precioDespues > 0 && r.precioDespues < (r.costoDespues || 0)) bajoCosto += 1;
+                        if (r.precioAntes > 0 && Math.abs((r.precioDespues - r.precioAntes) / r.precioAntes) > 0.25) variacionAlta += 1;
+                      } else if (modo === 'costo' && r.precioAntes > 0 && r.precioAntes < (r.costoDespues || 0)) {
+                        bajoCosto += 1;
+                      }
                     }
                     if (textoSeguroTrim(modMasivaIvaGeneral, '')) cambios.push({ campo: 'IVA', antes: fmt(producto?.iva), despues: textoSeguroTrim(modMasivaIvaGeneral, '') });
                     if (cambios.length) filas.push({ id: producto.id, codigo: textoSeguroTrim(producto?.codigo, '-'), descripcion: textoSeguroTrim(producto?.descripcion, ''), cambios });
                   });
+                  if (omitidosPrev.length) avisos.push(`${omitidosPrev.length} producto(s) se omiten: ${omitidosPrev.slice(0, 3).join('; ')}${omitidosPrev.length > 3 ? '…' : ''}.`);
                   if (variacionAlta > 0) avisos.push(`${variacionAlta} producto(s) cambian más de un 25%. Revisalos antes de confirmar.`);
                   if (bajoCosto > 0) avisos.push(`${bajoCosto} producto(s) quedarían con precio por debajo del costo.`);
                   nota = 'Se guarda un respaldo automático antes de aplicar. Podés volver atrás desde Historial.';
@@ -29965,24 +29708,7 @@ function obtenerCategoriaProducto(producto) {
                       )}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSeleccionProductosModMasiva([])}
-                        disabled={!totalSeleccionados}
-                        className="sf-mm-dup px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-[11px] font-black uppercase tracking-wider disabled:opacity-40"
-                      >
-                        Limpiar selección
-                      </button>
-                      <button
-                        type="button"
-                        onClick={aplicarProveedorMasivo}
-                        className="sf-mm-dup px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider"
-                      >
-                        Aplicar
-                      </button>
-                    </div>
-                      </>
+                    </>
                     )}
                   </div>
 
@@ -30185,22 +29911,7 @@ function obtenerCategoriaProducto(producto) {
                         </label>
                       </div>
                       <div className="flex items-center gap-2 xl:justify-end">
-                        <button
-                          type="button"
-                          onClick={() => setSeleccionProductosModMasiva([])}
-                          disabled={!totalSeleccionados}
-                          className="sf-mm-dup px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-[11px] font-black uppercase tracking-wider disabled:opacity-40"
-                        >
-                          Limpiar selección
-                        </button>
-                        <button
-                          type="button"
-                          onClick={aplicarProveedorMasivo}
-                          className="sf-mm-dup px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider"
-                        >
-                          Aplicar
-                        </button>
-                      </div>
+                        </div>
                     </div>
                       </>
                     )}
@@ -30273,6 +29984,13 @@ function obtenerCategoriaProducto(producto) {
                       </div>
                     </div>
 
+                    {modMasivaTipoAjustePrecio === 'costo' && (
+                      <label className="sf-mm-check">
+                        <input type="checkbox" checked={modMasivaRecalcularPrecioCosto} onChange={(e) => setModMasivaRecalcularPrecioCosto(e.target.checked)} />
+                        <span><b>Recalcular también el precio de venta</b> con el margen (ganancia) y el IVA de cada producto. Si no lo tildás, cambia solo el costo y el precio queda igual.</span>
+                      </label>
+                    )}
+
                     {modMasivaTipoAjustePrecio === 'venta' && (
                       <div className="sf-mm-round">
                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Redondeo del precio nuevo (hacia arriba)</label>
@@ -30331,34 +30049,7 @@ function obtenerCategoriaProducto(producto) {
                       </div>
                     )}
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await aplicarActualizacionPreciosMasivo();
-                        }}
-                        className="sf-mm-dup px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider"
-                      >
-                        Guardar cambios
-                      </button>
-                      <button
-                        type="button"
-                        onClick={deshacerActualizacionPreciosMasivo}
-                        disabled={!ultimoCambioPreciosMasivo}
-                        className="px-4 py-2 rounded-xl bg-white hover:bg-gray-50 text-slate-700 border border-gray-200 text-xs font-black uppercase tracking-wider disabled:opacity-40"
-                      >
-                        Deshacer cambios
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSeleccionProductosModMasiva([])}
-                        disabled={!totalSeleccionados}
-                        className="sf-mm-dup px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-[11px] font-black uppercase tracking-wider disabled:opacity-40"
-                      >
-                        Limpiar selección
-                      </button>
-                    </div>
-                      </>
+                    </>
                     )}
                   </div>
 
@@ -30656,24 +30347,7 @@ function obtenerCategoriaProducto(producto) {
                       />
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSeleccionProductosModMasiva([])}
-                        disabled={!totalSeleccionados}
-                        className="sf-mm-dup px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-[11px] font-black uppercase tracking-wider disabled:opacity-40"
-                      >
-                        Limpiar selección
-                      </button>
-                      <button
-                        type="button"
-                        onClick={aplicarProveedorMasivo}
-                        className="sf-mm-dup px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider"
-                      >
-                        Aplicar
-                      </button>
-                    </div>
-                      </>
+                    </>
                     )}
                   </div>
 
@@ -30681,7 +30355,11 @@ function obtenerCategoriaProducto(producto) {
                 </>
               )}{barraSeleccionMasiva}</>);
             })()}
-          </div>
+                </div>
+              </div>
+            </div>
+            )}
+          </>
         )}
 
         {/* --- VISTA: COMPRAS (PEDIDOS) --- */}
@@ -31140,23 +30818,7 @@ function obtenerCategoriaProducto(producto) {
             ) : seccionProveedoresActiva === 'cuenta' ? (
               <>
 	                {(() => {
-	                  const proveedoresConSaldo = (proveedoresConCuentaCorriente || []).map((prov) => ({
-	                    proveedor: prov,
-	                    estado: estadosCuentaProveedores[prov.nombre] || calcularEstadoCuentaProveedor(prov.nombre)
-	                  }));
 	                  const terminoBusquedaCuenta = textoSeguroTrim(busquedaCuentaProveedor, '');
-                  const proveedoresConSaldoFiltrados = terminoBusquedaCuenta
-                    ? proveedoresConSaldo.filter(({ proveedor, estado }) => coincideBusquedaCompuesta([
-                        proveedor?.nombre,
-                        proveedor?.cuit,
-                        proveedor?.direccion,
-                        proveedor?.telefono,
-                        proveedor?.email,
-                        formatearDinero(estado?.saldoPendiente || 0),
-                        estado?.cargosProcesados?.length,
-	                        estado?.pagos?.length
-	                      ], terminoBusquedaCuenta))
-	                    : proveedoresConSaldo;
                   const proveedorPorBusqueda = terminoBusquedaCuenta
                     ? proveedoresConCuentaCorriente.find((prov) => normalizarTextoBusqueda(prov?.nombre || '') === normalizarTextoBusqueda(terminoBusquedaCuenta))
                     : null;
@@ -37499,7 +37161,6 @@ function obtenerCategoriaProducto(producto) {
                           <div className="grid grid-cols-1 gap-3">
                             {[0].map((slot) => {
                               const imagenSlot = imagenesProductoForm[slot] || '';
-                              const esPrincipal = imagenSlot && (imagenSlot === formProducto.imagen || (!formProducto.imagen && slot === 0));
                               return (
                                 <div key={`slot-imagen-producto-${slot}`} className={`relative min-h-[126px] rounded-xl border bg-white p-2 flex flex-col items-center justify-center ${imagenSlot ? 'border-slate-200' : 'border-dashed border-slate-300'}`}>
                                   {imagenSlot ? (
@@ -39137,7 +38798,7 @@ function obtenerCategoriaProducto(producto) {
               <div className="sf-ca-hist-head">
                 <div className="sf-ca-hist-title">
                   <h4>Historial de la cuenta</h4>
-                  <span className="sf-ca-hist-count">{movimientosClienteSeleccionadoFiltrados.length} de {movimientosClienteSeleccionadoVisibles.length}</span>
+                  <span className="sf-ca-hist-count">{movimientosClienteSeleccionadoFiltrados.length} de {filtroMovCuenta === 'ajustes' ? resumenMovCuenta.ajustes : movimientosClienteSeleccionadoVisibles.length - resumenMovCuenta.ajustesOcultos}</span>
                 </div>
                 <div className="sf-ca-sumbar">
                   <span>Remitos <strong>{formatearDinero(resumenMovCuenta.cargado)}</strong></span>
@@ -39152,7 +38813,7 @@ function obtenerCategoriaProducto(producto) {
                   {busquedaMovCuenta.trim() && <button type="button" className="sf-trk-clear" onClick={() => setBusquedaMovCuenta('')} aria-label="Limpiar búsqueda"><X size={14} /></button>}
                 </div>
                 <div className="sf-rep-tabs">
-                  {[['todos', 'Todos'], ['pendientes', 'Impagos'], ['remitos', 'Remitos'], ['cobros', 'Cobros'], ...((usuarioActual?.rol || '').toLowerCase() === 'admin' ? [['recargos', 'Recargos']] : [])].map(([valor, etiqueta]) => (
+                  {[['todos', 'Todos'], ['pendientes', 'Impagos'], ['remitos', 'Remitos'], ['cobros', 'Cobros'], ...(resumenMovCuenta.ajustes > 0 ? [['ajustes', 'Ajustes de precio']] : []), ...((usuarioActual?.rol || '').toLowerCase() === 'admin' ? [['recargos', 'Recargos']] : [])].map(([valor, etiqueta]) => (
                     <button key={valor} type="button" onClick={() => setFiltroMovCuenta(valor)} className={filtroMovCuenta === valor ? 'bg-white' : ''}>{etiqueta}{resumenMovCuenta[valor] ? ` (${resumenMovCuenta[valor]})` : ''}</button>
                   ))}
                 </div>
@@ -39385,9 +39046,26 @@ function obtenerCategoriaProducto(producto) {
                                     {remitoSaldado ? <span className="ml-2 text-emerald-700 font-black">Saldado</span> : <span className="ml-2 text-amber-700 font-black">Resta {formatearDinero(Math.max(0, pendienteTicket))}</span>}
                                   </p>
                                   {Number(cargoProcesado?.actualizacionesPrecioMonto || 0) > 0.009 && (
-                                    <p className="mt-1 text-[10px] font-black uppercase tracking-wider text-blue-700">
-                                      {cargoProcesado.actualizacionesPrecioAplicadas?.length || 1} actualización(es) por +{formatearDinero(cargoProcesado.actualizacionesPrecioMonto)} · Total actualizado {formatearDinero(cargoProcesado.montoOriginal)}
-                                    </p>
+                                    <details className="sf-ca-ajustes mt-1">
+                                      <summary>
+                                        <span>{cargoProcesado.actualizacionesPrecioAplicadas?.length || 1} ajuste(s) de precio por +{formatearDinero(cargoProcesado.actualizacionesPrecioMonto)} · Total actualizado {formatearDinero(cargoProcesado.montoOriginal)}</span>
+                                        <em>Ver detalle</em>
+                                      </summary>
+                                      <div className="sf-ca-ajustes-list">
+                                        {(cargoProcesado.actualizacionesPrecioAplicadas || []).map((ajuste) => (
+                                          <div key={`ajuste-${ajuste.id}`} className="sf-ca-ajuste">
+                                            <div className="sf-ca-ajuste-head">
+                                              <b>{formatearFecha(ajuste.fecha)}</b>
+                                              <strong>+{formatearDinero(Math.abs(ajuste.monto || 0))}</strong>
+                                              {esAdminHistorial && <button type="button" className="sf-ca-btn-danger" onClick={() => deshacerActualizacionPrecioCuentaCliente(ajuste)}><Undo2 size={12} /> Deshacer</button>}
+                                            </div>
+                                            {(Array.isArray(ajuste?.detallesPago?.items) ? ajuste.detallesPago.items : []).map((it, idx) => (
+                                              <p key={`ajuste-it-${ajuste.id}-${idx}`}>{textoSeguroTrim(it?.descripcion, 'Producto')} · {formatearCantidad(it?.cantidad || 0)} u. · {formatearDinero(it?.precioAnterior || 0)} → {formatearDinero(it?.precioNuevo || 0)}</p>
+                                            ))}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </details>
                                   )}
                                   {cargoProcesado?.fechaVencimiento && (
                                     <p className={`text-[10px] font-black uppercase tracking-wider mt-1 ${cargoProcesado.fechaVencimiento < obtenerFechaInputLocal() && pendienteTicket > 0.009 ? 'text-red-700' : 'text-slate-500'}`}>
@@ -39707,7 +39385,6 @@ function obtenerCategoriaProducto(producto) {
                           const keysSet = new Set(clavesSeleccionadas);
                           const pendiente = Math.max(0, Number(pendientePorCargoIdSeleccionado[mov.id] ?? mov.monto ?? 0));
                           const seleccionadoTotal = calcularTotalSeleccionadoRemitoFactura(mov, clavesSeleccionadas);
-                          const todosSeleccionados = itemsRemito.length > 0 && clavesSeleccionadas.length >= itemsRemito.length;
                           const seleccionado = (formFacturaCuentaCorriente.remitoIds || []).includes(mov.id);
                           const facturaMov = textoSeguroTrim(mov?.detalleFacturaId, '') ? facturasEmitidas.find((factura) => factura.id === mov.detalleFacturaId) : null;
                           const facturaParcial = Boolean(mov?.detalleFacturaParcial && !mov?.detalleFacturaId && Number(mov?.facturaParcialMonto || 0) > 0);
@@ -40204,7 +39881,6 @@ function obtenerCategoriaProducto(producto) {
         >
           {(() => {
             const resumen = reciboCobroSeleccionado.resumen;
-            const esAdmin = (usuarioActual?.rol || '').toLowerCase() === 'admin';
             const logoRecibo = textoSeguroTrim(logoEmpresaRender, textoSeguroTrim(logoEmpresaFallbackRender, ''));
             const facturaDeItemRecibo = (item = {}) => {
               const f = (facturasEmitidas || []).find((fa) => Array.isArray(fa?.remitoIds) && fa.remitoIds.includes(item.cargoId));
@@ -40227,19 +39903,6 @@ function obtenerCategoriaProducto(producto) {
                   aplicado: resumen.montoCobro,
                   pendienteDespues: resumen.saldoDespues
                 }];
-            const iconoMetodoAbonoRecibo = (() => {
-              const key = normalizarMetodoPago(resumen.metodoPago);
-              if (key === 'transferencia') return ArrowRight;
-              if (key === 'cheque') return ClipboardList;
-              if (['tarjeta', 'tarjeta_credito', 'tarjeta_debito'].includes(key)) return CreditCard;
-              if (key === 'cuenta_corriente') return History;
-              return Wallet;
-            })();
-            const metricasRecibo = [
-              { titulo: 'Saldo anterior', valor: formatearDinero(resumen.saldoAntes), icono: Wallet, color: 'text-slate-900', bg: 'bg-emerald-50', iconoColor: 'text-slate-700' },
-              { titulo: 'Abonado', valor: `- ${formatearDinero(resumen.montoCobro)}`, icono: iconoMetodoAbonoRecibo, color: 'text-emerald-600', bg: 'bg-emerald-50', iconoColor: 'text-emerald-600' },
-              { titulo: 'Saldo actual', valor: formatearDinero(resumen.saldoDespues), icono: CheckCircle, color: resumen.saldoDespues > 0.009 ? 'text-orange-600' : 'text-emerald-600', bg: 'bg-emerald-50', iconoColor: resumen.saldoDespues > 0.009 ? 'text-orange-600' : 'text-slate-700' }
-            ];
             const metadatosRecibo = [
               { icono: Wallet, label: 'Forma de pago', valor: metodoLabel },
               { icono: FileText, label: 'Aplicación', valor: resumen.tipoAbono === 'ticket'
@@ -42195,39 +41858,6 @@ function obtenerCategoriaProducto(producto) {
           })()}
         >
           {(() => {
-            const tipo = dialogoSistema.tipo || 'info';
-            const tipoVisual = tipo === 'danger' ? 'error' : tipo;
-            const mapa = {
-              info: {
-                icono: <FileText size={20} />,
-                caja: 'bg-blue-50 border-blue-200',
-                iconoCaja: 'bg-blue-100 text-blue-700',
-                texto: 'text-blue-900',
-                aceptar: 'bg-blue-600 hover:bg-blue-700'
-              },
-              success: {
-                icono: <CheckCircle size={20} />,
-                caja: 'bg-emerald-50 border-emerald-200',
-                iconoCaja: 'bg-emerald-100 text-emerald-700',
-                texto: 'text-emerald-900',
-                aceptar: 'bg-emerald-600 hover:bg-emerald-700'
-              },
-              warning: {
-                icono: <AlertCircle size={20} />,
-                caja: 'bg-amber-50 border-amber-200',
-                iconoCaja: 'bg-amber-100 text-amber-700',
-                texto: 'text-amber-900',
-                aceptar: 'bg-amber-600 hover:bg-amber-700'
-              },
-              error: {
-                icono: <XCircle size={20} />,
-                caja: 'bg-red-50 border-red-200',
-                iconoCaja: 'bg-red-100 text-red-700',
-                texto: 'text-red-900',
-                aceptar: 'bg-red-600 hover:bg-red-700'
-              }
-            };
-            const visual = mapa[tipoVisual] || mapa.info;
             return (
               <div className="space-y-4">
                 <div className="sf-system-dialog-content">
@@ -42311,21 +41941,6 @@ function obtenerCategoriaProducto(producto) {
               </div>
             </div>
             <p className="text-[11px] font-bold text-slate-500">No cierres esta ventana hasta que indique “Completado”.</p>
-          </div>
-        </Modal>
-      )}
-
-      {modalActivo === 'auditoria_cuentas_corrientes' && auditoriaCuentasCorrientes && (
-        <Modal titulo="Auditoría de cuentas corrientes" onClose={() => { setModalActivo(null); setAuditoriaCuentasCorrientes(null); }} customWidth="max-w-6xl">
-          <div className="space-y-4">
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900">
-              Comparación sin modificar datos: movimientos contables contra saldo guardado y saldo calculado por pantalla.
-              {auditoriaCuentasCorrientes.movimientosSinCliente > 0 && <span className="block mt-1 text-red-700">Movimientos sin cliente identificable: {auditoriaCuentasCorrientes.movimientosSinCliente}</span>}
-            </div>
-            <div className="max-h-[calc(60*var(--sf-1vh,1vh))] overflow-auto rounded-xl border border-slate-200">
-              <table className="w-full min-w-[900px] text-xs"><thead className="sticky top-0 bg-slate-100 text-left uppercase text-slate-600"><tr><th className="p-2">Cliente</th><th className="p-2 text-right">Calculado</th><th className="p-2 text-right">Guardado</th><th className="p-2 text-right">Vista</th><th className="p-2 text-right">Dif. guardado</th><th className="p-2 text-right">Mov.</th><th className="p-2">Control</th></tr></thead><tbody className="divide-y divide-slate-100">{auditoriaCuentasCorrientes.filas.map((fila) => <tr key={fila.id} className={fila.estado === 'OK' ? '' : 'bg-red-50'}><td className="p-2 font-bold text-slate-800">{fila.nombre}{fila.nombreDuplicado && <span className="block text-[10px] text-red-700">Nombre duplicado</span>}{fila.movimientosSinId > 0 && <span className="block text-[10px] text-amber-700">{fila.movimientosSinId} movimiento(s) sin ID</span>}</td><td className="p-2 text-right font-black">{formatearDinero(fila.saldoCalculado)}</td><td className="p-2 text-right">{formatearDinero(fila.saldoGuardado)}</td><td className="p-2 text-right">{formatearDinero(fila.saldoVista)}</td><td className={`p-2 text-right font-black ${Math.abs(fila.diferenciaGuardado) > 0.009 ? 'text-red-700' : 'text-emerald-700'}`}>{formatearDinero(fila.diferenciaGuardado)}</td><td className="p-2 text-right">{fila.movimientos}</td><td className={`p-2 font-black ${fila.estado === 'OK' ? 'text-emerald-700' : 'text-red-700'}`}>{fila.estado}</td></tr>)}</tbody></table>
-            </div>
-            <div className="flex justify-end"><button type="button" onClick={() => { setModalActivo(null); setAuditoriaCuentasCorrientes(null); }} className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-black text-white">Cerrar</button></div>
           </div>
         </Modal>
       )}
